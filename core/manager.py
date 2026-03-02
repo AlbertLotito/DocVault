@@ -13,6 +13,26 @@ def get_db_path(db_path=None):
     return cfg['database']['sqlite_path']
 
 
+def get_settings_db_path():
+    """Returns the path to settings.db, alongside the main database."""
+    main_db = get_db_path()
+    return os.path.join(os.path.dirname(main_db), 'settings.db')
+
+
+def init_settings_db():
+    """Create settings.db with just the settings table and paused default."""
+    db_path = get_settings_db_path()
+    with _connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            );
+            INSERT OR IGNORE INTO settings (key, value) VALUES ('paused', '0');
+        """)
+        conn.commit()
+
+
 @contextmanager
 def _connect(db_path):
     conn = sqlite3.connect(db_path, timeout=10)
@@ -33,10 +53,14 @@ def init_db(db_path=None):
                 file_path      TEXT NOT NULL,
                 file_type      TEXT,
                 status         TEXT DEFAULT 'PENDING',
+                priority       INTEGER DEFAULT 10,
                 worker_id      TEXT,
                 extracted_text TEXT,
                 error_log      TEXT,
                 metadata_json  TEXT,
+                file_size      INTEGER,
+                file_created   TEXT,
+                file_modified  TEXT,
                 last_update    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -51,27 +75,46 @@ def init_db(db_path=None):
                 extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
-            CREATE TABLE IF NOT EXISTS settings (
-                key   TEXT PRIMARY KEY,
-                value TEXT
-            );
-
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_index USING fts5(
                 file_hash,
                 file_path,
                 content
             );
-
-            INSERT OR IGNORE INTO settings (key, value) VALUES ('paused', '0');
         """)
+
+        # Schema migrations
+        cursor = conn.execute("PRAGMA table_info(tasks)")
+        columns = [row['name'] for row in cursor.fetchall()]
+        if 'priority' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN priority INTEGER DEFAULT 10")
+        if 'file_size' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN file_size INTEGER")
+        if 'file_created' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN file_created TEXT")
+        if 'file_modified' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN file_modified TEXT")
+
         conn.commit()
 
 
-def insert_task(db_path, file_hash, file_path, file_type):
+def insert_task(db_path, file_hash, file_path, file_type, priority=10,
+                file_size=None, file_created=None, file_modified=None):
     with _connect(db_path) as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO tasks (file_hash, file_path, file_type) VALUES (?, ?, ?)",
-            (file_hash, file_path, file_type)
+            """INSERT OR IGNORE INTO tasks
+               (file_hash, file_path, file_type, priority, file_size, file_created, file_modified)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (file_hash, file_path, file_type, priority, file_size, file_created, file_modified)
+        )
+        conn.commit()
+
+
+def update_task_path(db_path, file_hash, new_path):
+    """Update the file path for a task (e.g. after a file has been moved/renamed)."""
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE tasks SET file_path = ?, last_update = CURRENT_TIMESTAMP WHERE file_hash = ?",
+            (new_path, file_hash)
         )
         conn.commit()
 
@@ -84,19 +127,38 @@ def get_task(db_path, file_hash):
         return dict(row) if row else None
 
 
-def list_tasks(db_path, status=None, file_type=None, limit=500, offset=0):
+def list_tasks(db_path, status=None, file_type=None, limit=50, offset=0, sort_by='last_update', sort_order='DESC'):
     with _connect(db_path) as conn:
+        # Prevent SQL injection by validating sort parameters
+        allowed_sort_by = ['file_path', 'file_type', 'status', 'last_update', 'priority']
+        if sort_by not in allowed_sort_by:
+            sort_by = 'last_update'
+
+        if sort_order.upper() not in ['ASC', 'DESC']:
+            sort_order = 'DESC'
+
         where, params = [], []
         if status:
             where.append("status = ?"); params.append(status)
-        if file_type:
-            where.append("file_type = ?"); params.append(file_type)
+        if file_type and file_type.strip():
+            where.append("file_type LIKE ?"); params.append(f"%{file_type.strip()}%")
+        
         clause = f"WHERE {' AND '.join(where)}" if where else ""
-        rows = conn.execute(
-            f"SELECT * FROM tasks {clause} ORDER BY last_update DESC LIMIT ? OFFSET ?",
-            params + [limit, offset]
-        ).fetchall()
-        return [dict(r) for r in rows]
+
+        # Get total count for pagination
+        count_query = f"SELECT COUNT(*) FROM tasks {clause}"
+        total_matches = conn.execute(count_query, params).fetchone()[0]
+
+        # Get paginated results
+        query = f"SELECT * FROM tasks {clause} ORDER BY {sort_by} {sort_order} LIMIT ? OFFSET ?"
+        paginated_params = params + [limit, offset]
+        
+        rows = conn.execute(query, paginated_params).fetchall()
+        
+        return {
+            "tasks": [dict(r) for r in rows],
+            "total_matches": total_matches,
+        }
 
 
 def update_task_status(db_path, file_hash, status, worker_id=None):
@@ -145,8 +207,10 @@ def claim_pending_task(db_path, worker_id):
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            """SELECT file_hash, file_path, file_type FROM tasks
-               WHERE status = 'PENDING' ORDER BY last_update LIMIT 1"""
+            """SELECT file_hash, file_path, file_type, priority FROM tasks
+               WHERE status = 'PENDING'
+               ORDER BY priority DESC, last_update ASC
+               LIMIT 1"""
         ).fetchone()
         if row is None:
             conn.commit()
@@ -231,32 +295,137 @@ def insert_extracted_image(db_path, source_hash, img_meta):
             conn.close()
 
 
-def fts_search(db_path, query, limit=20):
+def fts_search(db_path, query, limit=20,
+               file_type=None, date_from=None, date_to=None):
     with _connect(db_path) as conn:
+        where = ["fts_index.content MATCH ?"]
+        params = [query]
+        if file_type:
+            where.append("tasks.file_type LIKE ?")
+            params.append(f"%{file_type.strip()}%")
+        if date_from:
+            where.append("tasks.file_modified >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("tasks.file_modified <= ?")
+            params.append(date_to + "T23:59:59")
+        clause = " AND ".join(where)
         rows = conn.execute(
-            """SELECT file_hash, file_path,
+            f"""SELECT fts_index.file_hash, fts_index.file_path,
                snippet(fts_index, 2, '<b>', '</b>', '...', 32) AS snippet,
-               rank
-               FROM fts_index WHERE content MATCH ?
-               ORDER BY rank LIMIT ?""",
-            (query, limit)
+               fts_index.rank
+               FROM fts_index
+               JOIN tasks ON fts_index.file_hash = tasks.file_hash
+               WHERE {clause}
+               ORDER BY fts_index.rank LIMIT ?""",
+            params + [limit]
         ).fetchall()
         return [dict(r) for r in rows]
 
 
-def get_pause_state(db_path):
+def filename_search(db_path, query, limit=50, file_type=None, date_from=None, date_to=None):
+    """Search for files by name/path using multi-token substring matching."""
+    tokens = [t.strip() for t in query.split() if t.strip()]
+    if not tokens:
+        return []
     with _connect(db_path) as conn:
+        where = []
+        params = []
+        for token in tokens:
+            where.append("LOWER(file_path) LIKE LOWER(?)")
+            params.append(f'%{token}%')
+        if file_type:
+            where.append("LOWER(file_type) = LOWER(?)")
+            params.append(file_type.strip().lower())
+        if date_from:
+            where.append("DATE(COALESCE(file_modified, file_created)) >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("DATE(COALESCE(file_modified, file_created)) <= ?")
+            params.append(date_to)
+        params.append(limit)
+        sql = f"""
+            SELECT file_hash, file_path, file_type, file_size, file_created, file_modified, status
+            FROM tasks
+            WHERE {' AND '.join(where)}
+            ORDER BY file_path COLLATE NOCASE
+            LIMIT ?
+        """
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None):
+    """Return list of file_hashes matching constraints, or None if no constraints active."""
+    if not any([file_type, date_from, date_to]):
+        return None  # no filter — caller should not restrict Qdrant
+    where, params = [], []
+    if file_type:
+        where.append("file_type LIKE ?")
+        params.append(f"%{file_type.strip()}%")
+    if date_from:
+        where.append("file_modified >= ?")
+        params.append(date_from)
+    if date_to:
+        where.append("file_modified <= ?")
+        params.append(date_to + "T23:59:59")
+    clause = "WHERE " + " AND ".join(where)
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT file_hash FROM tasks {clause}", params
+        ).fetchall()
+    return [r['file_hash'] for r in rows]
+
+
+def get_pause_state():
+    with _connect(get_settings_db_path()) as conn:
         row = conn.execute(
             "SELECT value FROM settings WHERE key = 'paused'"
         ).fetchone()
         return row is not None and row['value'] == '1'
 
 
-def set_pause_state(db_path, paused: bool):
-    with _connect(db_path) as conn:
+def set_pause_state(paused: bool):
+    with _connect(get_settings_db_path()) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('paused', ?)",
             ('1' if paused else '0',)
+        )
+        conn.commit()
+
+
+def reprocess_task(db_path, file_hash):
+    with _connect(db_path) as conn:
+        conn.execute(
+            """UPDATE tasks SET status='PENDING', worker_id=NULL,
+               extracted_text=NULL, error_log=NULL,
+               last_update=CURRENT_TIMESTAMP WHERE file_hash=?""",
+            (file_hash,)
+        )
+        conn.commit()
+
+
+def reset_stuck_tasks(db_path) -> int:
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            "UPDATE tasks SET status='PENDING', worker_id=NULL "
+            "WHERE status IN ('EXTRACTING', 'EMBEDDING')"
+        )
+        conn.commit()
+        return cur.rowcount
+
+
+def get_setting(key):
+    with _connect(get_settings_db_path()) as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row['value'] if row else None
+
+
+def set_setting(key, value):
+    with _connect(get_settings_db_path()) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, str(value))
         )
         conn.commit()
 

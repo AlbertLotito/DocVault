@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DocVault — Search</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="/static/styles.css" rel="stylesheet">
+  <script src="/static/app.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow">
+    <span class="font-bold text-lg">DocVault</span>
+    <a href="/" class="hover:underline">Dashboard</a>
+    <a href="/catalog" class="hover:underline">Catalog</a>
+    <a href="/search" class="hover:underline font-semibold">Search</a>
+    <a href="/utils" class="hover:underline">Utilities</a>
+    <a href="/settings" class="hover:underline">Settings</a>
+  </nav>
+
+  <main class="max-w-4xl mx-auto p-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">Search & Ask</h1>
+
+    <!-- Tab bar -->
+    <div class="flex gap-1 border-b border-gray-200 mb-0">
+      <button id="tab-search" onclick="showTab('search')"
+        class="tab-btn px-5 py-2 text-sm font-medium rounded-t border-b-2 border-indigo-600 text-indigo-700 bg-white -mb-px">
+        Search
+      </button>
+      <button id="tab-filename" onclick="showTab('filename')"
+        class="tab-btn px-5 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+        Filename
+      </button>
+      <button id="tab-ask" onclick="showTab('ask')"
+        class="tab-btn px-5 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+        Ask
+      </button>
+    </div>
+
+    <!-- ── Search pane ─────────────────────────────────────────────────────── -->
+    <div id="pane-search" class="tab-pane bg-white rounded-b rounded-tr shadow p-4">
+      <div class="flex gap-3 mb-2">
+        <input id="search-input" type="text" placeholder="Search document content…"
+          class="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          onkeydown="if(event.key==='Enter') doSearch()">
+        <select id="search-mode" class="border rounded px-3 py-2 text-sm">
+          <option value="hybrid">Hybrid</option>
+          <option value="fts">Full-text</option>
+          <option value="semantic">Semantic</option>
+        </select>
+        <button onclick="doSearch()"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded text-sm font-medium">
+          Search
+        </button>
+      </div>
+      <div class="flex gap-2 items-center flex-wrap">
+        <span class="text-xs text-gray-400 font-medium">Filters:</span>
+        <input id="search-filter-type" type="text" placeholder="File type (pdf, docx…)"
+          class="border rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+        <input id="search-filter-from" type="date"
+          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
+        <span class="text-xs text-gray-400">→</span>
+        <input id="search-filter-to" type="date"
+          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
+        <button onclick="clearFilters('search')" class="text-xs text-gray-400 hover:text-red-400">✕ Clear</button>
+      </div>
+      <div id="search-results" class="divide-y divide-gray-100 mt-3"></div>
+    </div>
+
+    <!-- ── Filename pane ───────────────────────────────────────────────────── -->
+    <div id="pane-filename" class="tab-pane hidden bg-white rounded-b rounded-tr shadow p-4">
+      <div class="flex gap-3 mb-2">
+        <input id="filename-input" type="text" placeholder="File or folder name… (space-separated tokens all match)"
+          class="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          onkeydown="if(event.key==='Enter') doFilenameSearch()">
+        <button onclick="doFilenameSearch()"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded text-sm font-medium">
+          Search
+        </button>
+      </div>
+      <div class="flex gap-2 items-center flex-wrap">
+        <span class="text-xs text-gray-400 font-medium">Filters:</span>
+        <input id="filename-filter-type" type="text" placeholder="File type (pdf, docx…)"
+          class="border rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+        <input id="filename-filter-from" type="date"
+          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
+        <span class="text-xs text-gray-400">→</span>
+        <input id="filename-filter-to" type="date"
+          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
+        <button onclick="clearFilters('filename')" class="text-xs text-gray-400 hover:text-red-400">✕ Clear</button>
+      </div>
+      <div id="filename-results" class="divide-y divide-gray-100 mt-3"></div>
+    </div>
+
+    <!-- ── Ask pane ────────────────────────────────────────────────────────── -->
+    <div id="pane-ask" class="tab-pane hidden bg-white rounded-b rounded-tr shadow flex flex-col" style="height:540px">
+      <div class="flex justify-between items-center px-4 pt-3 pb-2 border-b border-gray-100">
+        <span class="text-sm font-semibold text-gray-700">Ask a question about your documents</span>
+        <button onclick="clearChat()" class="text-xs text-gray-400 hover:text-red-500 font-medium">Clear chat</button>
+      </div>
+      <div id="chat-thread" class="flex-1 overflow-y-auto px-4 py-3 space-y-4"></div>
+      <div class="border-t border-gray-100 px-4 py-2">
+        <div class="flex gap-2 items-center flex-wrap mb-2">
+          <span class="text-xs text-gray-400 font-medium">Filters:</span>
+          <input id="chat-filter-type" type="text" placeholder="File type (pdf, docx…)"
+            class="border rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+          <input id="chat-filter-from" type="date"
+            class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
+          <span class="text-xs text-gray-400">→</span>
+          <input id="chat-filter-to" type="date"
+            class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
+          <button onclick="clearFilters('chat')" class="text-xs text-gray-400 hover:text-red-400">✕ Clear</button>
+        </div>
+        <div class="flex gap-2">
+          <input id="query-input" type="text" placeholder="Ask anything about your documents…"
+            class="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); doQuery(); }">
+          <button onclick="doQuery()"
+            class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded text-sm font-medium">
+            Ask
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let chatHistory = [];
+
+    // ── Tab switching ──────────────────────────────────────────────────────────
+
+    function showTab(name) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+      document.getElementById(`pane-${name}`).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('border-indigo-600', 'text-indigo-700', 'bg-white', '-mb-px');
+        b.classList.add('border-transparent', 'text-gray-500');
+      });
+      const btn = document.getElementById(`tab-${name}`);
+      btn.classList.add('border-indigo-600', 'text-indigo-700', 'bg-white', '-mb-px');
+      btn.classList.remove('border-transparent', 'text-gray-500');
+
+      window.location.hash = name === 'search' ? '' : name;
+    }
+
+    // ── Content search ─────────────────────────────────────────────────────────
+
+    function renderResults(results) {
+      const el = document.getElementById('search-results');
+      if (!results || !results.length) {
+        el.innerHTML = '<p class="text-gray-400 text-sm py-3">No results found.</p>';
+        return;
+      }
+      el.innerHTML = results.map(r => {
+        const safePath = (r.file_path || '').replace(/"/g, '&quot;');
+        const scoreBadge = scoreBadgeHtml(r.score);
+        return `
+        <div class="py-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              ${scoreBadge}
+              <div class="font-medium text-sm text-indigo-700 truncate" title="${escapeHtml(r.file_path || '')}">${escapeHtml(formatPath(r.file_path))}</div>
+            </div>
+            <div class="flex gap-1 shrink-0">
+              <button data-path="${safePath}" onclick="openFile(this.dataset.path)"
+                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
+                📄 Open
+              </button>
+              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)"
+                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
+                📁 Folder
+              </button>
+              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)"
+                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
+                🔍 Inspect
+              </button>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">${escapeHtml(r.snippet || r.chunk_text || '')}</div>
+        </div>`;
+      }).join('');
+    }
+
+    async function doSearch() {
+      const q = document.getElementById('search-input').value.trim();
+      const mode = document.getElementById('search-mode').value;
+      if (!q) return;
+      document.getElementById('search-results').innerHTML = '<p class="text-gray-400 text-sm py-3">Searching…</p>';
+      const f = getFilters('search');
+      let url = `/search?q=${encodeURIComponent(q)}&mode=${mode}`;
+      if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
+      if (f.date_from)  url += `&date_from=${f.date_from}`;
+      if (f.date_to)    url += `&date_to=${f.date_to}`;
+      const results = await api(url);
+      renderResults(results);
+    }
+
+    // ── Filename search ────────────────────────────────────────────────────────
+
+    function formatSize(bytes) {
+      if (bytes == null) return '';
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      return iso.slice(0, 10);
+    }
+
+    function renderFilenameResults(results) {
+      const el = document.getElementById('filename-results');
+      if (!results || !results.length) {
+        el.innerHTML = '<p class="text-gray-400 text-sm py-3">No files found.</p>';
+        return;
+      }
+      el.innerHTML = results.map(r => {
+        const safePath = (r.file_path || '').replace(/"/g, '&quot;');
+        const fname = formatPath(r.file_path);
+        const ext = (r.file_type || '').toLowerCase();
+        const size = formatSize(r.file_size);
+        const date = formatDate(r.file_modified || r.file_created);
+        const notDone = r.status && r.status !== 'COMPLETED';
+        const statusHtml = notDone
+          ? `<span class="inline-block text-xs font-medium px-1.5 py-0.5 rounded ${
+              r.status === 'ERROR' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+            }">${r.status}</span>`
+          : '';
+        const meta = [ext, size, date].filter(Boolean).join(' · ');
+        return `
+        <div class="py-3">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-medium text-sm text-indigo-700">${escapeHtml(fname)}</span>
+                ${statusHtml}
+              </div>
+              <div class="text-xs text-gray-400 truncate mt-0.5" title="${escapeHtml(r.file_path || '')}">${escapeHtml(r.file_path || '')}</div>
+              <div class="text-xs text-gray-400 mt-0.5">${escapeHtml(meta)}</div>
+            </div>
+            <div class="flex gap-1 shrink-0 mt-0.5">
+              <button data-path="${safePath}" onclick="openFile(this.dataset.path)"
+                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
+                📄 Open
+              </button>
+              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)"
+                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
+                📁 Folder
+              </button>
+              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)"
+                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
+                🔍 Inspect
+              </button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function doFilenameSearch() {
+      const q = document.getElementById('filename-input').value.trim();
+      if (!q) return;
+      document.getElementById('filename-results').innerHTML = '<p class="text-gray-400 text-sm py-3">Searching…</p>';
+      const f = getFilters('filename');
+      let url = `/search/filename?q=${encodeURIComponent(q)}`;
+      if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
+      if (f.date_from)  url += `&date_from=${f.date_from}`;
+      if (f.date_to)    url += `&date_to=${f.date_to}`;
+      const results = await api(url);
+      renderFilenameResults(results);
+    }
+
+    // ── Shared filter helpers ──────────────────────────────────────────────────
+
+    function getFilters(prefix) {
+      return {
+        file_type: document.getElementById(`${prefix}-filter-type`).value.trim(),
+        date_from:  document.getElementById(`${prefix}-filter-from`).value,
+        date_to:    document.getElementById(`${prefix}-filter-to`).value,
+      };
+    }
+
+    function clearFilters(prefix) {
+      document.getElementById(`${prefix}-filter-type`).value = '';
+      document.getElementById(`${prefix}-filter-from`).value = '';
+      document.getElementById(`${prefix}-filter-to`).value = '';
+    }
+
+    // ── Chat / Ask ─────────────────────────────────────────────────────────────
+
+    async function doQuery() {
+      const input = document.getElementById('query-input');
+      const question = input.value.trim();
+      if (!question) return;
+      input.value = '';
+
+      appendUserBubble(question);
+      const loadingId = appendLoadingBubble();
+
+      const cf = getFilters('chat');
+      let resp;
+      try {
+        resp = await api('/query', {
+          method: 'POST',
+          body: JSON.stringify({
+            question,
+            history: chatHistory,
+            file_type: cf.file_type || null,
+            date_from:  cf.date_from  || null,
+            date_to:    cf.date_to    || null,
+          }),
+        });
+      } catch (err) {
+        removeLoading(loadingId);
+        appendAssistantBubble(`Error: ${err.message}`, null, []);
+        return;
+      }
+
+      removeLoading(loadingId);
+      appendAssistantBubble(resp.answer, resp.thinking, resp.sources || []);
+      chatHistory.push({ role: 'user', content: question });
+      chatHistory.push({ role: 'assistant', content: resp.answer });
+    }
+
+    function clearChat() {
+      chatHistory = [];
+      document.getElementById('chat-thread').innerHTML = '';
+    }
+
+    function appendUserBubble(text) {
+      const thread = document.getElementById('chat-thread');
+      const div = document.createElement('div');
+      div.className = 'flex justify-end';
+      div.innerHTML = `
+        <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-lg text-sm whitespace-pre-wrap">
+          ${escapeHtml(text)}
+        </div>`;
+      thread.appendChild(div);
+      scrollChat();
+    }
+
+    function appendLoadingBubble() {
+      const thread = document.getElementById('chat-thread');
+      const id = 'loading-' + Date.now();
+      const div = document.createElement('div');
+      div.id = id;
+      div.className = 'flex justify-start';
+      div.innerHTML = `
+        <div class="bg-gray-100 text-gray-400 rounded-2xl rounded-tl-sm px-4 py-2 text-sm animate-pulse">
+          Thinking…
+        </div>`;
+      thread.appendChild(div);
+      scrollChat();
+      return id;
+    }
+
+    function removeLoading(id) {
+      document.getElementById(id)?.remove();
+    }
+
+    let thinkCounter = 0;
+    function appendAssistantBubble(answer, thinking, sources) {
+      const thread = document.getElementById('chat-thread');
+      const div = document.createElement('div');
+      div.className = 'flex justify-start';
+
+      const seenPaths = new Set();
+      const uniqueSources = sources.filter(s => {
+        if (!s.file_path || seenPaths.has(s.file_path)) return false;
+        seenPaths.add(s.file_path);
+        return true;
+      });
+
+      const tid = `think-${++thinkCounter}`;
+      const thinkHtml = thinking ? `
+        <div class="mt-1">
+          <button onclick="toggleThink('${tid}')"
+            class="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium">
+            <span id="${tid}-chevron">▶</span> Model Thinking
+          </button>
+          <div id="${tid}" class="hidden mt-1 bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-900 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
+            ${escapeHtml(thinking)}
+          </div>
+        </div>` : '';
+
+      const sourcesHtml = uniqueSources.length ? `
+        <div class="mt-2 pt-2 border-t border-gray-200">
+          <div class="text-xs font-medium text-gray-400 mb-1">Sources</div>
+          ${uniqueSources.map(s => {
+            const safePath = (s.file_path || '').replace(/"/g, '&quot;');
+            return `
+            <div class="flex items-center justify-between gap-2 py-0.5">
+              <span class="text-xs text-gray-500 truncate" title="${escapeHtml(s.file_path)}">${escapeHtml(formatPath(s.file_path))}</span>
+              <div class="flex gap-1 shrink-0">
+                <button data-path="${safePath}" onclick="openFile(this.dataset.path)"
+                  class="text-xs px-1.5 py-0.5 rounded bg-gray-200 hover:bg-indigo-100 text-gray-500 hover:text-indigo-700">
+                  📄
+                </button>
+                <button data-path="${safePath}" onclick="openFolder(this.dataset.path)"
+                  class="text-xs px-1.5 py-0.5 rounded bg-gray-200 hover:bg-indigo-100 text-gray-500 hover:text-indigo-700">
+                  📁
+                </button>
+                <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)"
+                  class="text-xs px-1.5 py-0.5 rounded bg-gray-200 hover:bg-indigo-100 text-gray-500 hover:text-indigo-700">
+                  🔍
+                </button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>` : '';
+
+      div.innerHTML = `
+        <div class="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 max-w-lg text-sm space-y-1">
+          ${thinkHtml}
+          <div class="text-gray-800 whitespace-pre-wrap">${escapeHtml(answer)}</div>
+          ${sourcesHtml}
+        </div>`;
+      thread.appendChild(div);
+      scrollChat();
+    }
+
+    function toggleThink(id) {
+      const body = document.getElementById(id);
+      const chevron = document.getElementById(`${id}-chevron`);
+      const hidden = body.classList.toggle('hidden');
+      chevron.textContent = hidden ? '▶' : '▼';
+    }
+
+    function scrollChat() {
+      const thread = document.getElementById('chat-thread');
+      thread.scrollTop = thread.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function scoreBadgeHtml(score) {
+      if (score == null) return '';
+      const pct = Math.round(score * 100);
+      const color = pct >= 80 ? 'bg-green-100 text-green-700'
+                  : pct >= 65 ? 'bg-yellow-100 text-yellow-700'
+                  :             'bg-gray-100 text-gray-500';
+      return `<span class="shrink-0 text-xs font-mono px-1.5 py-0.5 rounded ${color}">${pct}%</span>`;
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────────
+
+    const _initialTab = ['search','filename','ask'].find(t => window.location.hash === '#' + t) || 'search';
+    showTab(_initialTab);
+  </script>
+</body>
+</html>
