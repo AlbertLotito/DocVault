@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DocVault — Catalog</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="/static/styles.css" rel="stylesheet">
+  <script src="/static/app.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow">
+    <span class="font-bold text-lg">DocVault</span>
+    <a href="/" class="hover:underline">Dashboard</a>
+    <a href="/catalog" class="hover:underline font-semibold">Catalog</a>
+    <a href="/search" class="hover:underline">Search</a>
+    <a href="/utils" class="hover:underline">Utilities</a>
+    <a href="/settings" class="hover:underline">Settings</a>
+  </nav>
+
+  <main class="max-w-6xl mx-auto p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h1 class="text-2xl font-bold text-gray-800">Catalog</h1>
+      <a href="http://localhost:6333/dashboard" target="_blank"
+        class="text-sm text-indigo-600 hover:underline">Qdrant Dashboard ↗</a>
+    </div>
+
+    <div class="flex gap-3 mb-4">
+      <select id="filter-status" onchange="loadCatalog()"
+        class="border rounded px-3 py-1.5 text-sm">
+        <option value="">All statuses</option>
+        <option>PENDING</option>
+        <option>PROCESSING</option>
+        <option>EXTRACTED</option>
+        <option>EMBEDDING</option>
+        <option>COMPLETED</option>
+        <option>ERROR</option>
+        <option>UNKNOWN</option>
+      </select>
+      <input id="filter-type" onchange="loadCatalog()"
+        class="border rounded px-3 py-1.5 text-sm" placeholder="Filter by type (e.g. pdf)">
+    </div>
+
+    <div class="bg-white rounded shadow overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+          <tr>
+            <th class="p-3 text-left cursor-pointer" onclick="handleSort(this)" data-sort-by="file_path">File</th>
+            <th class="p-3 text-left cursor-pointer" onclick="handleSort(this)" data-sort-by="file_type">Type</th>
+            <th class="p-3 text-left cursor-pointer" onclick="handleSort(this)" data-sort-by="status">Status</th>
+            <th class="p-3 text-left cursor-pointer" onclick="handleSort(this)" data-sort-by="last_update">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="catalog-body" class="divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+
+    <!-- Pagination controls -->
+    <div id="pagination-controls" class="flex justify-between items-center mt-4 text-sm text-gray-600">
+        <span id="page-info"></span>
+        <div class="flex gap-2">
+            <button id="prev-btn" onclick="prevPage()" class="bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                Previous
+            </button>
+            <button id="next-btn" onclick="nextPage()" class="bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                Next
+            </button>
+        </div>
+    </div>
+
+    <!-- Right-click context menu -->
+    <div id="ctx-menu" class="hidden fixed bg-white rounded shadow-lg border border-gray-200 py-1 z-50 text-sm min-w-36">
+      <button onclick="openPath('file')"
+        class="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700">📄 Open File</button>
+      <button onclick="openPath('folder')"
+        class="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700">📁 Open Folder</button>
+      <div class="border-t border-gray-100 my-1"></div>
+      <button onclick="inspectCurrent()"
+        class="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700">🔍 Inspect</button>
+      <div class="border-t border-gray-100 my-1"></div>
+      <button onclick="reprocessCurrent()"
+        class="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700">↺ Reprocess</button>
+    </div>
+
+    <!-- Overlay behind the detail panel -->
+    <div id="detail-overlay" class="hidden fixed inset-0 bg-black/30 z-10" onclick="closeDetail()"></div>
+
+    <!-- Detail panel (above overlay) -->
+    <div id="detail" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 max-w-4xl h-3/4 bg-white rounded shadow-2xl p-6 flex flex-col z-20">
+        <div class="flex justify-between items-start mb-4">
+            <h2 id="detail-title" class="font-semibold text-gray-700"></h2>
+            <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <pre id="detail-text"
+            class="flex-grow text-xs bg-gray-50 p-3 rounded overflow-y-auto whitespace-pre-wrap"></pre>
+    </div>
+  </main>
+
+  <script>
+    let g_sortBy = 'last_update';
+    let g_sortOrder = 'DESC';
+    let g_currentPage = 1;
+    let g_pageSize = 50;
+    let g_totalMatches = 0;
+
+    function handleSort(clickedHeader) {
+      const newSortBy = clickedHeader.dataset.sortBy;
+      if (g_sortBy === newSortBy) {
+        g_sortOrder = (g_sortOrder === 'ASC') ? 'DESC' : 'ASC';
+      } else {
+        g_sortBy = newSortBy;
+        g_sortOrder = 'DESC';
+      }
+      g_currentPage = 1; // Reset to first page on new sort
+      loadCatalog();
+    }
+
+    function updateSortIndicators() {
+        document.querySelectorAll('thead th').forEach(th => {
+            const sortBy = th.dataset.sortBy;
+            if (sortBy === g_sortBy) {
+                th.innerHTML = `${sortBy.replace('_', ' ')} ${g_sortOrder === 'ASC' ? '▲' : '▼'}`;
+                th.classList.add('bg-gray-200');
+            } else {
+                th.innerHTML = sortBy.replace('_', ' ');
+                th.classList.remove('bg-gray-200');
+            }
+        });
+    }
+
+    function nextPage() {
+        if ((g_currentPage * g_pageSize) < g_totalMatches) {
+            g_currentPage++;
+            loadCatalog();
+        }
+    }
+
+    function prevPage() {
+        if (g_currentPage > 1) {
+            g_currentPage--;
+            loadCatalog();
+        }
+    }
+
+    function updatePaginationControls() {
+        const pageInfo = document.getElementById('page-info');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+
+        const startItem = (g_currentPage - 1) * g_pageSize + 1;
+        const endItem = Math.min(g_currentPage * g_pageSize, g_totalMatches);
+
+        if (g_totalMatches === 0) {
+            pageInfo.textContent = 'No items found';
+        } else {
+            pageInfo.textContent = `Showing ${startItem}-${endItem} of ${g_totalMatches}`;
+        }
+
+        prevBtn.disabled = (g_currentPage === 1);
+        nextBtn.disabled = (endItem >= g_totalMatches);
+    }
+
+    async function loadCatalog() {
+      // Reset page to 1 if filters change
+      const statusFilter = document.getElementById('filter-status');
+      const typeFilter = document.getElementById('filter-type');
+      if(statusFilter.dataset.prevValue !== statusFilter.value || typeFilter.dataset.prevValue !== typeFilter.value.trim()) {
+        g_currentPage = 1;
+      }
+      statusFilter.dataset.prevValue = statusFilter.value;
+      typeFilter.dataset.prevValue = typeFilter.value.trim();
+
+      const status = statusFilter.value;
+      const type = typeFilter.value.trim();
+      const offset = (g_currentPage - 1) * g_pageSize;
+      
+      let url = `/catalog?limit=${g_pageSize}&offset=${offset}&sort_by=${g_sortBy}&sort_order=${g_sortOrder}`;
+      if (status) url += `&status=${status}`;
+      if (type) url += `&file_type=${type}`;
+      
+      const resp = await api(url);
+      const items = resp.tasks;
+      g_totalMatches = resp.total_matches;
+
+      const body = document.getElementById('catalog-body');
+      
+      updateSortIndicators();
+      updatePaginationControls();
+
+      if (!items) { body.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Failed to load items.</td></tr>'; return; }
+      if (items.length === 0) { body.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">No items match filters.</td></tr>'; return; }
+      
+      body.innerHTML = items.map(i => `
+        <tr class="hover:bg-gray-50 cursor-pointer"
+            onclick="showDetail('${i.file_hash}')"
+            oncontextmenu="showCtxMenu(event, this)"
+            data-hash="${i.file_hash}"
+            data-path="${i.file_path.replace(/"/g, '&quot;')}">
+          <td class="p-3 font-mono text-xs">${formatPath(i.file_path)}</td>
+          <td class="p-3 text-gray-500">${i.file_type || '?'}</td>
+          <td class="p-3">${statusBadge(i.status)}</td>
+          <td class="p-3 text-gray-400">${new Date(i.last_update).toLocaleString() || ''}</td>
+        </tr>`).join('');
+    }
+
+    async function showDetail(hash) {
+      const item = await api(`/catalog/${hash}`);
+      document.getElementById('detail-title').textContent =
+        `${formatPath(item.file_path)} [${item.file_type}]`;
+      document.getElementById('detail-text').textContent =
+        item.extracted_text || item.error_log || '(No content to display)';
+      document.getElementById('detail').classList.remove('hidden');
+      document.getElementById('detail-overlay').classList.remove('hidden');
+    }
+
+    function closeDetail() {
+        document.getElementById('detail').classList.add('hidden');
+        document.getElementById('detail-overlay').classList.add('hidden');
+    }
+
+    // --- Context menu ---
+    let g_ctxHash = null;
+    let g_ctxPath = null;
+
+    function showCtxMenu(e, row) {
+      e.preventDefault();
+      g_ctxHash = row.dataset.hash;
+      g_ctxPath = row.dataset.path;
+      const menu = document.getElementById('ctx-menu');
+      menu.style.left = e.pageX + 'px';
+      menu.style.top  = e.pageY + 'px';
+      menu.classList.remove('hidden');
+    }
+
+    function hideCtxMenu() {
+      document.getElementById('ctx-menu').classList.add('hidden');
+      g_ctxHash = null;
+      g_ctxPath = null;
+    }
+
+    async function openPath(action) {
+      if (!g_ctxPath) return;
+      const path = g_ctxPath;
+      hideCtxMenu();
+      try {
+        const r = await api('/utils/open_path', {
+          method: 'POST',
+          body: JSON.stringify({ path, action }),
+        });
+        if (r.status === 'error') alert(`Could not open: ${r.detail}`);
+      } catch(e) {
+        alert(`Could not open: ${e.message}`);
+      }
+    }
+
+    async function reprocessCurrent() {
+      if (!g_ctxHash) return;
+      const hash = g_ctxHash;
+      hideCtxMenu();
+      await api(`/catalog/${hash}/reprocess`, { method: 'POST' });
+      loadCatalog();
+    }
+
+    function inspectCurrent() {
+      if (!g_ctxPath) return;
+      const path = g_ctxPath;
+      hideCtxMenu();
+      inspectFile(path);
+    }
+
+    document.addEventListener('click', hideCtxMenu);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+
+    // --- Init: read ?status= URL param ---
+    document.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(location.search);
+      const status = params.get('status');
+      if (status) document.getElementById('filter-status').value = status;
+      loadCatalog();
+    });
+  </script>
+</body>
+</html>

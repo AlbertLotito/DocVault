@@ -1,0 +1,20 @@
+/* Tailwind via CDN is loaded in HTML. This file holds custom overrides only. */
+.status-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.status-PENDING    { background-color: #E5E7EB; color: #374151; }
+.status-EXTRACTED  { background-color: #DBEAFE; color: #1D4ED8; }
+.status-COMPLETED  { background-color: #D1FAE5; color: #065F46; }
+.status-ERROR      { background-color: #FEE2E2; color: #991B1B; }
+.status-UNKNOWN    { background-color: #FEF3C7; color: #92400E; }
+.status-PROCESSING { background-color: #E9D5FF; color: #5B21B6; }
+.status-EMBEDDING { background-color: #E9D5FF; color: #5B21B6; }
+
+#detail-text {
+    user-select: text;
+    -webkit-user-select: text; /* For Safari */
+}

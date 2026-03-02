@@ -35,10 +35,14 @@ def process_task(db_path, task):
             errors.append(f"[{extractor.__name__}] {err}")
             continue
 
-        # Image extractor returns a list of dicts — store each in extracted_images
+        # Image extractor returns a list of dicts — store metadata and collect descriptions
         if extractor is image_extractor and isinstance(result, list):
             for img_meta in result:
+                description = img_meta.pop('description', None)
                 manager.insert_extracted_image(db_path, file_hash, img_meta)
+                if description:
+                    label = f"[Image — page {img_meta.get('page_num', '?')}]"
+                    combined_text.append(f"{label}\n{description}")
 
         # Text-returning extractors
         elif isinstance(result, str) and result:
@@ -49,7 +53,8 @@ def process_task(db_path, task):
             combined_metadata.update(result)
 
     final_text = "\n\n".join(combined_text) if combined_text else None
-    final_status = 'ERROR' if errors else 'EXTRACTED'
+    has_content = bool(final_text or combined_metadata)
+    final_status = 'ERROR' if (errors and not has_content) else 'EXTRACTED'
 
     manager.complete_extraction(
         db_path,
@@ -61,21 +66,28 @@ def process_task(db_path, task):
     )
 
 
-def run(db_path, worker_id=None):
+from .utils import interruptible_sleep
+
+
+def run(db_path, worker_id=None, shutdown_event=None): # shutdown_event is ignored but passed by run.py
     """Main loop — claim and process PENDING tasks until paused or empty."""
     if worker_id is None:
         worker_id = f"extract-{socket.gethostname()}-{os.getpid()}"
     print(f"Extraction worker starting. ID: {worker_id}")
 
-    while True:
-        if manager.get_pause_state(db_path):
-            print("Paused. Sleeping 10s...")
-            time.sleep(10)
+    while True: # This is a daemon thread, it will be terminated on main exit
+        if manager.get_pause_state():
+            print("Extraction worker paused. Sleeping...")
+            interruptible_sleep(db_path, 10)
             continue
 
         task = manager.claim_pending_task(db_path, worker_id)
         if task:
-            process_task(db_path, task)
+            try:
+                process_task(db_path, task)
+            except Exception as e:
+                print(f"[ERROR] Unhandled exception in extraction worker for task {task.get('file_hash')}: {e}")
+                manager.complete_extraction(db_path, task['file_hash'], status='ERROR', error=str(e))
         else:
-            print("No pending tasks. Sleeping 10s...")
-            time.sleep(10)
+            print("No pending tasks. Sleeping...")
+            interruptible_sleep(db_path, 10)

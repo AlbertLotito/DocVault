@@ -35,13 +35,35 @@ class VectorStore:
         )
 
     def search(self, query_vector: list[float],
-               top_k: int = 5) -> list[dict]:
-        results = self.client.search(
+               top_k: int = 5, score_threshold: float = None,
+               hash_filter: list[str] = None) -> list[dict]:
+        if hash_filter is not None and len(hash_filter) == 0:
+            return []  # Constraints matched no files
+        kwargs = dict(collection_name=self.collection, query=query_vector, limit=top_k)
+        if score_threshold is not None:
+            kwargs['score_threshold'] = score_threshold
+        if hash_filter is not None:
+            kwargs['query_filter'] = models.Filter(must=[
+                models.FieldCondition(
+                    key='file_hash',
+                    match=models.MatchAny(any=hash_filter),
+                )
+            ])
+        response = self.client.query_points(**kwargs)
+        return [{'score': r.score, **r.payload} for r in response.points]
+
+    def update_path(self, file_hash: str, new_path: str):
+        """Update the file_path payload on all vectors for a given file hash."""
+        self.client.set_payload(
             collection_name=self.collection,
-            query_vector=query_vector,
-            limit=top_k,
+            payload={'file_path': new_path},
+            points=models.Filter(
+                must=[models.FieldCondition(
+                    key='file_hash',
+                    match=models.MatchValue(value=file_hash)
+                )]
+            ),
         )
-        return [{'score': r.score, **r.payload} for r in results]
 
     def delete_by_hash(self, file_hash: str):
         self.client.delete(

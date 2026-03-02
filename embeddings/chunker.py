@@ -1,20 +1,28 @@
-def chunk(text: str, max_tokens: int = 500, overlap: int = 50) -> list[str]:
+def chunk(text: str, max_chars: int = None, overlap: int = None) -> list[str]:
     """
-    Split text into overlapping word-based chunks.
-    Uses words as a proxy for tokens (1 token ≈ 0.75 words — close enough).
+    Split text into overlapping character-based chunks.
+    max_chars and overlap default to settings values if not specified.
     """
+    if max_chars is None or overlap is None:
+        from core.settings import settings
+        if max_chars is None:
+            max_chars = int(settings.get('embeddings:chunk_size') or 600)
+        if overlap is None:
+            overlap = int(settings.get('embeddings:chunk_overlap') or 100)
+
     text = text.strip()
     if not text:
         return []
-    words = text.split()
-    if len(words) <= max_tokens:
+
+    if len(text) <= max_chars:
         return [text]
+
     chunks = []
     start = 0
-    while start < len(words):
-        end = min(start + max_tokens, len(words))
-        chunks.append(" ".join(words[start:end]))
-        if end == len(words):
+    while start < len(text):
+        end = start + max_chars
+        chunks.append(text[start:end])
+        if end >= len(text):
             break
-        start += max_tokens - overlap
+        start += max_chars - overlap
     return chunks

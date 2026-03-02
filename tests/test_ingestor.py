@@ -18,13 +18,13 @@ def env(tmp_path):
 
 
 def test_ingest_finds_all_files(env):
-    added = ingestor.ingest(env["docs"], env["db"])
+    added, moved = ingestor.ingest(env["docs"], env["db"])
     assert added == 3
 
 
 def test_ingest_skips_duplicates(env):
     ingestor.ingest(env["docs"], env["db"])
-    added = ingestor.ingest(env["docs"], env["db"])
+    added, moved = ingestor.ingest(env["docs"], env["db"])
     assert added == 0
 
 

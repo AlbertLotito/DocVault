@@ -1,0 +1,45 @@
+import configparser, os
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from api.routes import catalog, search, query, workers, utils, settings as settings_routes
+
+_cfg = configparser.ConfigParser()
+_cfg.read(os.path.join(os.path.dirname(__file__), '..', 'config.ini'))
+DB_PATH = _cfg.get('database', 'sqlite_path',
+                    fallback=os.path.join(os.path.dirname(__file__),
+                                          '..', 'docvault.db'))
+
+app = FastAPI(title="DocVault", version="1.0.0")
+
+app.include_router(catalog.router, prefix="/api")
+app.include_router(search.router, prefix="/api")
+app.include_router(query.router, prefix="/api")
+app.include_router(workers.router, prefix="/api")
+app.include_router(utils.router, prefix="/api")
+app.include_router(settings_routes.router, prefix="/api")
+
+FRONTEND = os.path.join(os.path.dirname(__file__), '..', 'frontend')
+app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND, 'static')),
+          name="static")
+
+
+@app.get("/")
+def root():
+    return FileResponse(os.path.join(FRONTEND, 'index.html'))
+
+@app.get("/catalog")
+def catalog_page():
+    return FileResponse(os.path.join(FRONTEND, 'catalog.html'))
+
+@app.get("/search")
+def search_page():
+    return FileResponse(os.path.join(FRONTEND, 'search.html'))
+
+@app.get("/utils")
+def utils_page():
+    return FileResponse(os.path.join(FRONTEND, 'utils.html'))
+
+@app.get("/settings")
+def settings_page():
+    return FileResponse(os.path.join(FRONTEND, 'settings.html'))
