@@ -2,11 +2,13 @@ import sqlite3, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 
-def test_get_logs_db_path_returns_string(monkeypatch):
+def test_get_logs_db_path_returns_string(tmp_path, monkeypatch):
     import core.manager as m
+    monkeypatch.setattr(m, 'get_db_path', lambda db_path=None: str(tmp_path / 'docvault.db'))
     path = m.get_logs_db_path()
     assert isinstance(path, str)
     assert path.endswith('logs.db')
+    assert os.path.dirname(path) == str(tmp_path)
 
 
 def test_init_logs_db_creates_all_tables(tmp_path, monkeypatch):
