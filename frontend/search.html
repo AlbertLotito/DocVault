@@ -20,6 +20,11 @@
   <main class="max-w-4xl mx-auto p-6">
     <h1 class="text-2xl font-bold text-gray-800 mb-4">Search & Ask</h1>
 
+    <div id="vault-selector" class="flex items-center gap-2 mb-4 flex-wrap">
+      <span class="text-sm font-medium text-gray-600">Vaults:</span>
+      <!-- populated by loadVaultSelector() -->
+    </div>
+
     <!-- Tab bar -->
     <div class="flex gap-1 border-b border-gray-200 mb-0">
       <button id="tab-search" onclick="showTab('search')"
@@ -191,6 +196,8 @@
       if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
       if (f.date_from)  url += `&date_from=${f.date_from}`;
       if (f.date_to)    url += `&date_to=${f.date_to}`;
+      const vaultIds = getSelectedVaultIds();
+      if (vaultIds.length) url += `&vault_ids=${vaultIds.join(',')}`;
       const results = await api(url);
       renderResults(results);
     }
@@ -267,6 +274,8 @@
       if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
       if (f.date_from)  url += `&date_from=${f.date_from}`;
       if (f.date_to)    url += `&date_to=${f.date_to}`;
+      const vaultIds = getSelectedVaultIds();
+      if (vaultIds.length) url += `&vault_ids=${vaultIds.join(',')}`;
       const results = await api(url);
       renderFilenameResults(results);
     }
@@ -299,6 +308,7 @@
       const loadingId = appendLoadingBubble();
 
       const cf = getFilters('chat');
+      const vaultIds = getSelectedVaultIds();
       let resp;
       try {
         resp = await api('/query', {
@@ -309,6 +319,7 @@
             file_type: cf.file_type || null,
             date_from:  cf.date_from  || null,
             date_to:    cf.date_to    || null,
+            vault_ids: vaultIds.length ? vaultIds.join(',') : null,
           }),
         });
       } catch (err) {
@@ -445,10 +456,30 @@
       return `<span class="shrink-0 text-xs font-mono px-1.5 py-0.5 rounded ${color}">${pct}%</span>`;
     }
 
+    // ── Vault selector ─────────────────────────────────────────────────────────
+
+    async function loadVaultSelector() {
+      const vaults = await api('/vaults');
+      const container = document.getElementById('vault-selector');
+      if (!vaults.length) return;
+      vaults.forEach(v => {
+        const label = document.createElement('label');
+        label.className = 'inline-flex items-center gap-1 text-sm cursor-pointer';
+        label.innerHTML = `<input type="checkbox" class="vault-cb" value="${v.vault_id}" checked>
+          <span style="color:${v.color||'#6366f1'}" class="font-medium">${v.name}</span>`;
+        container.appendChild(label);
+      });
+    }
+
+    function getSelectedVaultIds() {
+      return [...document.querySelectorAll('.vault-cb:checked')].map(cb => cb.value);
+    }
+
     // ── Init ───────────────────────────────────────────────────────────────────
 
     const _initialTab = ['search','filename','ask'].find(t => window.location.hash === '#' + t) || 'search';
     showTab(_initialTab);
+    loadVaultSelector();
   </script>
 </body>
 </html>
