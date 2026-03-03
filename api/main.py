@@ -32,6 +32,10 @@ app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND, 'static')),
 def root():
     return FileResponse(os.path.join(FRONTEND, 'index.html'))
 
+@app.get("/status")
+def status_page():
+    return FileResponse(os.path.join(FRONTEND, 'index.html'))
+
 @app.get("/catalog")
 def catalog_page():
     return FileResponse(os.path.join(FRONTEND, 'catalog.html'))
