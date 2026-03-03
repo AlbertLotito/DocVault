@@ -19,6 +19,78 @@ def get_settings_db_path():
     return os.path.join(os.path.dirname(main_db), 'settings.db')
 
 
+def get_logs_db_path():
+    """Returns the path to logs.db, alongside the main database."""
+    main_db = get_db_path()
+    return os.path.join(os.path.dirname(main_db), 'logs.db')
+
+
+def init_logs_db():
+    """Create logs.db with observability tables. Idempotent — safe to call on every startup."""
+    db_path = get_logs_db_path()
+    with _connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS task_timings (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_hash     TEXT,
+                vault_id      TEXT,
+                extractor     TEXT,
+                file_size     INTEGER,
+                page_count    INTEGER,
+                duration_secs REAL,
+                elapsed_secs  REAL,
+                completed_at  TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS worker_errors (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_hash     TEXT,
+                vault_id      TEXT,
+                extractor     TEXT,
+                error_type    TEXT,
+                error_message TEXT,
+                traceback     TEXT,
+                occurred_at   TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS worker_log (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_hash     TEXT,
+                vault_id      TEXT,
+                extractor     TEXT,
+                level         TEXT,
+                message       TEXT,
+                occurred_at   TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS extractor_stats (
+                vault_id      TEXT,
+                extractor     TEXT,
+                sample_count  INTEGER DEFAULT 0,
+                avg_secs      REAL DEFAULT 0,
+                p50_secs      REAL DEFAULT 0,
+                p95_secs      REAL DEFAULT 0,
+                last_updated  TEXT,
+                PRIMARY KEY (vault_id, extractor)
+            );
+
+            CREATE TABLE IF NOT EXISTS system_stats (
+                sampled_at    TEXT PRIMARY KEY,
+                cpu_pct       REAL,
+                cpu_temp      REAL,
+                ram_used_gb   REAL,
+                ram_total_gb  REAL,
+                ram_pct       REAL,
+                gpu_temp      REAL,
+                gpu_util_pct  REAL,
+                vram_used_gb  REAL,
+                vram_total_gb REAL,
+                throttle_state TEXT
+            );
+        """)
+        conn.commit()
+
+
 def init_settings_db():
     """Create settings.db with just the settings table and paused default."""
     db_path = get_settings_db_path()
