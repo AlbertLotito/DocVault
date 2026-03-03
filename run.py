@@ -28,9 +28,14 @@ def ingestion_worker_run(db_path, interval_seconds=60):
         time.sleep(interval_seconds)
 
 def start():
-    # Init DBs — settings.db is separate so it survives data resets
+    # Init DBs in order — settings.db first (survives resets), then main DB, then logs
     manager.init_settings_db()
     manager.init_db(DB_PATH)
+    manager.init_logs_db()
+
+    # Bootstrap default vault on first run or migration from pre-vault version
+    scan_dir = settings.get('paths:scan_directory')
+    manager.bootstrap_default_vault(DB_PATH, scan_directory=scan_dir)
 
     # Start ingestion worker in a daemon thread
     t_ingest = threading.Thread(

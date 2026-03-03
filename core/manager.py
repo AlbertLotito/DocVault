@@ -221,7 +221,7 @@ def bootstrap_default_vault(db_path=None, scan_directory=None):
             (vault_id,)
         )
         conn.commit()
-        print(f"[bootstrap] Created default vault 'Documents' ({vault_id}) → {scan_directory}")
+        print(f"[bootstrap] Created default vault 'Documents' ({vault_id}) -> {scan_directory}")
 
 
 def insert_task(db_path, file_hash, file_path, file_type, priority=10,
