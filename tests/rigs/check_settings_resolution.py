@@ -47,7 +47,7 @@ def run_checks(settings_db_path, verbose):
             r = SettingsResolver(vault_id=None)
             val = r.get('embeddings:chunk_overlap')
             results.append(
-                _pass(f"Schema default: embeddings:chunk_overlap = {val}") if val == 100
+                _pass(f"Schema default: embeddings:chunk_overlap = {val}") if int(val) == 100
                 else _fail(f"Schema default wrong: got {val!r}, expected 100")
             )
 

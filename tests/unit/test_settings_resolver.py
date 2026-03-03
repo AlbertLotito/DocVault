@@ -20,7 +20,7 @@ def test_schema_default_when_no_overrides(tmp_path, monkeypatch):
     monkeypatch.setattr(m, 'get_settings_db_path', lambda: db)
     from core.settings import SettingsResolver
     r = SettingsResolver(vault_id=None)
-    assert r.get('embeddings:chunk_size') == 600
+    assert int(r.get('embeddings:chunk_size')) == 600
 
 def test_global_db_overrides_default(tmp_path, monkeypatch):
     import core.manager as m
@@ -51,4 +51,4 @@ def test_vault_setting_does_not_leak(tmp_path, monkeypatch):
     monkeypatch.setattr(m, 'get_settings_db_path', lambda: db)
     from core.settings import SettingsResolver
     r = SettingsResolver(vault_id='vault-2')  # different vault
-    assert r.get('embeddings:chunk_size') == 600  # schema default
+    assert int(r.get('embeddings:chunk_size')) == 600  # schema default (or config.ini string)
