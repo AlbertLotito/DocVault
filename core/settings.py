@@ -181,6 +181,42 @@ class Settings:
             })
         return all_settings
 
+class SettingsResolver:
+    """
+    Vault-aware settings resolver. Lightweight — create per task invocation.
+    Resolution chain: vault_settings -> settings.db global -> config.ini -> schema default
+    """
+
+    def __init__(self, vault_id: str | None = None, _settings_obj: 'Settings | None' = None):
+        self.vault_id = vault_id
+        # Use the provided Settings object if given; otherwise create a schema-only
+        # instance (no config.ini) so the resolution chain is:
+        #   vault_settings -> settings.db global -> schema default
+        # Pass _settings_obj=settings to include the config.ini tier.
+        self._s = _settings_obj if _settings_obj is not None else Settings(config_path='')
+
+    def get(self, key: str):
+        if ':' not in key:
+            raise ValueError("Setting key must be 'section:key'")
+
+        # Tier 1: vault-specific override
+        if self.vault_id:
+            try:
+                from core.manager import get_settings_db_path, _connect
+                with _connect(get_settings_db_path()) as conn:
+                    row = conn.execute(
+                        "SELECT value FROM vault_settings WHERE vault_id=? AND key=?",
+                        (self.vault_id, key)
+                    ).fetchone()
+                    if row:
+                        return row['value']
+            except Exception:
+                pass
+
+        # Tiers 2-4: delegate to the global Settings object
+        return self._s.get(key)
+
+
 # --- Global Settings Singleton ---
 _config_path = os.path.join(os.path.dirname(__file__), '..', 'config.ini')
 settings = Settings(config_path=_config_path)
