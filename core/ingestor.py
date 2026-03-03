@@ -1,8 +1,27 @@
 import os
 import hashlib
 import datetime
+import ctypes
 from core import manager
 from core.router import get_priority
+
+# Filenames always skipped regardless of location
+_BLOCKLIST = frozenset({
+    'desktop.ini', 'thumbs.db', '.ds_store', 'ntuser.dat',
+    'ntuser.dat.log', 'ntuser.pol', 'usrclass.dat',
+})
+
+_FILE_ATTRIBUTE_HIDDEN = 0x2
+_FILE_ATTRIBUTE_SYSTEM = 0x4
+
+
+def _is_hidden_or_system(file_path: str) -> bool:
+    """Return True if file has the Windows hidden or system attribute."""
+    try:
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(file_path)
+        return attrs != -1 and bool(attrs & (_FILE_ATTRIBUTE_HIDDEN | _FILE_ATTRIBUTE_SYSTEM))
+    except Exception:
+        return False
 
 
 def _sha256(file_path):
@@ -57,7 +76,11 @@ def ingest(directory, db_path):
             dirs.clear()
             continue
         for name in files:
+            if name.lower() in _BLOCKLIST:
+                continue
             file_path = os.path.normpath(os.path.join(root, name))
+            if _is_hidden_or_system(file_path):
+                continue
             ext = os.path.splitext(name)[1].lstrip('.').lower()
             try:
                 file_hash = _sha256(file_path)
