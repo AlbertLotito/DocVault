@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from api.routes import catalog, search, query, workers, utils, settings as settings_routes
+from api.routes.vaults  import router as vaults_router
+from api.routes.monitor import router as monitor_router
 
 _cfg = configparser.ConfigParser()
 _cfg.read(os.path.join(os.path.dirname(__file__), '..', 'config.ini'))
@@ -18,6 +20,8 @@ app.include_router(query.router, prefix="/api")
 app.include_router(workers.router, prefix="/api")
 app.include_router(utils.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
+app.include_router(vaults_router)
+app.include_router(monitor_router)
 
 FRONTEND = os.path.join(os.path.dirname(__file__), '..', 'frontend')
 app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND, 'static')),
