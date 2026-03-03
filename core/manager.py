@@ -101,6 +101,13 @@ def init_settings_db():
                 value TEXT
             );
             INSERT OR IGNORE INTO settings (key, value) VALUES ('paused', '0');
+
+            CREATE TABLE IF NOT EXISTS vault_settings (
+                vault_id TEXT NOT NULL,
+                key      TEXT NOT NULL,
+                value    TEXT NOT NULL,
+                PRIMARY KEY (vault_id, key)
+            );
         """)
         conn.commit()
 
@@ -152,6 +159,17 @@ def init_db(db_path=None):
                 file_path,
                 content
             );
+
+            CREATE TABLE IF NOT EXISTS vaults (
+                vault_id       TEXT PRIMARY KEY,
+                name           TEXT NOT NULL,
+                scan_directory TEXT NOT NULL,
+                priority       INTEGER DEFAULT 5,
+                color          TEXT DEFAULT '#6366f1',
+                state          TEXT DEFAULT 'active',
+                created_at     TEXT,
+                updated_at     TEXT
+            );
         """)
 
         # Schema migrations
@@ -165,8 +183,45 @@ def init_db(db_path=None):
             conn.execute("ALTER TABLE tasks ADD COLUMN file_created TEXT")
         if 'file_modified' not in columns:
             conn.execute("ALTER TABLE tasks ADD COLUMN file_modified TEXT")
+        if 'vault_id' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN vault_id TEXT REFERENCES vaults(vault_id)")
 
         conn.commit()
+
+
+def bootstrap_default_vault(db_path=None, scan_directory=None):
+    """
+    If no vaults exist, create the 'Documents' default vault and assign
+    all un-vaulted tasks to it. Idempotent — safe to call on every startup.
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    db_path = get_db_path(db_path)
+    with _connect(db_path) as conn:
+        existing = conn.execute("SELECT COUNT(*) FROM vaults").fetchone()[0]
+        if existing > 0:
+            return  # already bootstrapped
+
+        if not scan_directory:
+            try:
+                scan_directory = get_setting('paths:scan_directory') or '.'
+            except Exception:
+                scan_directory = '.'
+
+        vault_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """INSERT INTO vaults (vault_id, name, scan_directory, priority, state, created_at, updated_at)
+               VALUES (?, 'Documents', ?, 5, 'active', ?, ?)""",
+            (vault_id, scan_directory, now, now)
+        )
+        conn.execute(
+            "UPDATE tasks SET vault_id = ? WHERE vault_id IS NULL",
+            (vault_id,)
+        )
+        conn.commit()
+        print(f"[bootstrap] Created default vault 'Documents' ({vault_id}) → {scan_directory}")
 
 
 def insert_task(db_path, file_hash, file_path, file_type, priority=10,
