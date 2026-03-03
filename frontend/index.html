@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DocVault — Dashboard</title>
+  <title>DocVault — Vault Status</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="/static/styles.css" rel="stylesheet">
   <script src="/static/app.js"></script>
@@ -10,16 +10,16 @@
 <body class="bg-gray-50 min-h-screen">
   <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow">
     <span class="font-bold text-lg">DocVault</span>
-    <a href="/" class="hover:underline font-semibold">Dashboard</a>
-    <a href="/catalog" class="hover:underline">Catalog</a>
     <a href="/search" class="hover:underline">Search</a>
+    <a href="/" class="hover:underline font-semibold">Vault Status</a>
+    <a href="/catalog" class="hover:underline">Vault Log</a>
     <a href="/utils" class="hover:underline">Utilities</a>
     <a href="/settings" class="hover:underline">Settings</a>
   </nav>
 
   <main class="max-w-5xl mx-auto p-6">
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
+      <h1 class="text-2xl font-bold text-gray-800">Vault Status</h1>
       <button onclick="refreshAll()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-1.5 rounded text-sm font-medium">
         Refresh Now
       </button>
