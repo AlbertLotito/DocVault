@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DocVault — Catalog</title>
+  <title>DocVault — Vault Log</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="/static/styles.css" rel="stylesheet">
   <script src="/static/app.js"></script>
@@ -19,9 +19,16 @@
 
   <main class="max-w-6xl mx-auto p-6">
     <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold text-gray-800">Catalog</h1>
+      <h1 class="text-2xl font-bold text-gray-800">Vault Log</h1>
       <a href="http://localhost:6333/dashboard" target="_blank"
         class="text-sm text-indigo-600 hover:underline">Qdrant Dashboard ↗</a>
+    </div>
+
+    <div class="flex items-center gap-2 mb-3">
+      <label class="text-sm font-medium text-gray-600">Vault:</label>
+      <select id="vault-filter" onchange="applyVaultFilter()" class="border border-gray-200 rounded px-3 py-1.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
+        <option value="">All Vaults</option>
+      </select>
     </div>
 
     <div class="flex gap-3 mb-4">
@@ -172,10 +179,13 @@
       const status = statusFilter.value;
       const type = typeFilter.value.trim();
       const offset = (g_currentPage - 1) * g_pageSize;
-      
+      const urlParams = new URLSearchParams(location.search);
+      const vaultId = urlParams.get('vault_id') || '';
+
       let url = `/catalog?limit=${g_pageSize}&offset=${offset}&sort_by=${g_sortBy}&sort_order=${g_sortOrder}`;
       if (status) url += `&status=${status}`;
       if (type) url += `&file_type=${type}`;
+      if (vaultId) url += `&vault_id=${vaultId}`;
       
       const resp = await api(url);
       const items = resp.tasks;
@@ -270,13 +280,39 @@
     document.addEventListener('click', hideCtxMenu);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
 
-    // --- Init: read ?status= URL param ---
+    // --- Init: read ?status= and ?vault_id= URL params ---
     document.addEventListener('DOMContentLoaded', () => {
       const params = new URLSearchParams(location.search);
       const status = params.get('status');
       if (status) document.getElementById('filter-status').value = status;
+      loadVaultFilter();
       loadCatalog();
     });
+
+    async function loadVaultFilter() {
+      const vaults = await api('/vaults');
+      const sel = document.getElementById('vault-filter');
+      vaults.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.vault_id;
+        opt.textContent = v.name;
+        sel.appendChild(opt);
+      });
+      // Pre-select from URL param
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('vault_id')) sel.value = params.get('vault_id');
+    }
+
+    function applyVaultFilter() {
+      const vaultId = document.getElementById('vault-filter').value;
+      const params = new URLSearchParams(window.location.search);
+      if (vaultId) {
+        params.set('vault_id', vaultId);
+      } else {
+        params.delete('vault_id');
+      }
+      window.location.search = params.toString();
+    }
   </script>
 </body>
 </html>
