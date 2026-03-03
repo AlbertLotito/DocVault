@@ -43,7 +43,7 @@
     <div class="bg-white rounded shadow p-6">
       <h2 class="font-semibold text-gray-700 mb-3">Qdrant Health Check</h2>
       <p class="text-sm text-gray-500 mb-4">
-        This tool will attempt to connect to your Qdrant database, write a temporary data point, 
+        This tool will attempt to connect to your Qdrant database, write a temporary data point,
         read it back, and then delete it. This verifies connectivity and basic operations.
       </p>
       <button id="run-check-btn" onclick="runCheck()"
@@ -51,6 +51,20 @@
         Run Health Check
       </button>
       <div id="result-container" class="hidden mt-4 p-4 rounded text-sm"></div>
+    </div>
+
+    <!-- Diagnostics -->
+    <div class="bg-white rounded shadow p-6 mt-6">
+      <h2 class="font-semibold text-gray-700 mb-1">Diagnostics</h2>
+      <p class="text-sm text-gray-500 mb-4">
+        Clear the logs database (task timings, worker errors, system stats).
+        This does not affect your documents or settings — only observability data.
+      </p>
+      <button id="clear-logs-btn" onclick="clearLogs()"
+        class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded text-sm font-medium">
+        Clear Logs Database
+      </button>
+      <div id="clear-logs-result" class="hidden mt-4 p-4 rounded text-sm"></div>
     </div>
   </main>
 
@@ -121,6 +135,26 @@
       resultEl.classList.remove('hidden');
       btn.disabled = false;
       btn.textContent = 'Run Health Check';
+    }
+
+    async function clearLogs() {
+      const btn = document.getElementById('clear-logs-btn');
+      const resultEl = document.getElementById('clear-logs-result');
+      if (!confirm('Clear all logs data? This cannot be undone.')) return;
+      btn.disabled = true;
+      btn.textContent = 'Clearing...';
+      resultEl.classList.add('hidden');
+      try {
+        await api('/utils/clear_logs', { method: 'POST' });
+        resultEl.textContent = 'Logs database cleared.';
+        resultEl.className = 'mt-4 p-4 rounded text-sm bg-green-100 text-green-800';
+      } catch(err) {
+        resultEl.textContent = `Error: ${err.message}`;
+        resultEl.className = 'mt-4 p-4 rounded text-sm bg-red-100 text-red-800';
+      }
+      resultEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Clear Logs Database';
     }
 
     loadGDriveStatus();
