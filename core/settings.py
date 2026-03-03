@@ -139,6 +139,43 @@ class Settings:
                 'type': 'string', 'default': '', 'label': 'Token JSON path', 'group': 'google',
                 'description': 'Path where the OAuth access token will be saved after the first authorisation. This file is created automatically when you authorise DocVault via the Utilities page. Keep it in the credentials folder alongside the credentials JSON.',
             },
+            # Monitor / Resource Governor
+            'monitor:enabled': {
+                'type': 'string', 'default': 'true', 'label': 'Enable governor', 'group': 'monitor',
+                'description': 'Set to "false" to disable the resource governor entirely. Workers will run at full speed regardless of hardware temperatures.',
+            },
+            'monitor:sample_interval': {
+                'type': 'int', 'default': 60, 'label': 'Sample interval (s)', 'group': 'monitor',
+                'description': 'How often (in seconds) the governor samples hardware metrics. Lower values give faster response but add slight CPU overhead.',
+            },
+            'monitor:gpu_temp_throttle': {
+                'type': 'float', 'default': 80.0, 'label': 'GPU temp throttle (°C)', 'group': 'monitor',
+                'description': 'GPU temperature at which workers slow down (throttled state). A 5-second inter-task delay is added.',
+            },
+            'monitor:gpu_temp_cooldown': {
+                'type': 'float', 'default': 88.0, 'label': 'GPU temp cooldown (°C)', 'group': 'monitor',
+                'description': 'GPU temperature at which workers pause completely (cooldown state).',
+            },
+            'monitor:gpu_util_throttle': {
+                'type': 'float', 'default': 70.0, 'label': 'GPU util throttle (%)', 'group': 'monitor',
+                'description': 'GPU utilization percentage at which workers throttle.',
+            },
+            'monitor:sustained_minutes': {
+                'type': 'int', 'default': 3, 'label': 'Sustained minutes', 'group': 'monitor',
+                'description': 'How many consecutive minutes of throttle-level pressure triggers the cooldown state.',
+            },
+            'monitor:cooldown_minutes': {
+                'type': 'int', 'default': 10, 'label': 'Cooldown minutes', 'group': 'monitor',
+                'description': 'How many minutes workers pause during cooldown before retesting.',
+            },
+            'monitor:ram_throttle_pct': {
+                'type': 'float', 'default': 85.0, 'label': 'RAM throttle (%)', 'group': 'monitor',
+                'description': 'RAM usage percentage at which workers throttle.',
+            },
+            'monitor:cpu_temp_throttle': {
+                'type': 'float', 'default': 85.0, 'label': 'CPU temp throttle (°C)', 'group': 'monitor',
+                'description': 'CPU temperature at which workers throttle.',
+            },
         }
 
     def get(self, key: str):
