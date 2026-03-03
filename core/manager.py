@@ -331,12 +331,28 @@ def complete_extraction(db_path, file_hash, status, text=None,
 
 
 def claim_pending_task(db_path, worker_id):
+    """
+    Claim the highest-priority PENDING task using composite priority:
+        effective_priority = (10 - vault_priority) * extractor_priority + age_bonus
+    where age_bonus = seconds_since_last_update / 3600
+    Lower vault_priority = higher importance (priority 1 beats priority 9).
+    Larger effective_priority value wins (ORDER BY DESC).
+    """
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            """SELECT file_hash, file_path, file_type, priority FROM tasks
-               WHERE status = 'PENDING'
-               ORDER BY priority DESC, last_update ASC
+            """SELECT t.file_hash, t.file_path, t.file_type, t.priority, t.vault_id,
+                      COALESCE(v.priority, 5) AS vault_priority
+               FROM tasks t
+               LEFT JOIN vaults v ON t.vault_id = v.vault_id
+               WHERE t.status = 'PENDING'
+               ORDER BY
+                 -- Lower vault_priority = more important -> invert with (10 - vault_priority)
+                 ((10 - COALESCE(v.priority, 5)) * COALESCE(t.priority, 10))
+                 + (CAST(
+                     (julianday('now') - julianday(t.last_update)) * 86400
+                    AS REAL) / 3600.0)
+                 DESC
                LIMIT 1"""
         ).fetchone()
         if row is None:
