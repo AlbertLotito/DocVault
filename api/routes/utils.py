@@ -78,6 +78,21 @@ def gdrive_authorize():
     return {'ok': False, 'detail': err}
 
 
+@router.post("/utils/clear_logs")
+def clear_logs():
+    from core.manager import get_logs_db_path, _connect
+    with _connect(get_logs_db_path()) as conn:
+        conn.executescript("""
+            DELETE FROM task_timings;
+            DELETE FROM worker_errors;
+            DELETE FROM worker_log;
+            DELETE FROM extractor_stats;
+            DELETE FROM system_stats;
+        """)
+        conn.commit()
+    return {"ok": True}
+
+
 @router.post("/utils/open_path")
 def open_path(req: OpenRequest):
     if not os.path.exists(req.path):
