@@ -37,6 +37,12 @@ def start():
     scan_dir = settings.get('paths:scan_directory')
     manager.bootstrap_default_vault(DB_PATH, scan_directory=scan_dir)
 
+    # Start resource governor daemon
+    from core.monitor import HardwareMonitor
+    monitor = HardwareMonitor()
+    t_monitor = threading.Thread(target=monitor.run, daemon=True, name='monitor')
+    t_monitor.start()
+
     # Start ingestion worker in a daemon thread
     t_ingest = threading.Thread(
         target=ingestion_worker_run, args=(DB_PATH,), daemon=True

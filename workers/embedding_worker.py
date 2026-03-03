@@ -2,15 +2,17 @@ import os
 import socket
 import time
 from core import manager
-from core.settings import settings
 from embeddings import chunker, embedder
 from embeddings.vector_store import VectorStore
+from workers.utils import interruptible_sleep, should_pause_or_throttle, get_throttle_sleep
 
 
-def _load_vector_store():
+def _load_vector_store(vault_id: str | None = None):
+    from core.settings import SettingsResolver
+    r = SettingsResolver(vault_id=vault_id)
     return VectorStore(
-        host=settings.get('qdrant:host'),
-        port=int(settings.get('qdrant:port')),
+        host=r.get('qdrant:host'),
+        port=int(r.get('qdrant:port')),
         collection='docvault',
     )
 
@@ -58,9 +60,6 @@ def process_task(db_path, task, vs):
     print(f"  Embedded {len(chunks)} chunk(s).")
 
 
-from .utils import interruptible_sleep
-
-
 def run(db_path, shutdown_event=None, worker_id=None): # shutdown_event is ignored
     if worker_id is None:
         worker_id = f"embed-{socket.gethostname()}-{os.getpid()}"
@@ -78,10 +77,15 @@ def run(db_path, shutdown_event=None, worker_id=None): # shutdown_event is ignor
                 time.sleep(10)
                 continue
 
-        if manager.get_pause_state():
-            print("Embedding worker paused. Sleeping...")
+        skip, reason = should_pause_or_throttle()
+        if skip:
+            print(f"Embedding worker {reason}. Sleeping...")
             interruptible_sleep(db_path, 10)
             continue
+
+        extra = get_throttle_sleep(reason)
+        if extra:
+            time.sleep(extra)
 
         task = manager.claim_extracted_task(db_path, worker_id)
         if task:
