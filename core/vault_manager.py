@@ -1,0 +1,196 @@
+"""
+core/vault_manager.py -- Vault CRUD, state machine, and settings resolution.
+
+Vault state machine (API-enforced):
+    active -> archived -> gutted -> deleted
+    archived -> active  (restore)
+
+Source files on disk are NEVER touched.
+"""
+
+from __future__ import annotations
+import uuid
+from datetime import datetime, timezone
+from core.manager import _connect, get_db_path
+
+
+class VaultStateError(Exception):
+    """Raised when a state transition is invalid."""
+
+
+class VaultConflictError(Exception):
+    """Raised when a vault constraint is violated (e.g. duplicate scan_directory)."""
+
+
+# Valid transitions: from_state -> [allowed to_states]
+_TRANSITIONS = {
+    'active':   ['archived'],
+    'archived': ['active', 'gutted'],
+    'gutted':   ['deleted'],
+    'deleted':  [],
+}
+
+
+class VaultManager:
+
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path or get_db_path()
+
+    def _now(self) -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    def list_vaults(self, include_deleted: bool = False) -> list[dict]:
+        with _connect(self.db_path) as conn:
+            if include_deleted:
+                rows = conn.execute("SELECT * FROM vaults ORDER BY name").fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM vaults WHERE state != 'deleted' ORDER BY name"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_vault(self, vault_id: str) -> dict | None:
+        with _connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM vaults WHERE vault_id = ?", (vault_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def create_vault(self, name: str, scan_directory: str,
+                     priority: int = 5, color: str = '#6366f1') -> dict:
+        # Guard against duplicate scan directories
+        with _connect(self.db_path) as conn:
+            existing = conn.execute(
+                "SELECT vault_id FROM vaults WHERE scan_directory = ? AND state != 'deleted'",
+                (scan_directory,)
+            ).fetchone()
+            if existing:
+                raise VaultConflictError(
+                    f"A vault already watches '{scan_directory}'"
+                )
+
+            vault_id = str(uuid.uuid4())
+            now      = self._now()
+            conn.execute(
+                """INSERT INTO vaults
+                   (vault_id, name, scan_directory, priority, color, state, created_at, updated_at)
+                   VALUES (?,?,?,?,?,'active',?,?)""",
+                (vault_id, name, scan_directory, priority, color, now, now)
+            )
+            conn.commit()
+        return self.get_vault(vault_id)
+
+    def update_vault(self, vault_id: str, **fields) -> dict:
+        allowed = {'name', 'scan_directory', 'priority', 'color'}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return self.get_vault(vault_id)
+        updates['updated_at'] = self._now()
+        set_clause = ', '.join(f"{k} = ?" for k in updates)
+        with _connect(self.db_path) as conn:
+            conn.execute(
+                f"UPDATE vaults SET {set_clause} WHERE vault_id = ?",
+                list(updates.values()) + [vault_id]
+            )
+            conn.commit()
+        return self.get_vault(vault_id)
+
+    def transition(self, vault_id: str, new_state: str) -> dict:
+        vault = self.get_vault(vault_id)
+        if not vault:
+            raise VaultStateError(f"Vault {vault_id} not found")
+
+        current = vault['state']
+        allowed = _TRANSITIONS.get(current, [])
+        if new_state not in allowed:
+            raise VaultStateError(
+                f"Cannot transition vault from '{current}' to '{new_state}'. "
+                f"Allowed: {allowed}"
+            )
+
+        if new_state == 'gutted':
+            self._gut_vault(vault_id)
+
+        with _connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE vaults SET state=?, updated_at=? WHERE vault_id=?",
+                (new_state, self._now(), vault_id)
+            )
+            conn.commit()
+        return self.get_vault(vault_id)
+
+    def _gut_vault(self, vault_id: str):
+        """
+        Wipe all extracted content for this vault.
+        Deletes: task records, FTS entries, extracted_images.
+        Resets Qdrant vectors for this vault.
+        Does NOT touch source files on disk.
+        """
+        with _connect(self.db_path) as conn:
+            # Get all file_hashes for this vault
+            hashes = [r[0] for r in conn.execute(
+                "SELECT file_hash FROM tasks WHERE vault_id = ?", (vault_id,)
+            ).fetchall()]
+
+            # Remove from FTS
+            for h in hashes:
+                conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (h,))
+
+            # Remove extracted images
+            if hashes:
+                conn.execute("DELETE FROM extracted_images WHERE source_hash IN "
+                             f"({','.join('?' for _ in hashes)})", hashes)
+
+            # Delete tasks
+            conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
+            conn.commit()
+
+        # Remove Qdrant vectors for this vault
+        try:
+            from embeddings.vector_store import VectorStore
+            from core.settings import settings
+            vs = VectorStore(
+                host=settings.get('qdrant:host'),
+                port=int(settings.get('qdrant:port')),
+                collection='docvault',
+            )
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            vs.client.delete(
+                collection_name='docvault',
+                points_selector=Filter(must=[
+                    FieldCondition(key='vault_id', match=MatchValue(value=vault_id))
+                ])
+            )
+        except Exception as e:
+            print(f"[vault_manager] Warning: could not remove Qdrant vectors: {e}")
+
+    def restore(self, vault_id: str) -> dict:
+        """Convenience: archived -> active."""
+        return self.transition(vault_id, 'active')
+
+    def reindex(self, vault_id: str):
+        """Wipe vectors and reset COMPLETED tasks to EXTRACTED for this vault only."""
+        with _connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE tasks SET status='EXTRACTED' WHERE vault_id=? AND status='COMPLETED'",
+                (vault_id,)
+            )
+            conn.commit()
+        # Remove Qdrant vectors
+        try:
+            from embeddings.vector_store import VectorStore
+            from core.settings import settings
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            vs = VectorStore(
+                host=settings.get('qdrant:host'),
+                port=int(settings.get('qdrant:port')),
+                collection='docvault',
+            )
+            vs.client.delete(
+                collection_name='docvault',
+                points_selector=Filter(must=[
+                    FieldCondition(key='vault_id', match=MatchValue(value=vault_id))
+                ])
+            )
+        except Exception as e:
+            print(f"[vault_manager] Warning: reindex Qdrant removal failed: {e}")
