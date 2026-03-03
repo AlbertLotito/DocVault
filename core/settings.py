@@ -189,11 +189,10 @@ class SettingsResolver:
 
     def __init__(self, vault_id: str | None = None, _settings_obj: 'Settings | None' = None):
         self.vault_id = vault_id
-        # Use the provided Settings object if given; otherwise create a schema-only
-        # instance (no config.ini) so the resolution chain is:
-        #   vault_settings -> settings.db global -> schema default
-        # Pass _settings_obj=settings to include the config.ini tier.
-        self._s = _settings_obj if _settings_obj is not None else Settings(config_path='')
+        # Use the provided Settings object if given; otherwise fall back to the
+        # global singleton (which has config.ini loaded) so the full 4-tier chain is
+        # preserved: vault_settings -> settings.db global -> config.ini -> schema default.
+        self._s = _settings_obj or settings
 
     def get(self, key: str):
         if ':' not in key:
