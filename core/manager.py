@@ -225,13 +225,16 @@ def bootstrap_default_vault(db_path=None, scan_directory=None):
 
 
 def insert_task(db_path, file_hash, file_path, file_type, priority=10,
-                file_size=None, file_created=None, file_modified=None):
+                file_size=None, file_created=None, file_modified=None,
+                vault_id=None):
     with _connect(db_path) as conn:
         conn.execute(
             """INSERT OR IGNORE INTO tasks
-               (file_hash, file_path, file_type, priority, file_size, file_created, file_modified)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (file_hash, file_path, file_type, priority, file_size, file_created, file_modified)
+               (file_hash, file_path, file_type, priority, file_size,
+                file_created, file_modified, vault_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (file_hash, file_path, file_type, priority, file_size,
+             file_created, file_modified, vault_id)
         )
         conn.commit()
 

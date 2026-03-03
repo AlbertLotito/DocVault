@@ -14,15 +14,19 @@ from workers import extraction_worker, embedding_worker
 DB_PATH = manager.get_db_path()
 
 def ingestion_worker_run(db_path, interval_seconds=60):
-    """Periodically scans the directory for new files."""
+    """Periodically scans all active vaults."""
     print(f"Ingestion worker starting. Will scan every {interval_seconds}s.")
-    # This loop will be terminated abruptly when the main thread exits
     while True:
         try:
-            scan_dir = settings.get('paths:scan_directory')
-            print(f"Starting periodic scan of: {scan_dir}")
-            ingestor.ingest(scan_dir, db_path)
-            print(f"Scan complete. Sleeping for {interval_seconds}s.")
+            from core.vault_manager import VaultManager
+            vm = VaultManager(db_path)
+            vaults = vm.list_vaults()
+            active = [v for v in vaults if v['state'] == 'active']
+            for vault in active:
+                scan_dir = vault['scan_directory']
+                vault_id = vault['vault_id']
+                print(f"Scanning vault '{vault['name']}': {scan_dir}")
+                ingestor.ingest(scan_dir, db_path, vault_id=vault_id)
         except Exception as e:
             print(f"[ERROR] Ingestion worker failed: {e}")
         time.sleep(interval_seconds)

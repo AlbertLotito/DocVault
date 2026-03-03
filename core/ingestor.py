@@ -55,7 +55,7 @@ def _update_qdrant_path(file_hash, new_path):
         print(f"  [qdrant] Path update failed for {file_hash[:8]}: {e}")
 
 
-def ingest(directory, db_path):
+def ingest(directory, db_path, vault_id=None):
     """
     Walk directory, hash each file, and:
       - Insert new files with full metadata (size, created, modified).
@@ -93,6 +93,7 @@ def ingest(directory, db_path):
                     manager.insert_task(
                         db_path, file_hash, file_path, ext, priority,
                         file_size=size, file_created=created, file_modified=modified,
+                        vault_id=vault_id,
                     )
                     added += 1
                     print(f"  Added: {name} (priority: {priority})")
