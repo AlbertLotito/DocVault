@@ -9,8 +9,6 @@ Exit codes: 0 = pass, 1 = fail
 
 Usage:
   python tests/rigs/check_settings_resolution.py
-  python tests/rigs/check_settings_resolution.py --verbose
-  python tests/rigs/check_settings_resolution.py --settings-db path/to/settings.db
 """
 import argparse, sqlite3, sys, os, tempfile
 
@@ -19,7 +17,7 @@ GREEN = '\033[92m'; RED = '\033[91m'; RESET = '\033[0m'
 def _pass(msg): print(f"{GREEN}PASS{RESET}  {msg}"); return True
 def _fail(msg): print(f"{RED}FAIL{RESET}  {msg}"); return False
 
-def run_checks(settings_db_path, verbose):
+def run_checks():
     results = []
 
     # Inject a fresh test DB
@@ -82,12 +80,10 @@ def run_checks(settings_db_path, verbose):
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--settings-db', default='settings.db')
-    parser.add_argument('--verbose', '-v', action='store_true')
     args = parser.parse_args()
 
     print("\nDocVault Layer 2 -- Settings Resolution Check\n")
-    results = run_checks(args.settings_db, args.verbose)
+    results = run_checks()
     failed = sum(1 for r in results if not r)
     print(f"\n{len(results)-failed} passed, {failed} failed")
     sys.exit(0 if failed == 0 else 1)

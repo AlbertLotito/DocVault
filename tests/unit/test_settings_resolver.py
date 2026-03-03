@@ -52,3 +52,18 @@ def test_vault_setting_does_not_leak(tmp_path, monkeypatch):
     from core.settings import SettingsResolver
     r = SettingsResolver(vault_id='vault-2')  # different vault
     assert int(r.get('embeddings:chunk_size')) == 600  # schema default (or config.ini string)
+
+def test_resolver_graceful_when_vault_settings_table_absent(tmp_path, monkeypatch):
+    """SettingsResolver falls through to global tier if vault_settings table doesn't exist."""
+    import core.manager as m
+    # Create a settings DB with only the global settings table — no vault_settings table
+    db = str(tmp_path / 'settings.db')
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO settings VALUES ('embeddings:chunk_size', '999')")
+    conn.commit(); conn.close()
+    monkeypatch.setattr(m, 'get_settings_db_path', lambda: db)
+    from core.settings import SettingsResolver
+    r = SettingsResolver(vault_id='vault-1')
+    # Should fall through to global DB value '999' without raising
+    assert r.get('embeddings:chunk_size') == '999'
