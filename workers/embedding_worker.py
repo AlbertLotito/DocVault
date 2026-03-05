@@ -87,20 +87,22 @@ def run(db_path, shutdown_event=None, worker_id=None): # shutdown_event is ignor
         if extra:
             time.sleep(extra)
 
-        task = manager.claim_extracted_task(db_path, worker_id)
+        try:
+            task = manager.claim_extracted_task(db_path, worker_id)
+        except Exception as e:
+            print(f"[WARN] Embedding worker DB contention, retrying in 5s: {e}")
+            time.sleep(5)
+            continue
+
         if task:
             try:
                 process_task(db_path, task, vs)
             except Exception as e:
-                # If we get an exception here, it might be a connection error.
-                # Reset vs so we try to reconnect on the next loop.
                 if "connection" in str(e).lower():
                     print(f"[ERROR] Qdrant connection lost. Will attempt to reconnect. Error: {e}")
-                    vs = None 
+                    vs = None
                 else:
                     print(f"[ERROR] Unhandled exception in embedding worker for task {task.get('file_hash')}: {e}")
                 manager.update_task_status(db_path, task['file_hash'], status='ERROR')
-
         else:
-            print("No extracted tasks. Sleeping...")
             interruptible_sleep(db_path, 10)
