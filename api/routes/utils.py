@@ -104,9 +104,11 @@ def system_health():
 
     issues = []
 
-    with sqlite3.connect(DB_PATH, timeout=10) as conn:
-        conn.row_factory = sqlite3.Row
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.row_factory = sqlite3.Row
 
+    try:
         # Count by status
         rows = conn.execute(
             "SELECT status, COUNT(*) as n FROM tasks GROUP BY status"
@@ -173,6 +175,8 @@ def system_health():
                 'action_label': None,
                 'count': other_errs,
             })
+    finally:
+        conn.close()
 
     # 5. Qdrant connectivity
     qdrant_ok = False
@@ -205,17 +209,27 @@ def system_health():
     }
 
 
+def _db_write(db_path, sql, params=()):
+    """Execute a single write against docvault.db with WAL mode and a generous timeout."""
+    import sqlite3
+    conn = sqlite3.connect(db_path, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        cur = conn.execute(sql, params)
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()
+
+
 @router.post("/utils/reset_stuck")
 def reset_stuck():
     """Reset all PROCESSING tasks to PENDING (orphaned by dead worker processes)."""
     from api.main import DB_PATH
-    import sqlite3
-    with sqlite3.connect(DB_PATH, timeout=10) as conn:
-        cur = conn.execute(
-            "UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now') "
-            "WHERE status='PROCESSING'"
-        )
-        n = cur.rowcount
+    n = _db_write(DB_PATH,
+        "UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now') "
+        "WHERE status='PROCESSING'"
+    )
     return {'ok': True, 'reset': n}
 
 
@@ -223,15 +237,12 @@ def reset_stuck():
 def retry_embed_errors():
     """Reset Qdrant-timeout ERROR tasks to EXTRACTED so the embedding worker retries."""
     from api.main import DB_PATH
-    import sqlite3
-    with sqlite3.connect(DB_PATH, timeout=10) as conn:
-        cur = conn.execute(
-            """UPDATE tasks SET status='EXTRACTED', worker_id=NULL, last_update=datetime('now')
-               WHERE status='ERROR'
-               AND (error_log LIKE '%upsert%' OR error_log LIKE '%Qdrant%'
-                    OR error_log LIKE '%timed out%')"""
-        )
-        n = cur.rowcount
+    n = _db_write(DB_PATH,
+        """UPDATE tasks SET status='EXTRACTED', worker_id=NULL, last_update=datetime('now')
+           WHERE status='ERROR'
+           AND (error_log LIKE '%upsert%' OR error_log LIKE '%Qdrant%'
+                OR error_log LIKE '%timed out%')"""
+    )
     return {'ok': True, 'reset': n}
 
 
@@ -239,14 +250,11 @@ def retry_embed_errors():
 def retry_extract_errors():
     """Reset encoding/OCR ERROR tasks to PENDING so the extraction worker retries."""
     from api.main import DB_PATH
-    import sqlite3
-    with sqlite3.connect(DB_PATH, timeout=10) as conn:
-        cur = conn.execute(
-            """UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now')
-               WHERE status='ERROR'
-               AND (error_log LIKE '%charmap%' OR error_log LIKE '%codec%encode%')"""
-        )
-        n = cur.rowcount
+    n = _db_write(DB_PATH,
+        """UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now')
+           WHERE status='ERROR'
+           AND (error_log LIKE '%charmap%' OR error_log LIKE '%codec%encode%')"""
+    )
     return {'ok': True, 'reset': n}
 
 
