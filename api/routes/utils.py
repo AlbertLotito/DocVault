@@ -93,6 +93,163 @@ def clear_logs():
     return {"ok": True}
 
 
+@router.get("/utils/health")
+def system_health():
+    """
+    Diagnose common task-queue problems.
+    Returns a list of issues with severity and available fix actions.
+    """
+    from api.main import DB_PATH
+    import sqlite3
+
+    issues = []
+
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        conn.row_factory = sqlite3.Row
+
+        # Count by status
+        rows = conn.execute(
+            "SELECT status, COUNT(*) as n FROM tasks GROUP BY status"
+        ).fetchall()
+        counts = {r['status']: r['n'] for r in rows}
+
+        # 1. Stuck PROCESSING tasks (worker process died, task will never complete)
+        stuck = counts.get('PROCESSING', 0)
+        if stuck:
+            issues.append({
+                'id': 'stuck_processing',
+                'severity': 'warning',
+                'title': f'{stuck} stuck task{"s" if stuck != 1 else ""}',
+                'detail': 'Claimed by worker processes that no longer exist. Will never complete without a reset.',
+                'action': 'reset_stuck',
+                'action_label': f'Reset {stuck} to PENDING',
+                'count': stuck,
+            })
+
+        # 2. Qdrant embedding failures (safe to retry — Qdrant may have been down)
+        qdrant_errs = conn.execute(
+            """SELECT COUNT(*) as n FROM tasks
+               WHERE status='ERROR'
+               AND (error_log LIKE '%upsert%' OR error_log LIKE '%Qdrant%'
+                    OR error_log LIKE '%timed out%')"""
+        ).fetchone()['n']
+        if qdrant_errs:
+            issues.append({
+                'id': 'qdrant_errors',
+                'severity': 'warning',
+                'title': f'{qdrant_errs} Qdrant embedding failure{"s" if qdrant_errs != 1 else ""}',
+                'detail': 'Extracted text is intact. Failed only at the embedding/upload step. Safe to retry.',
+                'action': 'retry_embed_errors',
+                'action_label': f'Retry {qdrant_errs} (reset to EXTRACTED)',
+                'count': qdrant_errs,
+            })
+
+        # 3. Encoding errors (need a code fix — don't auto-retry)
+        enc_errs = conn.execute(
+            """SELECT COUNT(*) as n FROM tasks
+               WHERE status='ERROR'
+               AND (error_log LIKE '%charmap%' OR error_log LIKE '%codec%encode%')"""
+        ).fetchone()['n']
+        if enc_errs:
+            issues.append({
+                'id': 'encoding_errors',
+                'severity': 'info',
+                'title': f'{enc_errs} Unicode encoding error{"s" if enc_errs != 1 else ""}',
+                'detail': 'OCR extractor failed encoding Unicode characters. Requires a code fix before retrying.',
+                'action': 'retry_extract_errors',
+                'action_label': f'Retry {enc_errs} anyway (reset to PENDING)',
+                'count': enc_errs,
+            })
+
+        # 4. Other errors (empty files, genuine failures — info only)
+        other_errs = counts.get('ERROR', 0) - qdrant_errs - enc_errs
+        if other_errs > 0:
+            issues.append({
+                'id': 'other_errors',
+                'severity': 'info',
+                'title': f'{other_errs} other extraction error{"s" if other_errs != 1 else ""}',
+                'detail': 'Empty files, unsupported formats, or missing external services. Inspect the Vault Log for details.',
+                'action': None,
+                'action_label': None,
+                'count': other_errs,
+            })
+
+    # 5. Qdrant connectivity
+    qdrant_ok = False
+    qdrant_points = 0
+    qdrant_detail = ''
+    try:
+        from qdrant_client import QdrantClient
+        host = settings.get('qdrant:host')
+        port = int(settings.get('qdrant:port'))
+        client = QdrantClient(host=host, port=port)
+        col = client.get_collection('docvault')
+        qdrant_ok = True
+        qdrant_points = col.points_count
+    except Exception as e:
+        qdrant_detail = str(e)
+        issues.append({
+            'id': 'qdrant_down',
+            'severity': 'error',
+            'title': 'Qdrant unreachable',
+            'detail': f'Embedding worker cannot store vectors: {qdrant_detail}',
+            'action': None,
+            'action_label': None,
+            'count': 0,
+        })
+
+    return {
+        'issues': issues,
+        'counts': counts,
+        'qdrant': {'ok': qdrant_ok, 'points': qdrant_points},
+    }
+
+
+@router.post("/utils/reset_stuck")
+def reset_stuck():
+    """Reset all PROCESSING tasks to PENDING (orphaned by dead worker processes)."""
+    from api.main import DB_PATH
+    import sqlite3
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        cur = conn.execute(
+            "UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now') "
+            "WHERE status='PROCESSING'"
+        )
+        n = cur.rowcount
+    return {'ok': True, 'reset': n}
+
+
+@router.post("/utils/retry_embed_errors")
+def retry_embed_errors():
+    """Reset Qdrant-timeout ERROR tasks to EXTRACTED so the embedding worker retries."""
+    from api.main import DB_PATH
+    import sqlite3
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        cur = conn.execute(
+            """UPDATE tasks SET status='EXTRACTED', worker_id=NULL, last_update=datetime('now')
+               WHERE status='ERROR'
+               AND (error_log LIKE '%upsert%' OR error_log LIKE '%Qdrant%'
+                    OR error_log LIKE '%timed out%')"""
+        )
+        n = cur.rowcount
+    return {'ok': True, 'reset': n}
+
+
+@router.post("/utils/retry_extract_errors")
+def retry_extract_errors():
+    """Reset encoding/OCR ERROR tasks to PENDING so the extraction worker retries."""
+    from api.main import DB_PATH
+    import sqlite3
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        cur = conn.execute(
+            """UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now')
+               WHERE status='ERROR'
+               AND (error_log LIKE '%charmap%' OR error_log LIKE '%codec%encode%')"""
+        )
+        n = cur.rowcount
+    return {'ok': True, 'reset': n}
+
+
 @router.post("/utils/open_path")
 def open_path(req: OpenRequest):
     if not os.path.exists(req.path):

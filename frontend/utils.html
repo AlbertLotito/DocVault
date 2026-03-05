@@ -19,6 +19,21 @@
   <main class="max-w-4xl mx-auto p-6">
     <h1 class="text-2xl font-bold text-gray-800 mb-6">System Utilities</h1>
 
+    <!-- System Health -->
+    <div class="bg-white rounded shadow p-6 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold text-gray-700">System Health</h2>
+        <button onclick="runHealthCheck()" id="health-btn"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">
+          Check Now
+        </button>
+      </div>
+      <div id="health-summary" class="hidden mb-4 flex flex-wrap gap-3 text-xs font-mono"></div>
+      <div id="health-issues">
+        <p class="text-sm text-gray-400">Click "Check Now" to run a diagnostic.</p>
+      </div>
+    </div>
+
     <!-- Google Drive Authorisation -->
     <div class="bg-white rounded shadow p-6 mb-6">
       <h2 class="font-semibold text-gray-700 mb-1">Google Drive Authorisation</h2>
@@ -157,7 +172,102 @@
       btn.textContent = 'Clear Logs Database';
     }
 
+    // ── System Health ─────────────────────────────────────────────────────────
+
+    const SEVERITY_STYLE = {
+      error:   'border-red-400 bg-red-50',
+      warning: 'border-yellow-400 bg-yellow-50',
+      info:    'border-blue-300 bg-blue-50',
+      ok:      'border-green-400 bg-green-50',
+    };
+    const SEVERITY_BADGE = {
+      error:   'bg-red-100 text-red-700',
+      warning: 'bg-yellow-100 text-yellow-800',
+      info:    'bg-blue-100 text-blue-700',
+      ok:      'bg-green-100 text-green-700',
+    };
+
+    async function runHealthCheck() {
+      const btn = document.getElementById('health-btn');
+      const issuesEl = document.getElementById('health-issues');
+      const summaryEl = document.getElementById('health-summary');
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      issuesEl.innerHTML = '<p class="text-sm text-gray-400">Running diagnostic...</p>';
+      summaryEl.classList.add('hidden');
+
+      try {
+        const data = await api('/utils/health');
+        renderHealthSummary(summaryEl, data.counts, data.qdrant);
+        renderHealthIssues(issuesEl, data.issues);
+      } catch (err) {
+        issuesEl.innerHTML = `<p class="text-sm text-red-600">Failed to load health data: ${err.message}</p>`;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Check Now';
+    }
+
+    function renderHealthSummary(el, counts, qdrant) {
+      const statuses = ['PENDING','PROCESSING','EXTRACTED','COMPLETED','ERROR','UNKNOWN'];
+      const colours = {
+        PENDING:'bg-gray-100 text-gray-700', PROCESSING:'bg-blue-100 text-blue-700',
+        EXTRACTED:'bg-purple-100 text-purple-700', COMPLETED:'bg-green-100 text-green-700',
+        ERROR:'bg-red-100 text-red-700', UNKNOWN:'bg-gray-100 text-gray-500',
+      };
+      let html = statuses
+        .filter(s => counts[s])
+        .map(s => `<span class="px-2 py-0.5 rounded ${colours[s]}">${s} ${counts[s].toLocaleString()}</span>`)
+        .join('');
+      const qColour = qdrant.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+      html += `<span class="px-2 py-0.5 rounded ${qColour}">Qdrant ${qdrant.ok ? qdrant.points.toLocaleString() + ' pts' : 'DOWN'}</span>`;
+      el.innerHTML = html;
+      el.classList.remove('hidden');
+    }
+
+    function renderHealthIssues(el, issues) {
+      if (!issues.length) {
+        el.innerHTML = '<p class="text-sm text-green-700 font-medium">No issues found. Queue looks healthy.</p>';
+        return;
+      }
+      el.innerHTML = issues.map(issue => `
+        <div class="border-l-4 rounded p-3 ${SEVERITY_STYLE[issue.severity] || SEVERITY_STYLE.info}">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <span class="inline-block text-xs font-semibold px-1.5 py-0.5 rounded mr-2 ${SEVERITY_BADGE[issue.severity] || SEVERITY_BADGE.info}">
+                ${issue.severity.toUpperCase()}
+              </span>
+              <span class="font-medium text-gray-800 text-sm">${issue.title}</span>
+              <p class="text-xs text-gray-600 mt-1">${issue.detail}</p>
+            </div>
+            ${issue.action ? `
+              <button
+                onclick="doHealthFix('${issue.action}', '${issue.action_label}', this)"
+                class="shrink-0 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded text-xs font-medium whitespace-nowrap">
+                ${issue.action_label}
+              </button>` : ''}
+          </div>
+        </div>`).join('');
+    }
+
+    async function doHealthFix(action, label, btn) {
+      if (!confirm(`${label}?\n\nThis will update task statuses in the database.`)) return;
+      btn.disabled = true;
+      btn.textContent = 'Working...';
+      try {
+        const data = await api(`/utils/${action}`, { method: 'POST' });
+        btn.textContent = `Done (${data.reset} tasks)`;
+        btn.className = btn.className.replace('border-gray-300', 'border-green-400')
+                                     .replace('text-gray-700', 'text-green-700');
+        // Refresh the health panel after a short delay
+        setTimeout(runHealthCheck, 1200);
+      } catch (err) {
+        btn.textContent = 'Error — retry?';
+        btn.disabled = false;
+      }
+    }
+
     loadGDriveStatus();
+    runHealthCheck();
   </script>
 </body>
 </html>
