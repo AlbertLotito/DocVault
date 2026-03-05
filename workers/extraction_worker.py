@@ -115,7 +115,13 @@ def run(db_path, worker_id=None, shutdown_event=None):
         if extra:
             time.sleep(extra)
 
-        task = manager.claim_pending_task(db_path, worker_id)
+        try:
+            task = manager.claim_pending_task(db_path, worker_id)
+        except Exception as e:
+            print(f"[WARN] Extraction worker DB contention, retrying in 5s: {e}")
+            time.sleep(5)
+            continue
+
         if task:
             try:
                 process_task(db_path, task)

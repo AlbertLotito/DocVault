@@ -114,7 +114,7 @@ def init_settings_db():
 
 @contextmanager
 def _connect(db_path):
-    conn = sqlite3.connect(db_path, timeout=10)
+    conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     try:
@@ -419,7 +419,7 @@ def insert_extracted_image(db_path, source_hash, img_meta):
         return False
     conn = None
     try:
-        conn = sqlite3.connect(db_path, timeout=10)
+        conn = sqlite3.connect(db_path, timeout=30)
         conn.execute(
             """INSERT OR IGNORE INTO extracted_images
                (source_hash, file_path, page_num, image_index, width, height)
