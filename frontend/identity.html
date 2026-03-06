@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DocVault — Identity Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/app.js"></script>
+  <link href="/static/styles.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+  <nav class="bg-indigo-700 text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-8">
+          <span class="font-bold text-xl tracking-tight">DocVault</span>
+          <div class="flex items-baseline space-x-4">
+            <a href="/status" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Status</a>
+            <a href="/catalog" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Log</a>
+            <a href="/identity" class="px-3 py-2 rounded-md text-sm font-medium bg-indigo-800">Identity Hub</a>
+            <a href="/search" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Search</a>
+            <a href="/utils" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Utilities</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Identity Hub</h1>
+        <p class="text-gray-500 mt-1">Manage people and identities across your document vaults.</p>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="loadRegistry()" class="bg-white border border-gray-300 px-4 py-2 rounded text-sm hover:bg-gray-50 transition-colors">Refresh</button>
+      </div>
+    </div>
+
+    <!-- Identity Grid -->
+    <div id="identity-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <!-- Injected via JS -->
+      <div class="col-span-full py-12 text-center text-gray-400 italic">Scanning for identities...</div>
+    </div>
+  </main>
+
+  <!-- Rename Modal -->
+  <div id="rename-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6">
+      <h3 class="text-lg font-bold text-gray-800 mb-4">Rename Identity</h3>
+      <input type="text" id="new-name-input" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-6">
+      <div class="flex justify-end gap-3">
+        <button onclick="closeRenameModal()" class="px-4 py-2 text-sm text-gray-500 hover:underline">Cancel</button>
+        <button onclick="executeRename()" class="bg-indigo-600 text-white px-6 py-2 rounded text-sm font-bold shadow-lg">Save Name</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeClusterId = null;
+
+    async function loadRegistry() {
+      const grid = document.getElementById('identity-grid');
+      try {
+        const people = await api('/identity/registry');
+        
+        if (people.length === 0) {
+          grid.innerHTML = `<div class="col-span-full py-12 text-center bg-white border-2 border-dashed border-gray-200 rounded-xl">
+            <div class="text-4xl mb-2">👤</div>
+            <div class="text-gray-500 font-medium">No identities discovered yet.</div>
+            <div class="text-xs text-gray-400 mt-1">Run the Face Identity Extractor in the Lab or scan a vault with images.</div>
+          </div>`;
+          return;
+        }
+
+        grid.innerHTML = people.map(p => `
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
+            <div class="aspect-square bg-gray-100 flex items-center justify-center relative">
+              ${p.thumbnail_path ? `<img src="${p.thumbnail_path}" class="w-full h-full object-cover">` : `<span class="text-4xl opacity-20">👤</span>`}
+              <div class="absolute top-2 right-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                ${p.detection_count} SIGHTINGS
+              </div>
+            </div>
+            <div class="p-4">
+              <div class="flex justify-between items-start mb-1">
+                <h3 class="font-bold text-gray-800 truncate pr-2">${_esc(p.person_name)}</h3>
+                <button onclick="openRenameModal('${p.cluster_id}', '${_esc(p.person_name)}')" class="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </button>
+              </div>
+              <p class="text-[10px] text-gray-400 font-mono mb-4 truncate">${p.cluster_id}</p>
+              <div class="flex gap-2">
+                <a href="/catalog?query=${encodeURIComponent(p.person_name)}" class="flex-1 text-center bg-indigo-50 text-indigo-700 py-1.5 rounded text-xs font-bold hover:bg-indigo-100 transition-colors">Find Photos</a>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        grid.innerHTML = `<div class="col-span-full text-red-500 p-4 bg-red-50 rounded">Failed to load registry: ${err.message}</div>`;
+      }
+    }
+
+    function openRenameModal(id, currentName) {
+      activeClusterId = id;
+      document.getElementById('new-name-input').value = currentName;
+      document.getElementById('rename-modal').classList.remove('hidden');
+      document.getElementById('new-name-input').focus();
+    }
+
+    function closeRenameModal() {
+      document.getElementById('rename-modal').classList.add('hidden');
+      activeClusterId = null;
+    }
+
+    async function executeRename() {
+      const newName = document.getElementById('new-name-input').value.trim();
+      if (!newName || !activeClusterId) return;
+
+      try {
+        await api('/identity/rename', {
+          method: 'POST',
+          body: JSON.stringify({ cluster_id: activeClusterId, new_name: newName })
+        });
+        closeRenameModal();
+        loadRegistry();
+      } catch (err) {
+        alert("Rename failed: " + err.message);
+      }
+    }
+
+    // Initialize
+    window.onload = loadRegistry;
+  </script>
+</body>
+</html>

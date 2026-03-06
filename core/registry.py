@@ -49,6 +49,7 @@ class RegistryManager:
                     seen_ids.add(kid)
                     
                     kernel_type = manifest.get('type', 'python')
+                    target_type = manifest.get('target_type', 'file')
                     launch_config = json.dumps(manifest.get('command', [])) if kernel_type == 'subprocess' else None
 
                     if kid not in db_kernels:
@@ -60,9 +61,9 @@ class RegistryManager:
                             level='info', source='registry'
                         )
                         conn.execute(
-                            """INSERT INTO ext_registry (kernel_id, module_name, version, file_hash, extensions, status, kernel_type, launch_config)
-                               VALUES (?, ?, ?, ?, ?, 'unverified', ?, ?)""",
-                            (kid, module_name, manifest['version'], current_hash, json.dumps(manifest['extensions']), kernel_type, launch_config)
+                            """INSERT INTO ext_registry (kernel_id, module_name, version, file_hash, extensions, status, kernel_type, launch_config, target_type)
+                               VALUES (?, ?, ?, ?, ?, 'unverified', ?, ?, ?)""",
+                            (kid, module_name, manifest['version'], current_hash, json.dumps(manifest['extensions']), kernel_type, launch_config, target_type)
                         )
                     else:
                         # EXISTING KERNEL - Check Integrity

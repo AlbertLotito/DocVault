@@ -30,7 +30,11 @@ def process_task(db_path, task):
     logger.info(f"Starting extraction: {filename}")
     ctx.report_progress(f"Initializing {filename}...", 0)
 
-    extractors = router.get_extractors(file_type, vault_id=vault_id)
+    if file_type.startswith('directory/'):
+        ext_hint = file_type.split('/')[-1]
+        extractors = router.get_folder_extractors(ext_hint)
+    else:
+        extractors = router.get_extractors(file_type, vault_id=vault_id)
 
 
     if extractors == [fallback_kernel]:
