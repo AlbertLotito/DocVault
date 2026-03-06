@@ -24,12 +24,17 @@ class RegistryManager:
         - Flags orphans (DB entry but no file).
         """
         disk_files = [f for f in os.listdir(EXTRACTORS_DIR) 
-                      if (f.endswith('.py') or f.endswith('.json')) and not f.startswith('_')]
+                      if (f.endswith('_extractor.py') or f.endswith('.json')) and not f.startswith('_')]
         
         with _connect(self.db_path) as conn:
-            # 1. Get all registered kernels
-            rows = conn.execute("SELECT kernel_id, file_hash, module_name FROM ext_registry").fetchall()
-            db_kernels = {r['kernel_id']: r for r in rows}
+            # 1. Get all registered kernels (Handle missing table during bootstrap)
+            try:
+                rows = conn.execute("SELECT kernel_id, file_hash, module_name FROM ext_registry").fetchall()
+                db_kernels = {r['kernel_id']: r for r in rows}
+            except Exception:
+                # Table doesn't exist yet, nothing to sync
+                return
+
             seen_ids = set()
 
             for filename in disk_files:
