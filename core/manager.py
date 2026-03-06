@@ -132,7 +132,8 @@ def init_settings_db():
                 certified_at   TEXT,
                 last_seen_at   TEXT DEFAULT CURRENT_TIMESTAMP,
                 kernel_type    TEXT DEFAULT 'python',
-                launch_config  TEXT -- JSON object for subprocess args
+                launch_config  TEXT, -- JSON object for subprocess args
+                target_type    TEXT DEFAULT 'file' -- 'file' or 'folder'
             );
         """)
 
@@ -143,6 +144,8 @@ def init_settings_db():
             conn.execute("ALTER TABLE ext_registry ADD COLUMN kernel_type TEXT DEFAULT 'python'")
         if 'launch_config' not in ext_columns:
             conn.execute("ALTER TABLE ext_registry ADD COLUMN launch_config TEXT")
+        if 'target_type' not in ext_columns:
+            conn.execute("ALTER TABLE ext_registry ADD COLUMN target_type TEXT DEFAULT 'file'")
 
         conn.commit()
 
@@ -208,6 +211,22 @@ def init_db(db_path=None):
                 state          TEXT DEFAULT 'active',
                 created_at     TEXT,
                 updated_at     TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS face_registry (
+                cluster_id     TEXT PRIMARY KEY, -- UUID
+                person_name    TEXT DEFAULT 'Unknown Person',
+                thumbnail_path TEXT,
+                created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS face_detections (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_hash      TEXT NOT NULL,
+                cluster_id     TEXT REFERENCES face_registry(cluster_id),
+                bounding_box   TEXT, -- JSON: [x, y, w, h]
+                encoding_json  TEXT, -- JSON: [128 floats]
+                detected_at    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         """)
 
@@ -663,6 +682,57 @@ def set_setting(key, value):
         conn.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
             (key, str(value))
+        )
+        conn.commit()
+
+
+def get_face_registry(db_path):
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """SELECT r.*, COUNT(d.id) as detection_count 
+               FROM face_registry r
+               LEFT JOIN face_detections d ON r.cluster_id = d.cluster_id
+               GROUP BY r.cluster_id
+               ORDER BY detection_count DESC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def rename_person(db_path, cluster_id, new_name):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE face_registry SET person_name = ? WHERE cluster_id = ?",
+            (new_name, cluster_id)
+        )
+        conn.commit()
+
+
+def get_person_detections(db_path, cluster_id, limit=50):
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """SELECT d.*, t.file_path 
+               FROM face_detections d
+               JOIN tasks t ON d.file_hash = t.file_hash
+               WHERE d.cluster_id = ?
+               ORDER BY d.detected_at DESC
+               LIMIT ?""",
+            (cluster_id, limit)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def merge_people(db_path, target_cluster_id, source_cluster_id):
+    """Combine two identities into one."""
+    with _connect(db_path) as conn:
+        # 1. Update all detections from source to target
+        conn.execute(
+            "UPDATE face_detections SET cluster_id = ? WHERE cluster_id = ?",
+            (target_cluster_id, source_cluster_id)
+        )
+        # 2. Delete the source registry entry
+        conn.execute(
+            "DELETE FROM face_registry WHERE cluster_id = ?",
+            (source_cluster_id,)
         )
         conn.commit()
 

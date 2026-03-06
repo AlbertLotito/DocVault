@@ -11,9 +11,7 @@ from core.registry import RegistryManager, EXTRACTORS_DIR
 from core import logger
 
 _all_extractors = []
-ROUTES = {}
-PRIORITIES = {}
-DEFAULT_PRIORITY = 10
+ROUTES = {'file': {}, 'folder': {}}
 FALLBACK_KERNEL = None
 
 def reload():
@@ -21,13 +19,12 @@ def reload():
     Refreshes the routing map from the database.
     Can be called during 'Hot Reload' events.
     """
-    global _all_extractors, ROUTES, PRIORITIES, FALLBACK_KERNEL
+    global _all_extractors, ROUTES, FALLBACK_KERNEL
     
     logger.info("Initializing dynamic router...", ext="router")
     
     new_extractors = []
-    new_routes = {}
-    new_priorities = {}
+    new_routes = {'file': {}, 'folder': {}}
     
     rm = RegistryManager()
     rm.sync_disk_to_db() # Ensure DB is current with disk
@@ -36,6 +33,7 @@ def reload():
     for entry in active:
         mod_name = entry['module_name']
         kernel_type = entry.get('kernel_type', 'python')
+        target_type = entry.get('target_type', 'file')
         
         try:
             # 1. Dynamic Load
@@ -43,7 +41,6 @@ def reload():
                 from core.extractors.base import SubprocessExtractorAdapter
                 launch_config = json.loads(entry['launch_config']) if entry.get('launch_config') else []
                 mod = SubprocessExtractorAdapter(mod_name, launch_config)
-                # Mock __name__ so the rest of the router logic works seamlessly
                 mod.__name__ = mod_name
             else:
                 file_path = os.path.join(EXTRACTORS_DIR, f"{mod_name}.py")
@@ -62,20 +59,20 @@ def reload():
                     FALLBACK_KERNEL = mod
                     continue
                     
-                if ext not in new_routes:
-                    new_routes[ext] = []
-                new_routes[ext].append(mod)
+                target_map = new_routes.get(target_type, new_routes['file'])
+                if ext not in target_map:
+                    target_map[ext] = []
+                target_map[ext].append(mod)
             
-            logger.debug(f"Router activated kernel: {entry['kernel_id']} ({kernel_type})", ext="router")
+            logger.debug(f"Router activated kernel: {entry['kernel_id']} ({kernel_type}/{target_type})", ext="router")
             
         except Exception as e:
             logger.error(f"Failed to load activated kernel {mod_name}: {e}", ext="router")
 
-    # 3. Sort ROUTES by priority (if defined in future, currently using registration order)
     _all_extractors = new_extractors
     ROUTES = new_routes
     
-    logger.info(f"Router active. {len(_all_extractors)} kernels loaded, {len(ROUTES)} extensions mapped.", ext="router")
+    logger.info(f"Router active. {len(_all_extractors)} kernels loaded.", ext="router")
 
 # --- Initialize on first import ---
 reload()
@@ -83,15 +80,14 @@ reload()
 def get_extractors(file_type: str, vault_id: str = None) -> list:
     """Return the ordered list of extractors for a given file extension."""
     file_type = file_type.lower()
-    
-    # Check for vault-specific overrides (TODO: Implement registry-aware override logic)
-    # For now, we return the global certified stack for that type.
-    
-    stack = ROUTES.get(file_type, [])
+    stack = ROUTES['file'].get(file_type, [])
     if not stack:
         return [FALLBACK_KERNEL] if FALLBACK_KERNEL else []
-    
     return stack
+
+def get_folder_extractors(extension_hint: str) -> list:
+    """Returns extractors registered for 'folder' targets with a specific extension content."""
+    return ROUTES['folder'].get(extension_hint.lower(), [])
 
 def get_priority(file_type: str, vault_id: str = None) -> int:
     """Return the priority for a given file extension."""

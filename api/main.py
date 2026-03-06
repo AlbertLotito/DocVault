@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from api.routes import catalog, search, query, workers, utils, settings as settings_routes
 from api.routes.vaults  import router as vaults_router
 from api.routes.monitor import router as monitor_router
+from api.routes.identity import router as identity_router
 
 _cfg = configparser.ConfigParser()
 _cfg.read(os.path.join(os.path.dirname(__file__), '..', 'config.ini'))
@@ -22,6 +23,7 @@ app.include_router(utils.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
 app.include_router(vaults_router)
 app.include_router(monitor_router)
+app.include_router(identity_router)
 
 FRONTEND = os.path.join(os.path.dirname(__file__), '..', 'frontend')
 app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND, 'static')),
@@ -67,3 +69,7 @@ def lab_page():
 @app.get("/lab.html")
 def lab_html():
     return FileResponse(os.path.join(FRONTEND, 'lab.html'))
+
+@app.get("/identity")
+def identity_page():
+    return FileResponse(os.path.join(FRONTEND, 'identity.html'))

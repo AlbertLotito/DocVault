@@ -71,8 +71,36 @@ def ingest(directory, db_path, vault_id=None):
     moved = 0
 
     for root, dirs, files in os.walk(directory):
+        # ── Part 1: Folder Intelligence ──────────────────────────────────────
+        # Check if the current folder itself should be a task unit
+        root_norm = os.path.normpath(root)
+        
+        # We only consider folders that haven't been 'moved' or renamed
+        # Folder ID is derived from the normalized path
+        folder_hash = f"DIR_{hashlib.md5(root_norm.encode()).hexdigest()}"
+        
+        # Simple detection: if >50% of files share an extension that has a folder extractor
+        from core.router import get_folder_extractors
+        ext_counts = {}
+        for f in files:
+            e = os.path.splitext(f)[1].lstrip('.').lower()
+            if e: ext_counts[e] = ext_counts.get(e, 0) + 1
+        
+        for ext, count in ext_counts.items():
+            if count >= len(files) * 0.5 and get_folder_extractors(ext):
+                # This folder is a candidate for collection intelligence
+                if not manager.get_task(db_path, folder_hash):
+                    manager.insert_task(
+                        db_path, folder_hash, root_norm, f"directory/{ext}", 5,
+                        vault_id=vault_id
+                    )
+                    logger.info(f"  Added Directory Unit: {os.path.basename(root)} (type: {ext})")
+                    added += 1
+                break
+
+        # ── Part 2: File Intelligence ────────────────────────────────────────
         # Skip the cache directory if it happens to live inside the scan tree
-        if os.path.normpath(root).startswith(cache_dir):
+        if root_norm.startswith(cache_dir):
             dirs.clear()
             continue
         for name in files:
