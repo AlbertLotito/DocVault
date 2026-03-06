@@ -10,12 +10,16 @@ PIPELINE:
 3. Schema Normalization: Transforms raw ffprobe JSON output into structured 
    technical metadata for the system registry.
 
-INTEGRATION:
-Provides the baseline technical context required by high-intelligence media 
-kernels (Aural and Video) and populates the system's technical info panels.
-
 REQUIRES: FFmpeg (specifically the ffprobe binary).
 """
+
+MANIFEST = {
+    "id": "com.docvault.media.diagnostics",
+    "version": "1.0.0",
+    "name": "Media Diagnostics Engine",
+    "extensions": ["mp4", "mov", "mkv", "avi", "webm", "mp3", "wav", "m4a", "flac", "ogg"],
+    "requires": ["ffmpeg", "ffprobe"]
+}
 
 __description__ = (
     "A high-precision media analysis engine powered by ffprobe. It performs "
@@ -27,9 +31,10 @@ __description__ = (
 import os
 import ffmpeg
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Extracts technical metadata from a media file using ffprobe.
 

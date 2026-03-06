@@ -12,6 +12,14 @@ PIPELINE:
 REQUIRES: Microsoft Word (for .doc support), pywin32.
 """
 
+MANIFEST = {
+    "id": "com.microsoft.word.standard",
+    "version": "1.0.0",
+    "name": "Microsoft Word Extractor",
+    "extensions": ["docx", "doc"],
+    "requires": ["python-docx", "pywin32"]
+}
+
 __description__ = (
     "A comprehensive Microsoft Word engine supporting both modern XML (.docx) "
     "and legacy binary (.doc) formats. It features a dual-tier recovery strategy "
@@ -21,6 +29,7 @@ __description__ = (
 import os
 from docx import Document
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
 def _extract_doc_legacy(file_path: str) -> tuple:
@@ -42,7 +51,10 @@ def _extract_doc_legacy(file_path: str) -> tuple:
         return None, f"Legacy .doc extraction failed (Word may not be installed): {e}"
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
+    """
+    Extract content from a Word file using native parsing or COM fallback.
+    """
     logger.info(f"Extracting: {os.path.basename(file_path)}", ext="ms-word")
     try:
         ext = os.path.splitext(file_path)[1].lower()

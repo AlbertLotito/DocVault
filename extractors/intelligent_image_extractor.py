@@ -13,6 +13,14 @@ PIPELINE:
 REQUIRES: Ollama (vision:model), Tesseract (tesseract:path).
 """
 
+MANIFEST = {
+    "id": "com.docvault.vision.standard",
+    "version": "1.0.0",
+    "name": "Intelligent Image Analyzer",
+    "extensions": ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"],
+    "requires": ["ollama", "pytesseract", "pillow"]
+}
+
 __description__ = (
     "A dual-mode vision engine that performs simultaneous scene description and "
     "text transcription. It leverages Multi-Modal LLMs for deep semantic understanding "
@@ -24,16 +32,17 @@ import pytesseract
 from PIL import Image
 from core.settings import settings
 from core import logger
+from core.extractors.base import ExtractorContext
 from extractors.vision import describe as vision_describe
 
 
-def _configure_tesseract():
+def _configure_tesseract() -> None:
     tesseract_path = settings.get('tesseract:path')
     if tesseract_path and os.path.exists(str(tesseract_path)):
         pytesseract.pytesseract.tesseract_cmd = str(tesseract_path)
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Extract content from an image file using Vision LLM + OCR fallback.
     """

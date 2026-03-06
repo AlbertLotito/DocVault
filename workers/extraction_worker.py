@@ -43,7 +43,12 @@ def process_task(db_path, task):
     combined_images = []
 
     for i, ext_module in enumerate(extractors):
-        adapter = LegacyExtractorAdapter(ext_module)
+        # If it's already an adapter (e.g. SubprocessExtractorAdapter), use it directly
+        from core.extractors.base import BaseExtractor
+        if isinstance(ext_module, BaseExtractor):
+            adapter = ext_module
+        else:
+            adapter = LegacyExtractorAdapter(ext_module)
         
         # Simple progress estimate based on extractor index
         prog_pct = int((i / len(extractors)) * 100)

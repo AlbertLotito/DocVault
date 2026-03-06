@@ -14,6 +14,14 @@ PIPELINE:
 REQUIRES: python-pptx.
 """
 
+MANIFEST = {
+    "id": "com.microsoft.powerpoint.standard",
+    "version": "1.0.0",
+    "name": "Microsoft PowerPoint Extractor",
+    "extensions": ["pptx", "ppt"],
+    "requires": ["python-pptx"]
+}
+
 __description__ = (
     "A specialized Microsoft PowerPoint engine that performs structural "
     "deconstruction of slide packages. It extracts and sequences text from titles, "
@@ -23,9 +31,10 @@ __description__ = (
 import os
 from pptx import Presentation
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     logger.info(f"Extracting: {os.path.basename(file_path)}", ext="ms-pptx")
     try:
         prs = Presentation(file_path)

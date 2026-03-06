@@ -12,6 +12,14 @@ PIPELINE:
 REQUIRES: Poppler (pdf:poppler_path), Tesseract (tesseract:path), Ollama (vision:model).
 """
 
+MANIFEST = {
+    "id": "com.docvault.pdf.text",
+    "version": "1.0.0",
+    "name": "PDF Text Engine",
+    "extensions": ["pdf"],
+    "requires": ["pypdf", "pdf2image", "pytesseract"]
+}
+
 __description__ = (
     "The system's primary multi-stage PDF engine designed for maximum text recovery. "
     "Features a tiered pipeline: (1) Native Stream extraction for digital text, "
@@ -25,16 +33,19 @@ import base64
 from pypdf import PdfReader
 from core.settings import settings
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-def _get_poppler_path():
+def _get_poppler_path() -> str | None:
     p = settings.get('pdf:poppler_path')
-    return str(p) if p and os.path.isdir(str(p)) else None
+    if p and os.path.exists(str(p)):
+        return str(p)
+    return None
 
 
-def _render_pdf_pages(file_path):
+def _render_pdf_pages(file_path: str) -> list:
     """Render all PDF pages as 300-DPI PIL images via pdf2image/poppler."""
     try:
         from pdf2image import convert_from_path
@@ -48,7 +59,7 @@ def _render_pdf_pages(file_path):
         return []
 
 
-def _tesseract_ocr(pil_image):
+def _tesseract_ocr(pil_image) -> str:
     """OCR a PIL image with Tesseract. Tries auto-rotation (psm 1) first,
     falls back to standard segmentation (psm 3) if OSD data is missing."""
     try:
@@ -73,7 +84,7 @@ def _tesseract_ocr(pil_image):
         return ''
 
 
-def _vision_ocr(pil_image):
+def _vision_ocr(pil_image) -> str:
     """Use an Ollama vision model to extract text when Tesseract comes up empty."""
     try:
         import ollama
@@ -101,7 +112,7 @@ def _vision_ocr(pil_image):
 
 # ── main extractor ────────────────────────────────────────────────────────────
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Multi-stage PDF text extractor:
       1. pypdf  — fast native text layer

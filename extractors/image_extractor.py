@@ -9,12 +9,16 @@ PIPELINE:
 3. Vision Analysis (vision.py): Passes extracted images to the Vision AI for 
    natural-language description (e.g., 'Chart showing revenue').
 
-INTEGRATION:
-- Search: Descriptions are merged into the parent document's text index.
-- UI: Assets are registered in 'extracted_images' for gallery display.
-
 REQUIRES: Vision Model (vision:describe_images).
 """
+
+MANIFEST = {
+    "id": "com.docvault.pdf.images",
+    "version": "1.0.0",
+    "name": "PDF Image Harvester",
+    "extensions": ["pdf"],
+    "requires": ["pypdf", "ollama", "pillow"]
+}
 
 __description__ = (
     "Specialized engine for surgical extraction of embedded binary assets from PDF streams. "
@@ -26,33 +30,19 @@ import os
 from pypdf import PdfReader
 from extractors.vision import describe as vision_describe
 from core import logger
-
-# App root = two levels up from this file (extractors/ → app root)
-_APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from core.extractors.base import ExtractorContext
 
 
 def _cache_dir() -> str:
     from core.settings import settings
-    configured = (settings.get('paths:cache_directory') or '').strip()
-    if configured:
-        return configured
-    return os.path.join(_APP_ROOT, '.cache', 'extracted_images')
+    d = settings.get('paths:cache_directory') or '.cache/extracted_images'
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Extracts all embedded images from a PDF and saves them as PNGs.
-    Images are written to the configured cache directory (not next to the PDF)
-    in a subfolder named <pdf_stem>_<hash8> to avoid collisions.
-    If the vision model is enabled, each image is also described and
-    the description is stored in the 'description' field of the metadata dict
-    (the worker collects these into the parent document's extracted text).
-
-    Returns:
-        (list[dict], None) on success.  Each dict has keys:
-            file_path, page_num, image_index, width, height, description.
-        Empty list if the PDF contains no embedded images.
-        (None, str) on failure.
     """
     logger.info(f"Extracting images from: {os.path.basename(file_path)}", ext="image")
     try:
