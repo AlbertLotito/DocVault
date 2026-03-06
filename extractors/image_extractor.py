@@ -1,6 +1,31 @@
+"""
+[ PDF IMAGE HARVESTING KERNEL ]
+Specialized engine for surgical extraction of embedded binary assets from PDF streams.
+
+PIPELINE:
+1. Binary Extraction (pypdf): Identifies and isolates XObject image streams.
+2. Asset Caching: Saves raw images as PNGs in the '.cache/extracted_images' directory.
+   Files are namespaced by source hash to prevent document-to-document collisions.
+3. Vision Analysis (vision.py): Passes extracted images to the Vision AI for 
+   natural-language description (e.g., 'Chart showing revenue').
+
+INTEGRATION:
+- Search: Descriptions are merged into the parent document's text index.
+- UI: Assets are registered in 'extracted_images' for gallery display.
+
+REQUIRES: Vision Model (vision:describe_images).
+"""
+
+__description__ = (
+    "Specialized engine for surgical extraction of embedded binary assets from PDF streams. "
+    "Identifies XObject images, saves them as PNGs in the system cache, and generates "
+    "natural-language descriptions using Vision AI to enable visual-content search."
+)
+
 import os
 from pypdf import PdfReader
 from extractors.vision import describe as vision_describe
+from core import logger
 
 # App root = two levels up from this file (extractors/ → app root)
 _APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,7 +54,7 @@ def extract(file_path: str) -> tuple:
         Empty list if the PDF contains no embedded images.
         (None, str) on failure.
     """
-    print(f"  [image] Extracting images from: {os.path.basename(file_path)}")
+    logger.info(f"Extracting images from: {os.path.basename(file_path)}", ext="image")
     try:
         import hashlib
         pdf_stem = os.path.splitext(os.path.basename(file_path))[0]
@@ -55,12 +80,12 @@ def extract(file_path: str) -> tuple:
                 out_path = os.path.normpath(os.path.join(output_dir, filename))
                 img_obj.image.save(out_path, "PNG")
                 width, height = img_obj.image.size
-                print(f"    Saved: {filename} ({width}x{height})")
+                logger.debug(f"Saved: {filename} ({width}x{height})", ext="image")
 
                 # Describe the image while we still have it in memory
                 description = vision_describe(img_obj.image)
                 if description:
-                    print(f"    Described: {filename} → {len(description)} chars")
+                    logger.debug(f"Described: {filename} → {len(description)} chars", ext="image")
 
                 extracted.append({
                     "file_path":   out_path,

@@ -5,7 +5,8 @@ import uuid
 
 class VectorStore:
     def __init__(self, host: str, port: int, collection: str, vector_size: int = 768):
-        self.client = QdrantClient(host=host, port=port)
+        # Using 30s timeout to prevent ResponseHandlingException on heavy queries
+        self.client = QdrantClient(host=host, port=port, timeout=30.0)
         self.collection = collection
         self._ensure_collection(vector_size)
 
@@ -39,17 +40,25 @@ class VectorStore:
                hash_filter: list[str] = None) -> list[dict]:
         if hash_filter is not None and len(hash_filter) == 0:
             return []  # Constraints matched no files
-        kwargs = dict(collection_name=self.collection, query=query_vector, limit=top_k)
-        if score_threshold is not None:
-            kwargs['score_threshold'] = score_threshold
+        
+        qdrant_filter = None
         if hash_filter is not None:
-            kwargs['query_filter'] = models.Filter(must=[
+            qdrant_filter = models.Filter(must=[
                 models.FieldCondition(
                     key='file_hash',
                     match=models.MatchAny(any=hash_filter),
                 )
             ])
-        response = self.client.query_points(**kwargs)
+
+        # Use query_points which is the recommended API in recent qdrant-client versions
+        response = self.client.query_points(
+            collection_name=self.collection,
+            query=query_vector,
+            limit=top_k,
+            score_threshold=score_threshold,
+            query_filter=qdrant_filter,
+            with_payload=True,
+        )
         return [{'score': r.score, **r.payload} for r in response.points]
 
     def update_path(self, file_hash: str, new_path: str):

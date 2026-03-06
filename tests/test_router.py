@@ -11,7 +11,7 @@ def test_pdf_routes_to_text_and_image():
 def test_docx_routes_to_word():
     extractors = get_extractors('docx')
     names = [e.__name__ for e in extractors]
-    assert 'word_extractor' in names
+    assert 'microsoft_word_extractor' in names
 
 
 def test_txt_routes_to_plaintext():
@@ -20,17 +20,17 @@ def test_txt_routes_to_plaintext():
     assert 'plaintext_extractor' in names
 
 
-def test_wav_routes_to_metadata_and_transcriber():
+def test_wav_routes_to_metadata_and_aural_ai():
     extractors = get_extractors('wav')
     names = [e.__name__ for e in extractors]
-    assert 'metadata_extractor' in names
-    assert 'transcriber' in names
+    assert 'media_technical_diagnostics_extractor' in names
+    assert 'aural_intelligence_extractor' in names
 
 
-def test_mp4_routes_to_video():
+def test_mp4_routes_to_multimodal_video():
     extractors = get_extractors('mp4')
     names = [e.__name__ for e in extractors]
-    assert 'video_extractor' in names
+    assert 'multimodal_video_intelligence_extractor' in names
 
 
 def test_unknown_extension_returns_unknown():
@@ -38,7 +38,7 @@ def test_unknown_extension_returns_unknown():
     assert extractors == [UNKNOWN]
 
 
-def test_jpg_routes_to_ocr():
+def test_jpg_routes_to_intelligent_image():
     extractors = get_extractors('jpg')
     names = [e.__name__ for e in extractors]
-    assert 'ocr_extractor' in names
+    assert 'intelligent_image_extractor' in names

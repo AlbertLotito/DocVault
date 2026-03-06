@@ -1,11 +1,36 @@
+"""
+[ MULTIMODAL VIDEO INTELLIGENCE KERNEL ]
+The system's most complex media engine, coordinating audio and visual 
+intelligence streams into a unified structured report.
+
+PIPELINE:
+1. Stream Splitting (FFmpeg): Isolates the audio stream and harvests high-resolution 
+   visual frames at configurable intervals.
+2. Aural Analysis (Whisper): Passes the audio stream to the Aural Intelligence 
+   kernel for full, punctuated speech-to-text transcription.
+3. Visual Scene Analysis (Vision LLM): Iterates through harvested frames, 
+   using Vision AI to describe on-screen content (people, objects, slides, or code).
+4. Temporal Reconstruction: Synchronizes audio and visual streams using 
+   timestamps (e.g., [Frame @ 2:15]) to provide chronological context.
+
+REQUIRES: FFmpeg, Aural Intelligence kernel, Vision AI model.
+"""
+
+__description__ = (
+    "A sophisticated multimodal engine that synthesizes aural and visual data. "
+    "It provides a synchronized report containing a full audio transcript and "
+    "timestamped scene descriptions, enabling deep searchability of video content."
+)
+
 import os
 import shutil
 import tempfile
 import ffmpeg
 from PIL import Image
-from extractors import transcriber
+from extractors import aural_intelligence_extractor
 from extractors.vision import describe as vision_describe, is_enabled as vision_enabled
 from core.settings import settings
+from core import logger
 
 
 def _extract_audio(video_path: str) -> tuple:
@@ -62,20 +87,9 @@ def _fmt_ts(seconds: int) -> str:
 
 def extract(file_path: str) -> tuple:
     """
-    Extracts a combined text representation of a video:
-      - Audio transcript via Whisper
-      - Visual frame descriptions via the vision model (if enabled)
-
-    Output format:
-      [Audio Transcript]
-      <whisper text>
-
-      [Visual Content]
-      [Frame @ M:SS]
-      <description>
-      ...
+    Multimodal extraction: Audio Transcript + Visual Scene Descriptions.
     """
-    print(f"  [video] Processing: {os.path.basename(file_path)}")
+    logger.info(f"Processing: {os.path.basename(file_path)}", ext="video-ai")
 
     parts = []
     errors = []
@@ -86,12 +100,12 @@ def extract(file_path: str) -> tuple:
         errors.append(err)
     else:
         try:
-            transcript, err = transcriber.extract(audio_path)
+            transcript, err = aural_intelligence_extractor.extract(audio_path)
             if err:
                 errors.append(f"Transcription: {err}")
             elif transcript:
                 parts.append(f"[Audio Transcript]\n{transcript}")
-                print(f"  [video] Transcript: {len(transcript)} chars")
+                logger.info(f"Transcript: {len(transcript)} chars", ext="video-ai")
         finally:
             if audio_path and os.path.exists(audio_path):
                 os.unlink(audio_path)
@@ -107,7 +121,7 @@ def extract(file_path: str) -> tuple:
         if err:
             errors.append(err)
         else:
-            print(f"  [video] Describing {len(frames)} frames (1 per {interval}s)…")
+            logger.info(f"Describing {len(frames)} frames (1 per {interval}s)…", ext="video-ai")
             frame_descriptions = []
             for ts, frame_path in frames:
                 try:
@@ -122,9 +136,9 @@ def extract(file_path: str) -> tuple:
                     )
                     if desc:
                         frame_descriptions.append(f"[Frame @ {_fmt_ts(ts)}]\n{desc}")
-                        print(f"    {_fmt_ts(ts)}: {len(desc)} chars")
+                        logger.debug(f"{_fmt_ts(ts)}: {len(desc)} chars", ext="video-ai")
                 except Exception as e:
-                    print(f"    {_fmt_ts(ts)}: skipped ({e})")
+                    logger.debug(f"{_fmt_ts(ts)}: skipped ({e})", ext="video-ai")
 
             if frame_descriptions:
                 parts.append("[Visual Content]\n" + "\n\n".join(frame_descriptions))

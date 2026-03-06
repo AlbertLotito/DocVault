@@ -3,6 +3,7 @@ from fastapi import APIRouter, Query
 from search import fts, semantic, hybrid
 from core import manager
 from core.settings import settings
+from core.monitor import notify_user_activity
 
 router = APIRouter()
 
@@ -23,6 +24,7 @@ async def search(q: str = Query(..., min_length=1),
                  file_type: str = None,
                  date_from: str = None,
                  date_to: str = None):
+    notify_user_activity()
     n = _limit(limit)
     db = get_db()
 
@@ -38,11 +40,11 @@ async def search(q: str = Query(..., min_length=1),
     if mode == 'semantic':
         return await semantic.async_search(q, top_k=n, hash_filter=hash_filter)
 
-    fts_task      = asyncio.to_thread(fts.search, db, q, n,
-                                      file_type, date_from, date_to)
-    semantic_task = semantic.async_search(q, top_k=n, hash_filter=hash_filter)
-    fts_r, sem_r  = await asyncio.gather(fts_task, semantic_task)
-    return hybrid.merge(fts_r, sem_r)
+    return await hybrid.async_search(
+        db_path=db, query=q, top_k=n,
+        file_type=file_type, date_from=date_from, date_to=date_to,
+        hash_filter=hash_filter
+    )
 
 
 @router.get("/search/filename")
@@ -52,6 +54,7 @@ def search_filename(q: str = Query(..., min_length=1),
                     date_from: str = None,
                     date_to: str = None):
     """Search for files by name/path using multi-token substring matching."""
+    notify_user_activity()
     return manager.filename_search(
         get_db(), q, _limit(limit),
         file_type=file_type, date_from=date_from, date_to=date_to,

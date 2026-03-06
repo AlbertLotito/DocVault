@@ -7,7 +7,7 @@ import time
 import uvicorn
 import configparser
 import os
-from core import manager, ingestor
+from core import manager, ingestor, logger
 from core.settings import settings
 from workers import extraction_worker, embedding_worker
 
@@ -15,7 +15,7 @@ DB_PATH = manager.get_db_path()
 
 def ingestion_worker_run(db_path, interval_seconds=60):
     """Periodically scans all active vaults."""
-    print(f"Ingestion worker starting. Will scan every {interval_seconds}s.")
+    logger.info(f"Ingestion worker starting. Will scan every {interval_seconds}s.")
     while True:
         try:
             from core.vault_manager import VaultManager
@@ -25,10 +25,10 @@ def ingestion_worker_run(db_path, interval_seconds=60):
             for vault in active:
                 scan_dir = vault['scan_directory']
                 vault_id = vault['vault_id']
-                print(f"Scanning vault '{vault['name']}': {scan_dir}")
+                logger.info(f"Scanning vault '{vault['name']}': {scan_dir}")
                 ingestor.ingest(scan_dir, db_path, vault_id=vault_id)
         except Exception as e:
-            print(f"[ERROR] Ingestion worker failed: {e}")
+            logger.error(f"Ingestion worker failed: {e}")
         time.sleep(interval_seconds)
 
 def start():
@@ -66,8 +66,9 @@ def start():
     t_embed.start()
 
     # Start web server (blocking)
-    print("Starting DocVault at http://localhost:8000")
+    logger.critical("Starting DocVault at http://localhost:8000")
     uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=False)
+
 
 
 if __name__ == "__main__":

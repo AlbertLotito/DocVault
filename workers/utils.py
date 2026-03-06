@@ -24,7 +24,7 @@ def should_pause_or_throttle() -> tuple[bool, str]:
         return True, 'paused'
     try:
         from core.monitor import get_throttle_state
-        state = get_throttle_state()
+        state, reason = get_throttle_state()
         if state == 'cooldown':
             return True, 'cooldown'
         return False, state

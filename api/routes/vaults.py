@@ -78,7 +78,50 @@ def restore_vault(vault_id: str):
 @router.post("/{vault_id}/reindex")
 def reindex_vault(vault_id: str):
     _vm().reindex(vault_id)
-    return {"ok": True}
+    return {"status": "ok"}
+
+
+@router.post("/{vault_id}/gut")
+def gut_vault(vault_id: str):
+    """Transition vault to gutted state (wipes data)."""
+    vm = _vm()
+    v = vm.get_vault(vault_id)
+    if not v:
+        raise HTTPException(404, "Vault not found")
+    
+    # State machine enforcement: active -> archived -> gutted
+    if v['state'] == 'active':
+        vm.transition(vault_id, 'archived')
+    
+    try:
+        vm.transition(vault_id, 'gutted')
+        return {"status": "ok"}
+    except VaultStateError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/{vault_id}/delete")
+def delete_vault(vault_id: str):
+    """Transition vault to deleted state (wipes data + removes entry)."""
+    vm = _vm()
+    v = vm.get_vault(vault_id)
+    if not v:
+        raise HTTPException(404, "Vault not found")
+
+    # State machine enforcement: active -> archived -> gutted -> deleted
+    try:
+        if v['state'] == 'active':
+            vm.transition(vault_id, 'archived')
+        
+        # Reload to get updated state
+        v = vm.get_vault(vault_id)
+        if v['state'] == 'archived':
+            vm.transition(vault_id, 'gutted')
+            
+        vm.transition(vault_id, 'deleted')
+        return {"status": "ok"}
+    except VaultStateError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/{vault_id}/settings")
@@ -115,3 +158,14 @@ def delete_vault_setting(vault_id: str, key: str):
         )
         conn.commit()
     return {"ok": True}
+
+
+@router.get("/{vault_id}/extractors")
+def get_vault_extractors(vault_id: str):
+    return _vm().get_vault_extractors(vault_id)
+
+
+@router.post("/{vault_id}/extractors")
+def set_vault_extractors(vault_id: str, body: list[dict]):
+    _vm().set_vault_extractors(vault_id, body)
+    return {"status": "ok"}

@@ -2,9 +2,9 @@
 Google Drive extractor.
 
 Handles local stub files created by Google Drive for Desktop:
-  .gdoc   → exported as DOCX  → word_extractor
-  .gsheet → exported as XLSX  → excel_extractor
-  .gslides→ exported as PPTX  → pptx_extractor
+  .gdoc   → exported as DOCX  → microsoft_word_extractor
+  .gsheet → exported as XLSX  → microsoft_excel_extractor
+  .gslides→ exported as PPTX  → microsoft_powerpoint_extractor
   .gform  → exported as CSV   → plaintext_extractor
   .gdraw  → exported as PDF   → text_extractor + image_extractor
 
@@ -20,6 +20,7 @@ import os
 import tempfile
 
 from core.settings import settings
+from core import logger
 
 
 # ── MIME type mappings ────────────────────────────────────────────────────────
@@ -35,11 +36,14 @@ _EXPORT_MAP = {
 
 # Which DocVault extractor handles each exported suffix
 def _extractor_for(suffix: str):
-    from extractors import word_extractor, excel_extractor, pptx_extractor, plaintext_extractor, text_extractor, image_extractor
+    from extractors import (
+        microsoft_word_extractor, microsoft_excel_extractor, microsoft_powerpoint_extractor, 
+        plaintext_extractor, text_extractor, image_extractor
+    )
     return {
-        '.docx': [word_extractor],
-        '.xlsx': [excel_extractor],
-        '.pptx': [pptx_extractor],
+        '.docx': [microsoft_word_extractor],
+        '.xlsx': [microsoft_excel_extractor],
+        '.pptx': [microsoft_powerpoint_extractor],
         '.csv':  [plaintext_extractor],
         '.pdf':  [text_extractor, image_extractor],
     }.get(suffix, [plaintext_extractor])
@@ -116,7 +120,7 @@ def extract(file_path: str) -> tuple:
     """
     Extract content from a Google Drive stub file (.gdoc, .gsheet, etc.).
     """
-    print(f"  [gdrive] Processing: {os.path.basename(file_path)}")
+    logger.info(f"Processing stub: {os.path.basename(file_path)}", ext="gdrive")
 
     if not is_authorized():
         return None, "Google Drive not authorised — use Utilities → Authorise Google Drive"
@@ -140,7 +144,7 @@ def extract(file_path: str) -> tuple:
         return None, f"Drive API error: {e}"
 
     mime_type = meta.get('mimeType', '')
-    print(f"  [gdrive] {meta.get('name')} ({mime_type})")
+    logger.info(f"Target: {meta.get('name')} ({mime_type})", ext="gdrive")
 
     if mime_type not in _EXPORT_MAP:
         return None, f"Unsupported Google Workspace type: {mime_type}"
@@ -155,7 +159,7 @@ def extract(file_path: str) -> tuple:
         tmp.write(request.execute())
         tmp.close()
         tmp_path = tmp.name
-        print(f"  [gdrive] Exported to {suffix} ({os.path.getsize(tmp_path)} bytes)")
+        logger.debug(f"Exported to {suffix} ({os.path.getsize(tmp_path)} bytes)", ext="gdrive")
 
         # Run through the appropriate DocVault extractor(s)
         extractors = _extractor_for(suffix)
@@ -163,9 +167,10 @@ def extract(file_path: str) -> tuple:
         errors = []
 
         for extractor in extractors:
+            # We must use the module directly here as these are legacy extractors
             result, err = extractor.extract(tmp_path)
             if err:
-                errors.append(f"[{extractor.__name__}] {err}")
+                errors.append(f"[{getattr(extractor, '__name__', 'unknown')}] {err}")
             if isinstance(result, str) and result:
                 combined_text.append(result)
             elif isinstance(result, list):

@@ -10,6 +10,7 @@ class OllamaProvider(BaseLLMProvider):
 
     def chat(self, messages: list[dict]) -> str:
         try:
+            from core.monitor import ollama_governor
             options = {
                 'temperature':    float(settings.get('ollama:temperature')),
                 'num_ctx':        int(settings.get('ollama:num_ctx')),
@@ -17,11 +18,14 @@ class OllamaProvider(BaseLLMProvider):
                 'top_p':          float(settings.get('ollama:top_p')),
                 'repeat_penalty': float(settings.get('ollama:repeat_penalty')),
             }
-            response = ollama.chat(
-                model=self.model,
-                messages=messages,
-                options=options,
-            )
-            return response['message']['content']
+
+            with ollama_governor():
+                response = ollama.chat(
+                    model=self.model,
+                    messages=messages,
+                    options=options,
+                )
+                return response['message']['content']
+
         except Exception as e:
             return f"LLM error: {e}"

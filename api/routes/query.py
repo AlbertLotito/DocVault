@@ -1,9 +1,11 @@
+import asyncio
 from fastapi import APIRouter
 from pydantic import BaseModel
-from search import semantic
+from search import hybrid
 from llm.factory import get_provider
 from core import manager
 from core.settings import settings
+from core.monitor import notify_user_activity
 
 router = APIRouter()
 
@@ -23,9 +25,12 @@ class QueryRequest(BaseModel):
 
 
 @router.post("/query")
-def rag_query(req: QueryRequest):
+async def rag_query(req: QueryRequest):
+    notify_user_activity()
     top_k      = req.top_k or int(settings.get('search:rag_top_k') or 5)
-    rag_thresh = float(settings.get('search:rag_threshold') or 0.50)
+    
+    # We use a slightly lower threshold for RAG retrieval to give the LLM more context
+    # but since RRF is a rank-based system, we rely on the top_k.
 
     hash_filter = manager.get_filtered_hashes(
         get_db(),
@@ -34,13 +39,30 @@ def rag_query(req: QueryRequest):
         date_to=req.date_to,
     )
 
-    results = semantic.search(req.question, top_k=top_k, hash_filter=hash_filter,
-                              score_threshold=rag_thresh)
-    chunks  = [r.get('chunk_text', '') for r in results]
-    sources = [{'file_path': r.get('file_path'), 'score': r.get('score')}
-               for r in results]
+    # Use Hybrid Search for RAG (FTS + Semantic)
+    # Use keyword arguments to ensure correct parameter mapping
+    try:
+        results = await hybrid.async_search(
+            db_path=get_db(), 
+            query=req.question, 
+            top_k=top_k, 
+            file_type=req.file_type, 
+            date_from=req.date_from, 
+            date_to=req.date_to,
+            hash_filter=hash_filter
+        )
+        
+        chunks  = [r.get('chunk_text', '') for r in results]
+        sources = [{'file_path': r.get('file_path'), 'score': r.get('score'), 'combined_score': r.get('combined_score')}
+                   for r in results]
 
-    llm    = get_provider()
-    result = llm.rag_query(req.question, chunks, history=req.history)
+        llm    = get_provider()
+        # rag_query is synchronous and blocks the thread; run in executor
+        result = await asyncio.to_thread(llm.rag_query, req.question, chunks, history=req.history)
 
-    return {'answer': result['answer'], 'thinking': result['thinking'], 'sources': sources}
+        return {'answer': result['answer'], 'thinking': result['thinking'], 'sources': sources}
+    except Exception as e:
+        print(f"[query] Error during RAG query: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e

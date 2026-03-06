@@ -60,6 +60,10 @@ class Settings:
                 'type': 'float', 'default': 1.1, 'label': 'Repeat Penalty', 'group': 'ollama',
                 'description': 'Penalises the model for repeating tokens it has recently generated. Values above 1.0 discourage repetition. Increase slightly (e.g. 1.2–1.3) if answers loop or repeat phrases.',
             },
+            'ollama:max_parallel': {
+                'type': 'int', 'default': 1, 'label': 'Max Parallel Requests', 'group': 'ollama',
+                'description': 'Maximum number of concurrent requests sent to Ollama. Set to 1 to serialize all requests (prevents "no slots available" errors). Increase this if you have configured Ollama with OLLAMA_NUM_PARALLEL > 1 and have sufficient VRAM. A server restart is required for changes to take effect.',
+            },
             # Qdrant
             'qdrant:host': {
                 'type': 'string', 'default': 'localhost', 'label': 'Host', 'group': 'qdrant',
@@ -175,6 +179,19 @@ class Settings:
             'monitor:cpu_temp_throttle': {
                 'type': 'float', 'default': 85.0, 'label': 'CPU temp throttle (°C)', 'group': 'monitor',
                 'description': 'CPU temperature at which workers throttle.',
+            },
+            'monitor:search_throttle_duration': {
+                'type': 'int', 'default': 60, 'label': 'Search throttle (s)', 'group': 'monitor',
+                'description': 'How many seconds to throttle extractors after a user performs a search. This ensures the UI remains snappy during heavy background processing.',
+            },
+            'monitor:stuck_task_threshold_mins': {
+                'type': 'int', 'default': 10, 'label': 'Stuck task threshold (m)', 'group': 'monitor',
+                'description': 'How many minutes a task can remain in PROCESSING or EMBEDDING state without an update before it is flagged as "stuck". Lower values catch dead processes faster; higher values avoid false positives for very large files.',
+            },
+            # System
+            'system:debug_mode': {
+                'type': 'string', 'default': 'false', 'label': 'Debug Mode', 'group': 'general',
+                'description': 'When enabled, the console output will include all logs (INFO, DEBUG). When disabled, only WARNINGS and ERRORS are shown. Useful for troubleshooting but can be noisy.',
             },
         }
 

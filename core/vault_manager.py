@@ -121,29 +121,38 @@ class VaultManager:
 
     def _gut_vault(self, vault_id: str):
         """
-        Wipe all extracted content for this vault.
-        Deletes: task records, FTS entries, extracted_images.
-        Resets Qdrant vectors for this vault.
-        Does NOT touch source files on disk.
+        Wipe all extracted content for this vault using optimized batch deletes.
         """
         with _connect(self.db_path) as conn:
-            # Get all file_hashes for this vault
+            # 1. Enable WAL for concurrency
+            conn.execute("PRAGMA journal_mode=WAL")
+            
+            # 2. Get all file_hashes for this vault
             hashes = [r[0] for r in conn.execute(
                 "SELECT file_hash FROM tasks WHERE vault_id = ?", (vault_id,)
             ).fetchall()]
 
-            # Remove from FTS
-            for h in hashes:
-                conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (h,))
+            if not hashes:
+                # Still need to delete the vault's task entries if they exist
+                conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
+                conn.commit()
+            else:
+                # 3. Batch delete from FTS using a single transaction
+                # SQLite has a limit on parameters (usually 999), so we batch the hashes
+                BATCH_SIZE = 500
+                for i in range(0, len(hashes), BATCH_SIZE):
+                    batch = hashes[i:i + BATCH_SIZE]
+                    placeholders = ",".join("?" for _ in batch)
+                    
+                    conn.execute(f"DELETE FROM fts_index WHERE file_hash IN ({placeholders})", batch)
+                    conn.execute(f"DELETE FROM extracted_images WHERE source_hash IN ({placeholders})", batch)
+                    
+                    # Commit each batch to release the write lock for other processes
+                    conn.commit()
 
-            # Remove extracted images
-            if hashes:
-                conn.execute("DELETE FROM extracted_images WHERE source_hash IN "
-                             f"({','.join('?' for _ in hashes)})", hashes)
-
-            # Delete tasks
-            conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
-            conn.commit()
+                # 4. Final task cleanup
+                conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
+                conn.commit()
 
         # Remove Qdrant vectors for this vault
         try:
@@ -163,6 +172,31 @@ class VaultManager:
             )
         except Exception as e:
             print(f"[vault_manager] Warning: could not remove Qdrant vectors: {e}")
+
+    def get_vault_extractors(self, vault_id: str) -> list[dict]:
+        """Returns the custom extractor config for a vault, or empty list if using defaults."""
+        from core.manager import get_settings_db_path
+        with _connect(get_settings_db_path()) as conn:
+            row = conn.execute(
+                "SELECT value FROM vault_settings WHERE vault_id = ? AND key = 'vault:extractor_config'",
+                (vault_id,)
+            ).fetchone()
+            if row:
+                try:
+                    return json.loads(row['value'])
+                except:
+                    return []
+        return []
+
+    def set_vault_extractors(self, vault_id: str, config: list[dict]):
+        """Saves custom extractor config (list of {name, priority, enabled})."""
+        from core.manager import get_settings_db_path
+        with _connect(get_settings_db_path()) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO vault_settings (vault_id, key, value) VALUES (?, 'vault:extractor_config', ?)",
+                (vault_id, json.dumps(config))
+            )
+            conn.commit()
 
     def restore(self, vault_id: str) -> dict:
         """Convenience: archived -> active."""

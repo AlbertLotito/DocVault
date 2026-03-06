@@ -1,8 +1,8 @@
 import os, socket, time, threading
-from core import manager, router
+from core import manager, router, logger
 from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger
 from core.settings import SettingsResolver
-from extractors import image_extractor, unknown_extractor
+from extractors import image_extractor, fallback_kernel
 from workers.utils import interruptible_sleep, should_pause_or_throttle, get_throttle_sleep
 
 
@@ -23,23 +23,32 @@ def process_task(db_path, task):
     file_hash = task['file_hash']
     file_path = task['file_path']
     file_type = task['file_type'] or ''
+    vault_id  = task.get('vault_id')
+    filename  = os.path.basename(file_path)
 
     ctx = _build_context(task)
-    ctx.logger.info(f"Starting extraction: {os.path.basename(file_path)}")
+    logger.info(f"Starting extraction: {filename}")
+    ctx.report_progress(f"Initializing {filename}...", 0)
 
-    extractors = router.get_extractors(file_type)
+    extractors = router.get_extractors(file_type, vault_id=vault_id)
 
-    if extractors == [unknown_extractor]:
-        _, msg = unknown_extractor.extract(file_path)
+
+    if extractors == [fallback_kernel]:
+        _, msg = fallback_kernel.extract(file_path)
         manager.complete_extraction(db_path, file_hash, status='UNKNOWN', error=msg)
-        ctx.logger.info(f"Flagged as UNKNOWN: {file_type}")
+        logger.info(f"Flagged as UNKNOWN: {file_type}")
         return
 
     errors, combined_text, combined_metadata = [], [], {}
     combined_images = []
 
-    for ext_module in extractors:
+    for i, ext_module in enumerate(extractors):
         adapter = LegacyExtractorAdapter(ext_module)
+        
+        # Simple progress estimate based on extractor index
+        prog_pct = int((i / len(extractors)) * 100)
+        ctx.report_progress(f"Running {adapter.name} on {filename}...", prog_pct)
+        
         result  = adapter.run(file_path, ctx)
 
         if result.status == 'cancelled':
@@ -102,12 +111,12 @@ def _record_timing(task: dict, extractor_name: str, elapsed: float):
 def run(db_path, worker_id=None, shutdown_event=None):
     if worker_id is None:
         worker_id = f"extract-{socket.gethostname()}-{os.getpid()}"
-    print(f"Extraction worker starting. ID: {worker_id}")
+    logger.info(f"Extraction worker starting. ID: {worker_id}")
 
     while True:
         skip, reason = should_pause_or_throttle()
         if skip:
-            print(f"Extraction worker {reason}. Sleeping...")
+            logger.info(f"Extraction worker {reason}. Sleeping...")
             interruptible_sleep(db_path, 10)
             continue
 
@@ -118,7 +127,7 @@ def run(db_path, worker_id=None, shutdown_event=None):
         try:
             task = manager.claim_pending_task(db_path, worker_id)
         except Exception as e:
-            print(f"[WARN] Extraction worker DB contention, retrying in 5s: {e}")
+            logger.warn(f"Extraction worker DB contention, retrying in 5s: {e}")
             time.sleep(5)
             continue
 
@@ -126,7 +135,7 @@ def run(db_path, worker_id=None, shutdown_event=None):
             try:
                 process_task(db_path, task)
             except Exception as e:
-                print(f"[ERROR] Extraction worker unhandled: {e}")
+                logger.error(f"Extraction worker unhandled: {e}")
                 manager.complete_extraction(db_path, task['file_hash'],
                                             status='ERROR', error=str(e))
         else:

@@ -38,25 +38,32 @@ async def async_search(query: str, top_k: int = 5,
     if hash_filter is not None and len(hash_filter) == 0:
         return []  # Constraints matched no files
 
+    # Increase timeout to 30s to avoid ResponseHandlingException on large collections
     async_client = AsyncQdrantClient(
         host=settings.get('qdrant:host'),
         port=int(settings.get('qdrant:port')),
+        timeout=30.0,
     )
 
-    qdrant_filter = None
-    if hash_filter is not None:
-        qdrant_filter = qdrant_models.Filter(must=[
-            qdrant_models.FieldCondition(
-                key='file_hash',
-                match=qdrant_models.MatchAny(any=hash_filter),
-            )
-        ])
+    try:
+        qdrant_filter = None
+        if hash_filter is not None:
+            qdrant_filter = qdrant_models.Filter(must=[
+                qdrant_models.FieldCondition(
+                    key='file_hash',
+                    match=qdrant_models.MatchAny(any=hash_filter),
+                )
+            ])
 
-    response = await async_client.query_points(
-        collection_name='docvault',
-        query=vector,
-        limit=top_k,
-        score_threshold=_threshold(),
-        query_filter=qdrant_filter,
-    )
-    return [{'score': r.score, **r.payload} for r in response.points]
+        # Use query_points which is the recommended API in recent qdrant-client versions
+        response = await async_client.query_points(
+            collection_name='docvault',
+            query=vector,
+            limit=top_k,
+            score_threshold=_threshold(),
+            query_filter=qdrant_filter,
+            with_payload=True,
+        )
+        return [{'score': r.score, **r.payload} for r in response.points]
+    finally:
+        await async_client.close()

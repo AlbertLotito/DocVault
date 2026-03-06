@@ -85,9 +85,20 @@ def init_logs_db():
                 gpu_util_pct  REAL,
                 vram_used_gb  REAL,
                 vram_total_gb REAL,
+                disk_free_gb  REAL,
+                disk_free_pct REAL,
                 throttle_state TEXT
             );
         """)
+
+        # Logs DB migrations
+        cursor = conn.execute("PRAGMA table_info(system_stats)")
+        columns = [row['name'] for row in cursor.fetchall()]
+        if 'disk_free_gb' not in columns:
+            conn.execute("ALTER TABLE system_stats ADD COLUMN disk_free_gb REAL")
+        if 'disk_free_pct' not in columns:
+            conn.execute("ALTER TABLE system_stats ADD COLUMN disk_free_pct REAL")
+
         conn.commit()
 
 
@@ -101,6 +112,7 @@ def init_settings_db():
                 value TEXT
             );
             INSERT OR IGNORE INTO settings (key, value) VALUES ('paused', '0');
+            INSERT OR IGNORE INTO settings (key, value) VALUES ('monitor:stuck_task_threshold_mins', '10');
 
             CREATE TABLE IF NOT EXISTS vault_settings (
                 vault_id TEXT NOT NULL,
@@ -140,6 +152,8 @@ def init_db(db_path=None):
                 file_size      INTEGER,
                 file_created   TEXT,
                 file_modified  TEXT,
+                progress_text  TEXT,
+                progress_pct   REAL DEFAULT 0,
                 last_update    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -151,12 +165,14 @@ def init_db(db_path=None):
                 image_index  INTEGER,
                 width        INTEGER,
                 height       INTEGER,
+                description  TEXT,
                 extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_index USING fts5(
-                file_hash,
-                file_path,
+                file_hash UNINDEXED,
+                chunk_index UNINDEXED,
+                file_path UNINDEXED,
                 content
             );
 
@@ -185,6 +201,16 @@ def init_db(db_path=None):
             conn.execute("ALTER TABLE tasks ADD COLUMN file_modified TEXT")
         if 'vault_id' not in columns:
             conn.execute("ALTER TABLE tasks ADD COLUMN vault_id TEXT REFERENCES vaults(vault_id)")
+        if 'progress_text' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN progress_text TEXT")
+        if 'progress_pct' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN progress_pct REAL DEFAULT 0")
+
+        # extracted_images migration
+        cursor = conn.execute("PRAGMA table_info(extracted_images)")
+        img_columns = [row['name'] for row in cursor.fetchall()]
+        if 'description' not in img_columns:
+            conn.execute("ALTER TABLE extracted_images ADD COLUMN description TEXT")
 
         conn.commit()
 
@@ -297,10 +323,45 @@ def update_task_status(db_path, file_hash, status, worker_id=None):
     with _connect(db_path) as conn:
         conn.execute(
             """UPDATE tasks SET status = ?, worker_id = ?,
+               progress_text = NULL, progress_pct = 0,
                last_update = CURRENT_TIMESTAMP WHERE file_hash = ?""",
             (status, worker_id, file_hash)
         )
         conn.commit()
+
+
+def update_task_progress(db_path, file_hash, text, pct):
+    with _connect(db_path) as conn:
+        conn.execute(
+            """UPDATE tasks SET progress_text = ?, progress_pct = ?,
+               last_update = CURRENT_TIMESTAMP WHERE file_hash = ?""",
+            (text, pct, file_hash)
+        )
+        conn.commit()
+
+
+def get_active_tasks(db_path):
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """SELECT t.*, v.name as vault_name, v.color as vault_color
+               FROM tasks t
+               LEFT JOIN vaults v ON t.vault_id = v.vault_id
+               WHERE t.status IN ('PROCESSING', 'EMBEDDING')
+               ORDER BY t.last_update DESC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_system_stats_history(hours=1):
+    db_path = get_logs_db_path()
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """SELECT * FROM system_stats
+               WHERE sampled_at >= datetime('now', ?)
+               ORDER BY sampled_at ASC""",
+            (f'-{hours} hours',)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def complete_extraction(db_path, file_hash, status, text=None,
@@ -309,6 +370,7 @@ def complete_extraction(db_path, file_hash, status, text=None,
         conn.execute(
             """UPDATE tasks SET status = ?, extracted_text = ?,
                metadata_json = ?, error_log = ?,
+               progress_text = NULL, progress_pct = 100,
                last_update = CURRENT_TIMESTAMP
                WHERE file_hash = ?""",
             (
@@ -319,7 +381,7 @@ def complete_extraction(db_path, file_hash, status, text=None,
                 file_hash,
             )
         )
-        # Update FTS index when text is available
+        # Update FTS index when text is available (index chunks for better RAG)
         if text:
             row = conn.execute(
                 "SELECT file_path FROM tasks WHERE file_hash = ?", (file_hash,)
@@ -328,10 +390,16 @@ def complete_extraction(db_path, file_hash, status, text=None,
                 conn.execute(
                     "DELETE FROM fts_index WHERE file_hash = ?", (file_hash,)
                 )
-                conn.execute(
-                    "INSERT INTO fts_index (file_hash, file_path, content) VALUES (?, ?, ?)",
-                    (file_hash, row['file_path'], text)
-                )
+                try:
+                    from embeddings.chunker import chunk
+                    chunks = chunk(text)
+                    for i, chunk_text in enumerate(chunks):
+                        conn.execute(
+                            "INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES (?, ?, ?, ?)",
+                            (file_hash, i, row['file_path'], chunk_text)
+                        )
+                except Exception as e:
+                    print(f"[manager] Warning: FTS chunk indexing failed: {e}")
         conn.commit()
 
 
@@ -417,30 +485,27 @@ def insert_extracted_image(db_path, source_hash, img_meta):
     if 'file_path' not in img_meta:
         print("Error: img_meta missing required key 'file_path'")
         return False
-    conn = None
     try:
-        conn = sqlite3.connect(db_path, timeout=30)
-        conn.execute(
-            """INSERT OR IGNORE INTO extracted_images
-               (source_hash, file_path, page_num, image_index, width, height)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                source_hash,
-                img_meta['file_path'],
-                img_meta.get('page_num'),
-                img_meta.get('image_index'),
-                img_meta.get('width'),
-                img_meta.get('height'),
+        with _connect(db_path) as conn:
+            conn.execute(
+                """INSERT OR IGNORE INTO extracted_images
+                   (source_hash, file_path, page_num, image_index, width, height, description)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    source_hash,
+                    img_meta['file_path'],
+                    img_meta.get('page_num'),
+                    img_meta.get('image_index'),
+                    img_meta.get('width'),
+                    img_meta.get('height'),
+                    img_meta.get('description'),
+                )
             )
-        )
-        conn.commit()
-        return True
+            conn.commit()
+            return True
     except sqlite3.Error as e:
         print(f"DB error in insert_extracted_image: {e}")
         return False
-    finally:
-        if conn:
-            conn.close()
 
 
 def fts_search(db_path, query, limit=20,
@@ -459,8 +524,9 @@ def fts_search(db_path, query, limit=20,
             params.append(date_to + "T23:59:59")
         clause = " AND ".join(where)
         rows = conn.execute(
-            f"""SELECT fts_index.file_hash, fts_index.file_path,
-               snippet(fts_index, 2, '<b>', '</b>', '...', 32) AS snippet,
+            f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,
+               fts_index.content AS chunk_text,
+               snippet(fts_index, 3, '<b>', '</b>', '...', 32) AS snippet,
                fts_index.rank
                FROM fts_index
                JOIN tasks ON fts_index.file_hash = tasks.file_hash
