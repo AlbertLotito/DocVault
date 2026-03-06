@@ -74,11 +74,22 @@ def reload():
     
     logger.info(f"Router active. {len(_all_extractors)} kernels loaded.", ext="router")
 
-# --- Initialize on first import ---
-reload()
+# --- Initialize on first use ---
+_initialized = False
+
+def _ensure_initialized():
+    global _initialized
+    if not _initialized:
+        try:
+            reload()
+            _initialized = True
+        except Exception as e:
+            # If DB isn't ready yet, we'll try again on the next call
+            pass
 
 def get_extractors(file_type: str, vault_id: str = None) -> list:
     """Return the ordered list of extractors for a given file extension."""
+    _ensure_initialized()
     file_type = file_type.lower()
     stack = ROUTES['file'].get(file_type, [])
     if not stack:
@@ -87,6 +98,7 @@ def get_extractors(file_type: str, vault_id: str = None) -> list:
 
 def get_folder_extractors(extension_hint: str) -> list:
     """Returns extractors registered for 'folder' targets with a specific extension content."""
+    _ensure_initialized()
     return ROUTES['folder'].get(extension_hint.lower(), [])
 
 def get_priority(file_type: str, vault_id: str = None) -> int:

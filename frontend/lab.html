@@ -16,7 +16,7 @@
         }
 
         body, html { margin: 0; padding: 0; background-color: var(--bg-black); color: var(--slate); font-family: 'JetBrains Mono', 'Fira Code', monospace; height: 100%; overflow: hidden; }
-        .lab-container { display: grid; grid-template-columns: 350px 1fr; height: 100vh; }
+        .lab-container { display: grid; grid-template-columns: 350px 1fr; height: 100%; }
 
         /* Sidebar */
         .extractor-registry { background: #0a0a0a; border-right: 1px solid var(--terminal-gray); overflow-y: auto; display: flex; flex-direction: column; }
@@ -81,8 +81,28 @@
 
     </style>
 </head>
-<body>
-    <!-- Binary Wizard Modal -->
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+  <nav class="bg-indigo-700 text-white shadow-lg shrink-0">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-8">
+          <span class="font-bold text-xl tracking-tight">DocVault</span>
+          <div class="flex items-baseline space-x-4">
+            <a href="/status" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Status</a>
+            <a href="/catalog" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Log</a>
+            <a href="/identity" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Identity Hub</a>
+            <a href="/search" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Search</a>
+            <a href="/utils" class="px-3 py-2 rounded-md text-sm font-medium bg-indigo-800">Utilities</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="flex-1 flex overflow-hidden">
+    <div class="lab-container w-full">
+        <!-- Binary Wizard Modal -->
     <div id="binaryModal" class="hidden fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-md">
         <div class="bg-[#0a0a0a] border border-gray-800 rounded-lg shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-[#0d0d0d]">

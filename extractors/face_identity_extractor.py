@@ -76,8 +76,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             fw = int(bbox.width * w)
             fh = int(bbox.height * h)
             
-            # Simple metadata for now - real encoding will happen in the Registry Phase
-            # We provide the coordinates so the UI can draw the boxes.
+            # Simple metadata for now
             identities.append(f"Person_{i+1} [Location: {x},{y}]")
             
         final_text = "Detected Identities:\n" + "\n".join(identities)
