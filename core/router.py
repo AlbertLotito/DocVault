@@ -1,39 +1,42 @@
 from extractors import (
     text_extractor,
     image_extractor,
-    word_extractor,
-    excel_extractor,
-    pptx_extractor,
+    microsoft_word_extractor,
+    microsoft_excel_extractor,
+    microsoft_powerpoint_extractor,
     plaintext_extractor,
-    ocr_extractor,
-    transcriber,
-    video_extractor,
-    metadata_extractor,
-    unknown_extractor,
+    intelligent_image_extractor,
+    aural_intelligence_extractor,
+    multimodal_video_intelligence_extractor,
+    media_technical_diagnostics_extractor,
+    fallback_kernel,
     gdrive_extractor,
 )
 
 # Normalise __name__ to the bare module name so callers can use e.__name__
 # to identify an extractor without the package prefix.
 _all_extractors = [
-    text_extractor, image_extractor, word_extractor, excel_extractor,
-    pptx_extractor, plaintext_extractor, ocr_extractor, transcriber,
-    video_extractor, metadata_extractor, unknown_extractor, gdrive_extractor,
+    text_extractor, image_extractor, microsoft_word_extractor, 
+    microsoft_excel_extractor, microsoft_powerpoint_extractor, 
+    plaintext_extractor, intelligent_image_extractor, 
+    aural_intelligence_extractor, multimodal_video_intelligence_extractor, 
+    media_technical_diagnostics_extractor, fallback_kernel, gdrive_extractor,
 ]
 for _mod in _all_extractors:
     _mod.__name__ = _mod.__name__.split('.')[-1]
 
-UNKNOWN = unknown_extractor
+UNKNOWN = fallback_kernel
 
 ROUTES = {
     # Documents
     'pdf':  [text_extractor, image_extractor],
-    'docx': [word_extractor],
-    'doc':  [word_extractor],
-    'xlsx': [excel_extractor],
-    'xls':  [excel_extractor],
-    'pptx': [pptx_extractor],
-    'ppt':  [pptx_extractor],
+    'docx': [microsoft_word_extractor],
+    'doc':  [microsoft_word_extractor],
+    'xlsx': [microsoft_excel_extractor],
+    'xls':  [microsoft_excel_extractor],
+    'pptx': [microsoft_powerpoint_extractor],
+    'ppt':  [microsoft_powerpoint_extractor],
+
     # Plain text / code
     'txt':  [plaintext_extractor],
     'md':   [plaintext_extractor],
@@ -48,25 +51,25 @@ ROUTES = {
     'toml': [plaintext_extractor],
     'log':  [plaintext_extractor],
     # Images
-    'jpg':  [ocr_extractor],
-    'jpeg': [ocr_extractor],
-    'png':  [ocr_extractor],
-    'tiff': [ocr_extractor],
-    'tif':  [ocr_extractor],
-    'bmp':  [ocr_extractor],
-    'webp': [ocr_extractor],
+    'jpg':  [intelligent_image_extractor],
+    'jpeg': [intelligent_image_extractor],
+    'png':  [intelligent_image_extractor],
+    'tiff': [intelligent_image_extractor],
+    'tif':  [intelligent_image_extractor],
+    'bmp':  [intelligent_image_extractor],
+    'webp': [intelligent_image_extractor],
     # Audio
-    'mp3':  [metadata_extractor, transcriber],
-    'wav':  [metadata_extractor, transcriber],
-    'm4a':  [metadata_extractor, transcriber],
-    'flac': [metadata_extractor, transcriber],
-    'ogg':  [metadata_extractor, transcriber],
+    'mp3':  [media_technical_diagnostics_extractor, aural_intelligence_extractor],
+    'wav':  [media_technical_diagnostics_extractor, aural_intelligence_extractor],
+    'm4a':  [media_technical_diagnostics_extractor, aural_intelligence_extractor],
+    'flac': [media_technical_diagnostics_extractor, aural_intelligence_extractor],
+    'ogg':  [media_technical_diagnostics_extractor, aural_intelligence_extractor],
     # Video
-    'mp4':  [metadata_extractor, video_extractor],
-    'mov':  [metadata_extractor, video_extractor],
-    'mkv':  [metadata_extractor, video_extractor],
-    'avi':  [metadata_extractor, video_extractor],
-    'webm': [metadata_extractor, video_extractor],
+    'mp4':  [media_technical_diagnostics_extractor, multimodal_video_intelligence_extractor],
+    'mov':  [media_technical_diagnostics_extractor, multimodal_video_intelligence_extractor],
+    'mkv':  [media_technical_diagnostics_extractor, multimodal_video_intelligence_extractor],
+    'avi':  [media_technical_diagnostics_extractor, multimodal_video_intelligence_extractor],
+    'webm': [media_technical_diagnostics_extractor, multimodal_video_intelligence_extractor],
     # Google Drive stubs
     'gdoc':    [gdrive_extractor],
     'gsheet':  [gdrive_extractor],
@@ -91,10 +94,33 @@ PRIORITIES = {
 DEFAULT_PRIORITY = 10
 
 
-def get_extractors(file_type: str) -> list:
+def get_extractors(file_type: str, vault_id: str = None) -> list:
     """Return the ordered list of extractors for a given file extension."""
+    if vault_id:
+        from core.vault_manager import VaultManager
+        vm = VaultManager()
+        config = vm.get_vault_extractors(vault_id)
+        if config:
+            # Filter all_extractors based on the vault's custom list of enabled extractors
+            # ordered by the vault's custom priority.
+            enabled = [c['name'] for c in config if c.get('enabled', True)]
+            if enabled:
+                # Find the actual modules for these names
+                custom_stack = []
+                for name in enabled:
+                    for mod in _all_extractors:
+                        if getattr(mod, '__name__', '') == name:
+                            custom_stack.append(mod)
+                            break
+                # Only use custom stack if it actually contains extractors for this file type
+                # (Safety: we don't want to run a video extractor on a PDF just because it's enabled)
+                default_stack = ROUTES.get(file_type.lower(), [UNKNOWN])
+                return [e for e in custom_stack if e in default_stack]
+
     return ROUTES.get(file_type.lower(), [UNKNOWN])
 
-def get_priority(file_type: str) -> int:
+def get_priority(file_type: str, vault_id: str = None) -> int:
     """Return the priority for a given file extension."""
+    # Note: Currently vault-level priority is handled at the task scheduling layer, 
+    # not at the file-type layer. Global PRIORITIES still apply for file type.
     return PRIORITIES.get(file_type.lower(), DEFAULT_PRIORITY)

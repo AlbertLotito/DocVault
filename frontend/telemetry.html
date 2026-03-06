@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DocVault // System Telemetry</title>
+    <link rel="stylesheet" href="static/styles.css">
+    <style>
+        :root {
+            --bg-black: #000000;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --ruby: #ef4444;
+            --slate: #94a3b8;
+            --terminal-gray: #1a1a1a;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-black);
+            color: var(--slate);
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            overflow-x: hidden;
+            height: 100%;
+        }
+
+        /* Matrix Fade-in Animation */
+        .matrix-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(16, 185, 129, 0.1) 50%, transparent 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 2s ease;
+        }
+
+        .scanning-line {
+            position: fixed;
+            top: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--emerald);
+            box-shadow: 0 0 15px var(--emerald);
+            z-index: 1001;
+            display: none;
+        }
+
+        .initialized .matrix-overlay { opacity: 0.3; }
+
+        /* HUD Layout */
+        .telemetry-container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 1s ease, transform 1s ease;
+        }
+
+        .initialized .telemetry-container {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.9rem;
+            letter-spacing: 0.1em;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--emerald);
+            box-shadow: 0 0 8px var(--emerald);
+        }
+
+        .status-dot.throttled { background: var(--amber); box-shadow: 0 0 8px var(--amber); animation: pulse 1s infinite; }
+        .status-dot.cooldown { background: var(--ruby); box-shadow: 0 0 8px var(--ruby); }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn-toggle {
+            background: transparent;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: var(--slate);
+            padding: 0.4rem 0.8rem;
+            font-family: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-toggle:hover, .btn-toggle.active {
+            border-color: var(--emerald);
+            color: var(--emerald);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        /* Grid Layout */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .sensor-card {
+            background: rgba(26, 26, 26, 0.3);
+            border: 1px solid rgba(148, 163, 184, 0.05);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .sensor-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 1rem;
+            color: var(--slate);
+        }
+
+        .sensor-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 0 10px rgba(255,255,255,0.1);
+        }
+
+        /* Gauges */
+        .gauge-container {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .gauge-ring {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(148, 163, 184, 0.1);
+            stroke-width: 8;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke: var(--emerald);
+            stroke-width: 8;
+            stroke-dasharray: 314;
+            stroke-dashoffset: 314;
+            transition: stroke-dashoffset 1s ease, stroke 0.5s;
+        }
+
+        .gauge-threshold {
+            fill: none;
+            stroke: rgba(239, 68, 68, 0.2);
+            stroke-width: 8;
+            stroke-dasharray: 314;
+            stroke-dashoffset: 62.8; /* Last 20% */
+        }
+
+        /* Histograms */
+        .histogram-container {
+            width: 100%;
+            height: 60px;
+            margin-top: auto;
+        }
+
+        canvas.histogram {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Workers & Queue */
+        .runtime-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .runtime-card {
+            background: rgba(26, 26, 26, 0.3);
+            border: 1px solid rgba(148, 163, 184, 0.05);
+            padding: 1.5rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .worker-item {
+            margin-bottom: 1rem;
+        }
+
+        .worker-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .worker-name { color: #fff; }
+        .worker-status { color: var(--emerald); }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(148, 163, 184, 0.1);
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--emerald);
+            width: 0%;
+            transition: width 0.5s;
+        }
+
+        .queue-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed rgba(148, 163, 184, 0.05);
+        }
+
+        .queue-vault {
+            width: 3px;
+            margin-right: 10px;
+            background: var(--emerald);
+        }
+
+        .queue-name { flex-grow: 1; color: var(--slate); }
+        .queue-priority { color: var(--slate); opacity: 0.6; margin-left: 10px; }
+
+        /* Fullscreen Utility */
+        :fullscreen .telemetry-container {
+            max-width: none;
+            padding: 4rem;
+        }
+
+        /* Colors based on states */
+        .value-emerald { color: var(--emerald); }
+        .value-amber { color: var(--amber); }
+        .value-ruby { color: var(--ruby); }
+
+        /* Health Strip Styles */
+        .health-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(26, 26, 26, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            padding: 0.6rem 1.2rem;
+            margin-bottom: 2rem;
+            font-size: 0.7rem;
+            letter-spacing: 0.05em;
+        }
+
+        .health-summary {
+            display: flex;
+            gap: 0.8rem;
+            align-items: center;
+        }
+
+        .health-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 2px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .health-badge:hover {
+            filter: brightness(1.2);
+            transform: translateY(-1px);
+        }
+
+        .badge-emerald { background: rgba(16, 185, 129, 0.1); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-amber { background: rgba(245, 158, 11, 0.1); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-ruby { background: rgba(239, 68, 68, 0.1); color: var(--ruby); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-slate { background: rgba(148, 163, 184, 0.1); color: var(--slate); border: 1px solid rgba(148, 163, 184, 0.3); }
+
+        .health-alerts {
+            display: flex;
+            gap: 1.5rem;
+            color: var(--ruby);
+            font-weight: bold;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            animation: alert-flash 2s infinite;
+        }
+
+        @keyframes alert-flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #0a0a0a;
+            border: 1px solid var(--terminal-gray);
+            width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 2rem;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            color: var(--amber);
+            font-size: 1rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .stuck-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+
+        .stuck-table th {
+            text-align: left;
+            padding: 0.8rem;
+            color: var(--slate);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            text-transform: uppercase;
+            font-size: 0.65rem;
+        }
+
+        .stuck-table td {
+            padding: 0.8rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.05);
+        }
+
+        .stuck-row:hover { background: rgba(255, 255, 255, 0.02); }
+
+        .btn-action {
+            background: transparent;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: var(--slate);
+            padding: 0.2rem 0.5rem;
+            font-size: 0.65rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+
+        .btn-action:hover { border-color: #fff; color: #fff; }
+        .btn-retry { border-color: var(--emerald); color: var(--emerald); }
+        .btn-retry:hover { background: rgba(16, 185, 129, 0.1); }
+
+    </style>
+</head>
+<body>
+    <div class="matrix-overlay"></div>
+    <div class="scanning-line" id="scanningLine"></div>
+
+    <!-- Stuck Tasks Modal -->
+    <div class="modal-overlay" id="stuckModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Stuck Task Recovery</div>
+                <button class="btn-toggle" onclick="closeModal()">CLOSE</button>
+            </div>
+            <div id="modalBody">
+                <!-- Content injected here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="telemetry-container" id="container">
+        <header>
+            <div class="system-status">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusLabel">SYSTEM NOMINAL</span>
+                <span style="opacity: 0.3">|</span>
+                <span id="updateTimer" style="font-size: 0.7rem; opacity: 0.6">SYNCING...</span>
+            </div>
+            <div class="controls">
+                <button class="btn-toggle active" onclick="setHistoryHours(1)" id="btn1h">1H</button>
+                <button class="btn-toggle" onclick="setHistoryHours(24)" id="btn24h">24H</button>
+                <button class="btn-toggle" onclick="toggleFullScreen()">FULL</button>
+                <button class="btn-toggle" onclick="location.href='/utils'">EXIT</button>
+            </div>
+        </header>
+
+        <!-- System Health Bar -->
+        <div class="health-strip" id="healthStrip">
+            <div class="health-summary" id="healthSummary">
+                <!-- Badges go here -->
+                <span style="opacity: 0.3">INITIALIZING DIAGNOSTICS...</span>
+            </div>
+            <div class="health-alerts" id="healthAlerts">
+                <!-- Alerts go here -->
+            </div>
+        </div>
+
+        <div class="sensor-grid">
+            <!-- CPU -->
+            <div class="sensor-card">
+                <div class="sensor-label">CPU CORE</div>
+                <div class="sensor-value" id="cpu-val">--%</div>
+                <div class="gauge-container">
+                    <svg class="gauge-ring" viewBox="0 0 120 120">
+                        <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="gauge-fill" cx="60" cy="60" r="50" id="cpu-gauge"></circle>
+                    </svg>
+                </div>
+                <div class="histogram-container">
+                    <canvas class="histogram" id="cpu-hist"></canvas>
+                </div>
+            </div>
+
+            <!-- GPU -->
+            <div class="sensor-card">
+                <div class="sensor-label">GPU TEMP</div>
+                <div class="sensor-value" id="gpu-val">--°C</div>
+                <div class="gauge-container">
+                    <svg class="gauge-ring" viewBox="0 0 120 120">
+                        <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="gauge-threshold" cx="60" cy="60" r="50"></circle>
+                        <circle class="gauge-fill" cx="60" cy="60" r="50" id="gpu-gauge"></circle>
+                    </svg>
+                </div>
+                <div class="histogram-container">
+                    <canvas class="histogram" id="gpu-hist"></canvas>
+                </div>
+            </div>
+
+            <!-- RAM -->
+            <div class="sensor-card">
+                <div class="sensor-label">RAM USAGE</div>
+                <div class="sensor-value" id="ram-val">-- GB</div>
+                <div class="gauge-container">
+                    <svg class="gauge-ring" viewBox="0 0 120 120">
+                        <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="gauge-fill" cx="60" cy="60" r="50" id="ram-gauge"></circle>
+                    </svg>
+                </div>
+                <div class="histogram-container">
+                    <canvas class="histogram" id="ram-hist"></canvas>
+                </div>
+            </div>
+
+            <!-- DISK -->
+            <div class="sensor-card">
+                <div class="sensor-label">DISK FREE</div>
+                <div class="sensor-value" id="disk-val">-- GB</div>
+                <div class="gauge-container">
+                    <svg class="gauge-ring" viewBox="0 0 120 120">
+                        <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="gauge-fill" cx="60" cy="60" r="50" id="disk-gauge"></circle>
+                    </svg>
+                </div>
+                <div class="histogram-container">
+                    <canvas class="histogram" id="disk-hist"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="runtime-section">
+            <div class="runtime-card">
+                <div class="section-header">
+                    <span>Active Workers</span>
+                    <span id="worker-count">0</span>
+                </div>
+                <div id="worker-list">
+                    <div style="font-size: 0.8rem; opacity: 0.4">No active processes.</div>
+                </div>
+            </div>
+            <div class="runtime-card">
+                <div class="section-header">
+                    <span>Upcoming Tasks</span>
+                    <span id="queue-count">0</span>
+                </div>
+                <div id="queue-list">
+                    <!-- Tasks will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/app.js"></script>
+    <script>
+        let historyHours = 1;
+        let updateInterval = 15;
+        let countdown = updateInterval;
+        let thresholds = null;
+
+        async function init() {
+            // Matrix Entry Animation
+            const line = document.getElementById('scanningLine');
+            line.style.display = 'block';
+            line.animate([
+                { top: '-2px' },
+                { top: '100%' }
+            ], {
+                duration: 1500,
+                easing: 'ease-in-out'
+            }).onfinish = () => {
+                line.style.display = 'none';
+                document.body.classList.add('initialized');
+            };
+
+            await update();
+            setInterval(tick, 1000);
+        }
+
+        async function update() {
+            try {
+                const [status, history, queue, health] = await Promise.all([
+                    api('/monitor/status'),
+                    api(`/monitor/history?hours=${historyHours}`),
+                    api('/catalog?status=PENDING&limit=10'),
+                    api('/utils/health')
+                ]);
+
+                thresholds = status.thresholds;
+                renderStatus(status);
+                renderHistory(history);
+                renderQueue(queue);
+                renderHealth(health);
+                countdown = updateInterval;
+            } catch (err) {
+                console.error("Update failed", err);
+            }
+        }
+
+        function renderHealth(data) {
+            const summaryEl = document.getElementById('healthSummary');
+            const alertsEl = document.getElementById('healthAlerts');
+
+            // Render Summary Badges
+            const statuses = ['PENDING','PROCESSING','EXTRACTED','COMPLETED','ERROR','UNKNOWN'];
+            const badgeClasses = {
+                PENDING: 'badge-slate',
+                PROCESSING: 'badge-amber',
+                EXTRACTED: 'badge-emerald',
+                COMPLETED: 'badge-emerald',
+                ERROR: 'badge-ruby',
+                UNKNOWN: 'badge-slate'
+            };
+
+            let html = statuses
+                .filter(s => data.counts[s])
+                .map(s => `<a href="/catalog?status=${s}" class="health-badge ${badgeClasses[s]}">${s} ${data.counts[s]}</a>`)
+                .join('');
+            
+            // Qdrant Status
+            const qColor = data.qdrant.ok ? 'badge-emerald' : 'badge-ruby';
+            html += `<span class="health-badge ${qColor}">QDRANT ${data.qdrant.ok ? 'OK' : 'OFFLINE'}</span>`;
+            
+            summaryEl.innerHTML = html;
+
+            // Render Critical Alerts (Top 2)
+            const criticalIssues = data.issues.filter(i => i.severity === 'error' || i.severity === 'warning').slice(0, 2);
+            if (criticalIssues.length > 0) {
+                alertsEl.innerHTML = criticalIssues.map(i => `
+                    <div class="alert-item" style="${i.id === 'stuck_processing' ? 'cursor:pointer' : ''}" 
+                         onclick="${i.id === 'stuck_processing' ? 'showStuckTasks()' : ''}">
+                        <span style="font-size: 1.2rem">!</span>
+                        <span>${i.title.toUpperCase()}</span>
+                    </div>
+                `).join('');
+            } else {
+                alertsEl.innerHTML = '<span style="color: var(--emerald); opacity: 0.5; font-size: 0.6rem">DIAGNOSTICS CLEAR</span>';
+            }
+        }
+
+        async function showStuckTasks() {
+            const modal = document.getElementById('stuckModal');
+            const body = document.getElementById('modalBody');
+            modal.style.display = 'flex';
+            body.innerHTML = '<div style="color:var(--slate); padding:2rem">SCANNING KERNEL FOR ZOMBIE PROCESSES...</div>';
+
+            try {
+                const tasks = await api('/utils/stuck_tasks');
+                if (tasks.length === 0) {
+                    body.innerHTML = '<div style="color:var(--emerald); padding:2rem">NO STUCK TASKS DETECTED.</div>';
+                    return;
+                }
+
+                body.innerHTML = `
+                    <table class="stuck-table">
+                        <thead>
+                            <tr>
+                                <th>File Name</th>
+                                <th>Vault</th>
+                                <th>Status</th>
+                                <th>Last Activity</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tasks.map(t => `
+                                <tr class="stuck-row">
+                                    <td style="color:#fff">${t.file_path.split(/[/\\]/).pop()}</td>
+                                    <td>${t.vault_name || '---'}</td>
+                                    <td><span class="health-badge ${t.status === 'PROCESSING' ? 'badge-amber' : 'badge-slate'}">${t.status}</span></td>
+                                    <td>${new Date(t.last_update).toLocaleTimeString()}</td>
+                                    <td>
+                                        <button class="btn-action btn-retry" onclick="retryTask('${t.file_hash}')">RETRY</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (err) {
+                body.innerHTML = `<div style="color:var(--ruby); padding:2rem">ERROR: ${err.message}</div>`;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('stuckModal').style.display = 'none';
+        }
+
+        async function retryTask(hash) {
+            try {
+                await api(`/utils/retry_task?file_hash=${hash}`, { method: 'POST' });
+                showStuckTasks(); // Refresh list
+                update(); // Refresh dashboard
+            } catch (err) {
+                alert("Retry failed: " + err.message);
+            }
+        }
+
+        function tick() {
+            countdown--;
+            if (countdown <= 0) {
+                update();
+            } else {
+                document.getElementById('updateTimer').textContent = `RE-SYNC IN ${countdown}S`;
+            }
+        }
+
+        function renderStatus(data) {
+            if (!data.available && !data.state) return;
+
+            // System Status Label
+            const dot = document.getElementById('statusDot');
+            const label = document.getElementById('statusLabel');
+            const state = data.state || 'normal';
+            const reason = data.reason || '';
+
+            dot.className = 'status-dot ' + state;
+            dot.title = reason;
+            label.textContent = state.toUpperCase() + (state === 'normal' ? ' :: SYSTEM NOMINAL' : ' :: ATTENTION REQUIRED');
+            label.style.color = state === 'normal' ? 'var(--emerald)' : (state === 'throttled' ? 'var(--amber)' : 'var(--ruby)');
+            label.title = reason;
+
+            // CPU
+            updateGauge('cpu', data.cpu_pct, 100);
+            document.getElementById('cpu-val').textContent = `${Math.round(data.cpu_pct)}%`;
+
+            // GPU
+            updateGauge('gpu', data.gpu_temp, 100);
+            document.getElementById('gpu-val').textContent = `${Math.round(data.gpu_temp)}°C`;
+            if (thresholds && data.gpu_temp >= thresholds.gpu_temp_throttle) {
+                document.getElementById('gpu-val').className = 'sensor-value ' + (data.gpu_temp >= thresholds.gpu_temp_cooldown ? 'value-ruby' : 'value-amber');
+            } else {
+                document.getElementById('gpu-val').className = 'sensor-value';
+            }
+
+            // RAM
+            const ramPct = (data.ram_used_gb / data.ram_total_gb) * 100;
+            updateGauge('ram', ramPct, 100);
+            document.getElementById('ram-val').textContent = `${data.ram_used_gb.toFixed(1)} GB`;
+
+            // DISK
+            const diskReading = data.reading || data; // handle nested reading
+            if (diskReading.disk_free_gb !== undefined) {
+                const diskUsedPct = 100 - diskReading.disk_free_pct;
+                updateGauge('disk', diskUsedPct, 100);
+                document.getElementById('disk-val').textContent = `${diskReading.disk_free_gb.toFixed(0)} GB`;
+                document.getElementById('disk-val').style.color = diskReading.disk_free_pct < 10 ? 'var(--ruby)' : (diskReading.disk_free_pct < 20 ? 'var(--amber)' : '#fff');
+            }
+
+            // Workers
+            renderWorkers(data.active_tasks);
+        }
+
+        function updateGauge(id, value, max) {
+            const circle = document.getElementById(`${id}-gauge`);
+            const pct = Math.min(value / max, 1);
+            const offset = 314 - (314 * pct);
+            circle.style.strokeDashoffset = offset;
+            
+            // Color logic
+            if (id === 'gpu' && thresholds) {
+                circle.style.stroke = value >= thresholds.gpu_temp_cooldown ? 'var(--ruby)' : (value >= thresholds.gpu_temp_throttle ? 'var(--amber)' : 'var(--emerald)');
+            } else if (id === 'cpu' && thresholds) {
+                circle.style.stroke = value >= thresholds.cpu_temp_throttle ? 'var(--amber)' : 'var(--emerald)';
+            } else if (id === 'ram' && thresholds) {
+                circle.style.stroke = value >= thresholds.ram_throttle_pct ? 'var(--amber)' : 'var(--emerald)';
+            }
+        }
+
+        function renderWorkers(tasks) {
+            const list = document.getElementById('worker-list');
+            const count = document.getElementById('worker-count');
+            count.textContent = tasks.length;
+
+            if (tasks.length === 0) {
+                list.innerHTML = '<div style="font-size: 0.8rem; opacity: 0.4">No active processes.</div>';
+                return;
+            }
+
+            list.innerHTML = tasks.map(t => `
+                <div class="worker-item">
+                    <div class="worker-info">
+                        <span class="worker-name">${t.file_path.split(/[/\\]/).pop()}</span>
+                        <a href="/catalog?status=${t.status}" class="worker-status" style="text-decoration: none; transition: opacity 0.2s" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">${t.status}</a>
+                    </div>
+                    <div style="font-size: 0.65rem; margin-bottom: 4px; color: var(--slate); opacity: 0.7">
+                        ${t.progress_text || 'Initializing...'}
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${t.progress_pct}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderQueue(data) {
+            const list = document.getElementById('queue-list');
+            const count = document.getElementById('queue-count');
+            count.textContent = data.total_matches;
+
+            if (data.tasks.length === 0) {
+                list.innerHTML = '<div style="font-size: 0.8rem; opacity: 0.4">Queue is empty.</div>';
+                return;
+            }
+
+            list.innerHTML = data.tasks.map(t => `
+                <div class="queue-item">
+                    <div class="queue-name">${t.file_path.split(/[/\\]/).pop()}</div>
+                    <div class="queue-priority">P${t.priority}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderHistory(data) {
+            drawHistogram('cpu-hist', data.map(d => d.cpu_pct), 100, 'cpu');
+            drawHistogram('gpu-hist', data.map(d => d.gpu_temp), 100, 'gpu');
+            drawHistogram('ram-hist', data.map(d => d.ram_pct), 100, 'ram');
+            drawHistogram('disk-hist', data.map(d => 100 - d.disk_free_pct), 100, 'disk');
+        }
+
+        function drawHistogram(canvasId, values, max, type) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width = canvas.offsetWidth;
+            const h = canvas.height = canvas.offsetHeight;
+
+            ctx.clearRect(0, 0, w, h);
+            if (values.length < 2) return;
+
+            const step = w / (values.length - 1);
+            
+            // Gradient fill
+            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            let color = '16, 185, 129'; // Emerald default
+            
+            if (type === 'gpu' && thresholds) {
+                const latest = values[values.length-1];
+                if (latest >= thresholds.gpu_temp_cooldown) color = '239, 68, 68';
+                else if (latest >= thresholds.gpu_temp_throttle) color = '245, 158, 11';
+            }
+
+            grad.addColorStop(0, `rgba(${color}, 0.5)`);
+            grad.addColorStop(1, `rgba(${color}, 0)`);
+
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            
+            for (let i = 0; i < values.length; i++) {
+                const x = i * step;
+                const y = h - (Math.min(values[i] / max, 1) * h);
+                ctx.lineTo(x, y);
+            }
+
+            ctx.lineTo(w, h);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // Line
+            ctx.beginPath();
+            for (let i = 0; i < values.length; i++) {
+                const x = i * step;
+                const y = h - (Math.min(values[i] / max, 1) * h);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = `rgba(${color}, 1)`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        function setHistoryHours(h) {
+            historyHours = h;
+            document.getElementById('btn1h').classList.toggle('active', h === 1);
+            document.getElementById('btn24h').classList.toggle('active', h === 24);
+            update();
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

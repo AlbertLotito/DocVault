@@ -115,14 +115,22 @@ def system_health():
         ).fetchall()
         counts = {r['status']: r['n'] for r in rows}
 
-        # 1. Stuck PROCESSING tasks (worker process died, task will never complete)
-        stuck = counts.get('PROCESSING', 0)
+        # 1. Stuck active tasks (worker process died, task will never complete)
+        threshold_mins = int(manager.get_setting('monitor:stuck_task_threshold_mins') or 10)
+        stuck_rows = conn.execute(
+            """SELECT COUNT(*) as n FROM tasks 
+               WHERE status IN ('PROCESSING', 'EMBEDDING')
+               AND last_update <= datetime('now', ?)""",
+            (f'-{threshold_mins} minutes',)
+        ).fetchone()
+        stuck = stuck_rows['n']
+        
         if stuck:
             issues.append({
                 'id': 'stuck_processing',
                 'severity': 'warning',
                 'title': f'{stuck} stuck task{"s" if stuck != 1 else ""}',
-                'detail': 'Claimed by worker processes that no longer exist. Will never complete without a reset.',
+                'detail': f'Inactive for >{threshold_mins}m. Claimed by processes that likely no longer exist.',
                 'action': 'reset_stuck',
                 'action_label': f'Reset {stuck} to PENDING',
                 'count': stuck,
@@ -209,6 +217,163 @@ def system_health():
     }
 
 
+@router.get("/utils/stuck_tasks")
+def list_stuck_tasks():
+    """List tasks currently in PROCESSING or EMBEDDING state that exceed threshold."""
+    from api.main import DB_PATH
+    import sqlite3
+    threshold_mins = int(manager.get_setting('monitor:stuck_task_threshold_mins') or 10)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """SELECT t.*, v.name as vault_name 
+               FROM tasks t 
+               LEFT JOIN vaults v ON t.vault_id = v.vault_id
+               WHERE t.status IN ('PROCESSING', 'EMBEDDING')
+               AND t.last_update <= datetime('now', ?)
+               ORDER BY t.last_update ASC""",
+            (f'-{threshold_mins} minutes',)
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+@router.post("/utils/retry_task")
+def retry_task(file_hash: str):
+    """Reset a specific task to PENDING."""
+    from api.main import DB_PATH
+    n = _db_write(DB_PATH,
+        "UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now') WHERE file_hash=?",
+        (file_hash,)
+    )
+    return {'ok': True, 'reset': n}
+
+
+@router.get("/utils/extractors")
+def list_all_extractors():
+    """Returns a list of all registered extractors and their settings."""
+    from core.router import _all_extractors
+    from core.extractors.base import LegacyExtractorAdapter
+    from core.settings import settings
+    
+    results = []
+    for mod in _all_extractors:
+        adapter = LegacyExtractorAdapter(mod)
+        name = adapter.name
+        
+        # Identify settings related to this extractor by prefix
+        prefix = name.replace('_extractor', '')
+        relevant_settings = [
+            s for s in settings.get_all_configurable() 
+            if s['key'].startswith(prefix + ':') or s['key'].startswith(name + ':')
+        ]
+        
+        results.append({
+            'name': name,
+            'settings': relevant_settings,
+            'doc': adapter.description
+        })
+    return results
+
+
+class TestExtractorRequest(BaseModel):
+    extractor_name: str
+    file_path: str
+
+
+@router.post("/utils/test_extractor")
+def test_extractor(req: TestExtractorRequest):
+    """Run a specific extractor against a file and return the result."""
+    from core import router
+    from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger
+    from core.settings import SettingsResolver
+    import threading
+    import time
+    import dataclasses
+
+    # Find the extractor module
+    extractor_mod = None
+    for mod in router._all_extractors:
+        if getattr(mod, '__name__', '') == req.extractor_name:
+            extractor_mod = mod
+            break
+    
+    if not extractor_mod:
+        return {"status": "error", "detail": f"Extractor {req.extractor_name} not found."}
+
+    if not os.path.exists(req.file_path):
+        return {"status": "error", "detail": f"File not found: {req.file_path}"}
+
+    # Setup context
+    dummy_hash = "TEST_RUN_" + str(int(time.time()))
+    logger = ExtractorLogger(req.extractor_name, "TEST_VAULT", dummy_hash, debug_enabled=True)
+    ctx = ExtractorContext(
+        vault_id="TEST_VAULT",
+        file_hash=dummy_hash,
+        cancel_token=threading.Event(),
+        logger=logger,
+        settings=SettingsResolver()
+    )
+
+    try:
+        adapter = LegacyExtractorAdapter(extractor_mod)
+        result = adapter.run(req.file_path, ctx)
+        
+        # Convert to serializable dict
+        return {
+            "status": "ok",
+            "result": dataclasses.asdict(result)
+        }
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+class PipelineSimulationRequest(BaseModel):
+    file_path: str
+    vault_id: str | None = None
+
+
+@router.post("/utils/simulate_pipeline")
+def simulate_pipeline(req: PipelineSimulationRequest):
+    """
+    Simulates the file identification and kernel routing process.
+    Returns a trace of which extractors would be called and in what order.
+    """
+    from core import router
+    from core.extractors.base import LegacyExtractorAdapter
+    import os
+
+    if not os.path.exists(req.file_path):
+        return {"status": "error", "detail": f"File not found: {req.file_path}"}
+
+    filename = os.path.basename(req.file_path)
+    ext = os.path.splitext(filename)[1].lstrip('.').lower()
+    
+    # 1. Identification
+    trace = [f"IDENTIFIED: extension '{ext}'"]
+    
+    # 2. Routing
+    extractors = router.get_extractors(ext, vault_id=req.vault_id)
+    
+    if not extractors or (len(extractors) == 1 and getattr(extractors[0], '__name__', '') == 'fallback_kernel'):
+        trace.append("ROUTING: No specific kernels found. Falling back to terminal SAFETY tier.")
+        kernel_names = ["fallback_kernel"]
+    else:
+        kernel_names = [getattr(e, '__name__', str(e)) for e in extractors]
+        trace.append(f"ROUTING: {len(kernel_names)} kernel(s) matched for this type.")
+
+    return {
+        "status": "ok",
+        "filename": filename,
+        "extension": ext,
+        "trace": trace,
+        "kernels": kernel_names,
+        "vault_context": req.vault_id or "GLOBAL_DEFAULT"
+    }
+
+
 def _db_write(db_path, sql, params=()):
     """Execute a single write against docvault.db with WAL mode and a generous timeout."""
     import sqlite3
@@ -224,11 +389,11 @@ def _db_write(db_path, sql, params=()):
 
 @router.post("/utils/reset_stuck")
 def reset_stuck():
-    """Reset all PROCESSING tasks to PENDING (orphaned by dead worker processes)."""
+    """Reset all PROCESSING and EMBEDDING tasks to PENDING."""
     from api.main import DB_PATH
     n = _db_write(DB_PATH,
         "UPDATE tasks SET status='PENDING', worker_id=NULL, last_update=datetime('now') "
-        "WHERE status='PROCESSING'"
+        "WHERE status IN ('PROCESSING', 'EMBEDDING')"
     )
     return {'ok': True, 'reset': n}
 
@@ -256,6 +421,31 @@ def retry_extract_errors():
            AND (error_log LIKE '%charmap%' OR error_log LIKE '%codec%encode%')"""
     )
     return {'ok': True, 'reset': n}
+
+
+class BrowseRequest(BaseModel):
+    mode: str  # 'file' or 'folder'
+
+
+@router.post("/utils/browse")
+def browse_path(req: BrowseRequest):
+    """Opens a native Windows file/folder picker and returns the selected path."""
+    import tkinter as tk
+    from tkinter import filedialog
+    
+    root = tk.Tk()
+    root.withdraw()  # Hide main window
+    root.attributes("-topmost", True)
+    
+    try:
+        if req.mode == 'folder':
+            path = filedialog.askdirectory(title="Select Target Directory")
+        else:
+            path = filedialog.askopenfilename(title="Select Target File")
+        
+        return {"status": "ok", "path": path if path else None}
+    finally:
+        root.destroy()
 
 
 @router.post("/utils/open_path")

@@ -40,8 +40,8 @@ def test_process_task_error(mock_router, mock_complete):
 @patch('workers.extraction_worker.manager.complete_extraction')
 @patch('workers.extraction_worker.router.get_extractors')
 def test_unknown_file_type_flagged(mock_router, mock_complete):
-    from extractors import unknown_extractor
-    mock_router.return_value = [unknown_extractor]
+    from extractors import fallback_kernel
+    mock_router.return_value = [fallback_kernel]
 
     task = {'file_hash': 'abc', 'file_path': '/docs/weird.xyz', 'file_type': 'xyz'}
     extraction_worker.process_task('test.db', task)

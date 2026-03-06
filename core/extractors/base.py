@@ -160,6 +160,14 @@ class ExtractorContext:
     settings: Any                    # SettingsResolver — injected by worker
     timeout_secs: int | None = None
 
+    def report_progress(self, text: str, pct: float):
+        """Update task progress in the database."""
+        try:
+            from core.manager import update_task_progress, get_db_path
+            update_task_progress(get_db_path(), self.file_hash, text, pct)
+        except Exception:
+            pass
+
 
 # ---------------------------------------------------------------------------
 # BaseExtractor — the contract all extractors satisfy
@@ -179,6 +187,13 @@ class BaseExtractor(ABC):
     def name(self) -> str:
         """Unique extractor identifier used in logs and timing records."""
         ...
+
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """Technical description of the kernel displayed in the Lab."""
+        ...
+
 
     @abstractmethod
     def extract(self, file_path: Path, ctx: ExtractorContext):
@@ -238,15 +253,32 @@ class LegacyExtractorAdapter(BaseExtractor):
     def name(self) -> str:
         return getattr(self._ext, '__name__', str(self._ext))
 
+    @property
+    def description(self) -> str:
+        # 1. Check for explicit __description__ variable in module
+        # 2. Fall back to module docstring
+        # 3. Fall back to generic message
+        desc = getattr(self._ext, '__description__', None)
+        if desc: return desc
+        doc = getattr(self._ext, '__doc__', None)
+        if doc: return doc.strip()
+        return f"Legacy adapter for {self.name} kernel."
+
     def extract(self, file_path: Path, ctx: ExtractorContext):
         return self._ext.extract(str(file_path))
 
     def normalize(self, result, ctx: ExtractorContext) -> IngestResult:
-        # result is the (value, err) tuple from legacy extractor
-        if isinstance(result, tuple) and len(result) == 2:
-            value, err = result
+        # result is (value, err) or (value, err, meta) from legacy extractor
+        if isinstance(result, tuple):
+            if len(result) == 3:
+                value, err, meta = result
+            elif len(result) == 2:
+                value, err = result
+                meta = {}
+            else:
+                value, err, meta = result[0], None, {}
         else:
-            value, err = result, None
+            value, err, meta = result, None, {}
 
         errors = []
         if err:
@@ -255,7 +287,7 @@ class LegacyExtractorAdapter(BaseExtractor):
         # str -> main text
         if isinstance(value, str) and value:
             status = 'failed' if (err and not value) else 'success'
-            return IngestResult(text=value, errors=errors, status=status)
+            return IngestResult(text=value, errors=errors, status=status, metadata=meta)
 
         # list[dict] -> images (image_extractor pattern)
         if isinstance(value, list):

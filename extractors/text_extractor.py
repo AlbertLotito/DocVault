@@ -1,8 +1,30 @@
+"""
+[ PDF TEXT EXTRACTION KERNEL ]
+The system's primary multi-stage PDF engine designed for maximum text recovery.
+
+PIPELINE:
+1. Native Stream (pypdf): Fastest layer; extracts embedded digital text.
+2. OCR (Tesseract): Triggered for pages below the 'pdf:sparse_threshold'. 
+   Uses Poppler for 300-DPI rendering and handles auto-rotation (OSD).
+3. Vision-LLM (Ollama): Final fallback for Tesseract failures. 
+   Uses the configured vision model to transcribe complex layouts or handwriting.
+
+REQUIRES: Poppler (pdf:poppler_path), Tesseract (tesseract:path), Ollama (vision:model).
+"""
+
+__description__ = (
+    "The system's primary multi-stage PDF engine designed for maximum text recovery. "
+    "Features a tiered pipeline: (1) Native Stream extraction for digital text, "
+    "(2) Tesseract OCR for sparse or scanned pages with auto-rotation, and "
+    "(3) Ollama Vision LLM as a final fallback for complex handwriting or layouts."
+)
+
 import os
 import io
 import base64
 from pypdf import PdfReader
 from core.settings import settings
+from core import logger
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -22,7 +44,7 @@ def _render_pdf_pages(file_path):
             kwargs['poppler_path'] = poppler
         return convert_from_path(file_path, **kwargs)
     except Exception as e:
-        print(f"  [pdf] render failed: {e}")
+        logger.error(f"render failed: {e}", ext="pdf")
         return []
 
 
@@ -47,7 +69,7 @@ def _tesseract_ocr(pil_image):
             pil_image, lang='eng', config='--oem 3 --psm 3')
         return text.strip()
     except Exception as e:
-        print(f"      [tess] {e}")
+        logger.debug(f"tesseract failed: {e}", ext="pdf")
         return ''
 
 
@@ -73,7 +95,7 @@ def _vision_ocr(pil_image):
         )
         return response['message']['content'].strip()
     except Exception as e:
-        print(f"      [vision] {e}")
+        logger.debug(f"vision failed: {e}", ext="pdf")
         return ''
 
 
@@ -86,7 +108,7 @@ def extract(file_path: str) -> tuple:
       2. pdf2image + Tesseract (psm 1/3) — for scanned / rotated pages
       3. Ollama vision model  — fallback when Tesseract returns nothing
     """
-    print(f"  [pdf] Extracting: {os.path.basename(file_path)}")
+    logger.info(f"Extracting: {os.path.basename(file_path)}", ext="pdf")
     try:
         reader = PdfReader(file_path)
         if reader.is_encrypted:
@@ -107,8 +129,7 @@ def extract(file_path: str) -> tuple:
 
         # Phases 2 & 3: OCR sparse / empty pages
         if sparse_indices:
-            print(f"  [pdf] {len(sparse_indices)}/{len(reader.pages)} "
-                  f"page(s) sparse — rendering for OCR")
+            logger.info(f"{len(sparse_indices)}/{len(reader.pages)} page(s) sparse — rendering for OCR", ext="pdf")
             rendered = _render_pdf_pages(file_path)
 
             for i in sparse_indices:
@@ -118,13 +139,13 @@ def extract(file_path: str) -> tuple:
 
                 tess = _tesseract_ocr(img)
                 if tess:
-                    print(f"      Page {i+1}: Tesseract → {len(tess)} chars")
+                    logger.debug(f"Page {i+1}: Tesseract → {len(tess)} chars", ext="pdf")
                     page_texts[i] = tess
                 else:
-                    print(f"      Page {i+1}: Tesseract empty → vision model")
+                    logger.debug(f"Page {i+1}: Tesseract empty → vision model", ext="pdf")
                     vis = _vision_ocr(img)
                     if vis:
-                        print(f"      Page {i+1}: vision → {len(vis)} chars")
+                        logger.debug(f"Page {i+1}: vision → {len(vis)} chars", ext="pdf")
                         page_texts[i] = vis
 
         final_text = "\n\n".join(t for t in page_texts if t.strip())

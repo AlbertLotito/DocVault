@@ -1,7 +1,7 @@
 import os
 import socket
 import time
-from core import manager
+from core import manager, logger
 from embeddings import chunker, embedder
 from embeddings.vector_store import VectorStore
 from workers.utils import interruptible_sleep, should_pause_or_throttle, get_throttle_sleep
@@ -20,18 +20,22 @@ def _load_vector_store(vault_id: str | None = None):
 def process_task(db_path, task, vs):
     file_hash = task['file_hash']
     file_path = task['file_path']
+    filename  = os.path.basename(file_path)
     text = task.get('extracted_text') or ''
 
-    print(f"Embedding: {os.path.basename(file_path)}")
+    logger.info(f"Embedding: {filename}")
+    manager.update_task_progress(db_path, file_hash, f"Chunking {filename}...", 0)
 
     chunks = chunker.chunk(text)
     if not chunks:
         manager.update_task_status(db_path, file_hash, 'COMPLETED')
-        print("  No text to embed. Task marked as complete.")
+        logger.info("  No text to embed. Task marked as complete.")
         return
 
-    filename = os.path.basename(file_path)
     for i, chunk_text in enumerate(chunks):
+        prog_pct = int((i / len(chunks)) * 100)
+        manager.update_task_progress(db_path, file_hash, f"Embedding chunk {i+1}/{len(chunks)}...", prog_pct)
+        
         # Prepend the filename so vector captures file identity as well as content.
         # Payload keeps the clean text for display and LLM context.
         vector = embedder.embed(f"{filename}\n{chunk_text}")
@@ -52,34 +56,34 @@ def process_task(db_path, task, vs):
             )
         except Exception as e:
             error_msg = f"Failed to upsert chunk {i} to Qdrant: {e}"
-            print(f"  [ERROR] {error_msg}")
+            logger.error(error_msg)
             manager.complete_extraction(db_path, file_hash, status='ERROR', error=error_msg)
             return
 
     manager.update_task_status(db_path, file_hash, status='COMPLETED')
-    print(f"  Embedded {len(chunks)} chunk(s).")
+    logger.info(f"  Embedded {len(chunks)} chunk(s).")
 
 
 def run(db_path, shutdown_event=None, worker_id=None): # shutdown_event is ignored
     if worker_id is None:
         worker_id = f"embed-{socket.gethostname()}-{os.getpid()}"
-    print(f"Embedding worker starting. ID: {worker_id}")
+    logger.info(f"Embedding worker starting. ID: {worker_id}")
 
     vs = None
     while True: # This is a daemon thread, it will be terminated on main exit
         if vs is None:
             try:
-                print("Embedding worker connecting to vector store...")
+                logger.info("Embedding worker connecting to vector store...")
                 vs = _load_vector_store()
-                print("Embedding worker connected to vector store.")
+                logger.info("Embedding worker connected to vector store.")
             except Exception as e:
-                print(f"[ERROR] Embedding worker could not connect to Qdrant. Retrying in 10s... Error: {e}")
+                logger.error(f"Embedding worker could not connect to Qdrant. Retrying in 10s... Error: {e}")
                 time.sleep(10)
                 continue
 
         skip, reason = should_pause_or_throttle()
         if skip:
-            print(f"Embedding worker {reason}. Sleeping...")
+            logger.info(f"Embedding worker {reason}. Sleeping...")
             interruptible_sleep(db_path, 10)
             continue
 
@@ -90,7 +94,7 @@ def run(db_path, shutdown_event=None, worker_id=None): # shutdown_event is ignor
         try:
             task = manager.claim_extracted_task(db_path, worker_id)
         except Exception as e:
-            print(f"[WARN] Embedding worker DB contention, retrying in 5s: {e}")
+            logger.warn(f"Embedding worker DB contention, retrying in 5s: {e}")
             time.sleep(5)
             continue
 
@@ -99,10 +103,10 @@ def run(db_path, shutdown_event=None, worker_id=None): # shutdown_event is ignor
                 process_task(db_path, task, vs)
             except Exception as e:
                 if "connection" in str(e).lower():
-                    print(f"[ERROR] Qdrant connection lost. Will attempt to reconnect. Error: {e}")
+                    logger.error(f"Qdrant connection lost. Will attempt to reconnect. Error: {e}")
                     vs = None
                 else:
-                    print(f"[ERROR] Unhandled exception in embedding worker for task {task.get('file_hash')}: {e}")
+                    logger.error(f"Unhandled exception in embedding worker for task {task.get('file_hash')}: {e}")
                 manager.update_task_status(db_path, task['file_hash'], status='ERROR')
         else:
             interruptible_sleep(db_path, 10)

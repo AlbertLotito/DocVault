@@ -51,3 +51,19 @@ def utils_page():
 @app.get("/settings")
 def settings_page():
     return FileResponse(os.path.join(FRONTEND, 'settings.html'))
+
+@app.get("/telemetry")
+def telemetry_page():
+    return FileResponse(os.path.join(FRONTEND, 'telemetry.html'))
+
+@app.get("/telemetry.html")
+def telemetry_html():
+    return FileResponse(os.path.join(FRONTEND, 'telemetry.html'))
+
+@app.get("/lab")
+def lab_page():
+    return FileResponse(os.path.join(FRONTEND, 'lab.html'))
+
+@app.get("/lab.html")
+def lab_html():
+    return FileResponse(os.path.join(FRONTEND, 'lab.html'))

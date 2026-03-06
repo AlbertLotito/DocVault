@@ -12,12 +12,12 @@ class TestChunker:
 
     def test_long_text_is_split(self):
         text = " ".join(["word"] * 600)  # 600 words
-        chunks = chunker.chunk(text, max_tokens=500, overlap=50)
+        chunks = chunker.chunk(text, max_chars=500, overlap=50)
         assert len(chunks) > 1
 
     def test_overlap_exists_between_chunks(self):
         text = " ".join([f"word{i}" for i in range(200)])
-        chunks = chunker.chunk(text, max_tokens=100, overlap=20)
+        chunks = chunker.chunk(text, max_chars=100, overlap=20)
         # Last words of chunk N should appear at start of chunk N+1
         if len(chunks) > 1:
             last_words_c0 = set(chunks[0].split()[-20:])
@@ -61,7 +61,11 @@ class TestVectorStore:
         mock_result.score = 0.95
         mock_client = MagicMock()
         mock_client.collection_exists.return_value = True
-        mock_client.search.return_value = [mock_result]
+        
+        # Mock query_points return value (QueryResponse with points attribute)
+        mock_response = MagicMock()
+        mock_response.points = [mock_result]
+        mock_client.query_points.return_value = mock_response
         mock_client_class.return_value = mock_client
 
         vs = vector_store.VectorStore('localhost', 6333, 'test')

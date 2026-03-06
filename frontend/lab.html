@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DocVault // Extractor Lab</title>
+    <link rel="stylesheet" href="static/styles.css">
+    <style>
+        :root {
+            --bg-black: #050505;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --ruby: #ef4444;
+            --slate: #94a3b8;
+            --indigo: #6366f1;
+            --terminal-gray: #1a1a1a;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-black);
+            color: var(--slate);
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            height: 100%;
+        }
+
+        .lab-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .extractor-registry {
+            background: #0a0a0a;
+            border-right: 1px solid var(--terminal-gray);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .registry-header { padding: 1.5rem; border-bottom: 1px solid var(--terminal-gray); background: #0d0d0d; }
+        .registry-title { font-size: 0.8rem; font-weight: bold; letter-spacing: 0.2em; color: var(--indigo); text-transform: uppercase; }
+
+        .extractor-list { padding: 0; margin: 0; list-style: none; }
+        .extractor-item { padding: 1rem 1.5rem; border-bottom: 1px solid rgba(148, 163, 184, 0.05); cursor: pointer; transition: all 0.2s; }
+        .extractor-item:hover { background: rgba(99, 102, 241, 0.05); }
+        .extractor-item.active { background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--indigo); }
+        .extractor-item.simulator { border-top: 1px solid var(--terminal-gray); margin-top: 1rem; }
+        .extractor-item.simulator.active { border-left-color: var(--amber); background: rgba(245, 158, 11, 0.05); }
+
+        .extractor-name { display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.2rem; }
+        .extractor-meta { font-size: 0.65rem; opacity: 0.5; }
+
+        /* Main */
+        .lab-bench { display: flex; flex-direction: column; overflow: hidden; }
+        .bench-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--terminal-gray); display: flex; justify-content: space-between; align-items: center; }
+        .bench-title { color: #fff; font-size: 1rem; display: flex; align-items: center; gap: 1rem; }
+        .bench-content { flex-grow: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 2rem; }
+
+        /* Controls */
+        .test-controls { background: #0d0d0d; border: 1px solid var(--terminal-gray); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        .control-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .control-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate); }
+        input[type="text"] { background: #000; border: 1px solid var(--terminal-gray); color: #fff; padding: 0.6rem 1rem; font-family: inherit; font-size: 0.8rem; width: 100%; outline: none; }
+        input[type="text"]:focus { border-color: var(--indigo); }
+
+        .btn-run { background: var(--indigo); color: #fff; border: none; padding: 0.8rem 2rem; font-family: inherit; font-size: 0.8rem; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.2s; }
+        .btn-run:hover { filter: brightness(1.1); }
+        .btn-run:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .hidden { display: none !important; }
+
+        /* Result View */
+        .result-view { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; flex-grow: 1; }
+        .result-panel { display: flex; flex-direction: column; background: #0d0d0d; border: 1px solid var(--terminal-gray); }
+        .panel-header { padding: 0.6rem 1rem; background: #111; border-bottom: 1px solid var(--terminal-gray); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate); }
+        pre { margin: 0; padding: 1rem; font-size: 0.75rem; color: var(--emerald); white-space: pre-wrap; overflow-y: auto; flex-grow: 1; }
+
+        /* Console */
+        .sim-console { background: #000; border: 1px solid var(--terminal-gray); padding: 1.5rem; font-size: 0.8rem; line-height: 1.6; color: var(--slate); flex-grow: 1; }
+        .sim-line { display: flex; gap: 1rem; margin-bottom: 0.5rem; }
+        .sim-tag { color: var(--amber); font-weight: bold; min-width: 100px; }
+
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .setting-card { background: #111; padding: 0.8rem; border: 1px solid rgba(148, 163, 184, 0.05); }
+        .setting-key { font-size: 0.65rem; color: var(--indigo); margin-bottom: 0.2rem; }
+        .setting-val { font-size: 0.75rem; color: #fff; }
+
+        @keyframes jitter { 0% { transform: translate(0,0); } 50% { transform: translate(1px, -1px); } 100% { transform: translate(-1px, 1px); } }
+        .loading-text { animation: jitter 0.1s infinite; }
+
+    </style>
+</head>
+<body>
+    <div class="lab-container">
+        <aside class="extractor-registry">
+            <div class="registry-header">
+                <div class="registry-title">Registry :: Node_01</div>
+            </div>
+            <ul class="extractor-list" id="extractorList"></ul>
+            <ul class="extractor-list">
+                <li class="extractor-item simulator" onclick="setLabMode('simulator')" id="item-simulator">
+                    <span class="extractor-name" style="color: var(--amber)">PIPELINE SIMULATOR</span>
+                    <span class="extractor-meta">Test routing & identification</span>
+                </li>
+            </ul>
+            <div style="margin-top: auto; padding: 1.5rem; border-top: 1px solid var(--terminal-gray)">
+                <button class="btn-run" style="width: 100%; background: transparent; border: 1px solid var(--terminal-gray)" onclick="location.href='/utils'">Exit Lab</button>
+            </div>
+        </aside>
+
+        <main class="lab-bench">
+            <div class="bench-header">
+                <div class="bench-title" id="activeTitle">SELECT EXTRACTOR</div>
+                <div id="benchStats" style="font-size: 0.7rem; color: var(--slate)"></div>
+            </div>
+
+            <div class="bench-content" id="benchContent" style="display: none;">
+                <!-- Mode: Extractor Test -->
+                <section id="pane-test" class="flex flex-col gap-6">
+                    <div>
+                        <div class="section-header" style="font-size: 0.7rem; margin-bottom: 1rem; color: var(--indigo)">[ SPECIFICATIONS ]</div>
+                        <p id="extractorDoc" style="font-size: 0.8rem; line-height: 1.6; margin-bottom: 1.5rem"></p>
+                        <div class="settings-grid" id="extractorSettings"></div>
+                    </div>
+                </section>
+
+                <!-- Mode: Simulator -->
+                <section id="pane-simulator" class="hidden flex flex-col gap-4">
+                    <div class="section-header" style="font-size: 0.7rem; color: var(--amber)">[ PIPELINE TRACE ]</div>
+                    <div class="sim-console" id="simConsole"></div>
+                </section>
+
+                <!-- Shared Controls -->
+                <section class="test-controls">
+                    <div class="section-header" style="font-size: 0.7rem; color: var(--indigo)">[ LAB BENCH ]</div>
+                    
+                    <div class="control-group" id="vaultContextGroup">
+                        <label class="control-label">Vault Context (Overrides)</label>
+                        <select id="vContext" class="bg-black border border-gray-800 text-white p-2 text-xs outline-none">
+                            <option value="">GLOBAL DEFAULT</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">Target Path</label>
+                        <div style="display: flex; gap: 0.5rem">
+                            <input type="text" id="targetPath" placeholder="Click browse to select a target..." readonly>
+                            <button class="btn-run" style="padding: 0.6rem 1rem; background: var(--terminal-gray); font-size: 0.65rem" onclick="browse('file')">Browse File</button>
+                            <button class="btn-run" style="padding: 0.6rem 1rem; background: var(--terminal-gray); font-size: 0.65rem" onclick="browse('folder')">Browse Folder</button>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="btn-run" id="btnRunTest" onclick="runTest()">Execute Extraction</button>
+                        <button class="btn-run hidden" id="btnRunSim" onclick="runPipelineTrace()" style="background: var(--amber)">Run Pipeline Simulation</button>
+                    </div>
+                </section>
+
+                <!-- Results (Extractor Mode Only) -->
+                <section class="result-view" id="resultView" style="display: none;">
+                    <div class="result-panel">
+                        <div class="panel-header">Extracted Content</div>
+                        <pre id="resultText"></pre>
+                    </div>
+                    <div class="result-panel">
+                        <div class="panel-header">Kernel Metadata & Logs</div>
+                        <pre id="resultMeta" style="color: var(--slate)"></pre>
+                    </div>
+                </section>
+            </div>
+
+            <div id="benchEmpty" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; opacity: 0.2;">
+                <div style="text-align: center">
+                    <div style="font-size: 3rem">🧪</div>
+                    <div style="margin-top: 1rem; letter-spacing: 0.3em">LAB_IDLE</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="static/app.js"></script>
+    <script>
+        let extractors = [];
+        let activeExtractor = null;
+        let currentMode = 'idle'; // 'test', 'simulator', 'idle'
+
+        async function init() {
+            try {
+                const [exts, vaults] = await Promise.all([
+                    api('/utils/extractors'),
+                    api('/vaults')
+                ]);
+                extractors = exts;
+                renderList();
+                const vSelect = document.getElementById('vContext');
+                vaults.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.vault_id;
+                    opt.textContent = `VAULT: ${v.name.toUpperCase()}`;
+                    vSelect.appendChild(opt);
+                });
+            } catch (err) {
+                console.error("Init failed", err);
+            }
+        }
+
+        function renderList() {
+            const list = document.getElementById('extractorList');
+            list.innerHTML = extractors.map(e => `
+                <li class="extractor-item" onclick="selectExtractor('${e.name}')" id="item-${e.name}">
+                    <span class="extractor-name">${e.name}</span>
+                    <span class="extractor-meta">${e.settings.length} params</span>
+                </li>
+            `).join('');
+        }
+
+        function setLabMode(mode) {
+            currentMode = mode;
+            document.getElementById('benchEmpty').style.display = (mode === 'idle') ? 'flex' : 'none';
+            document.getElementById('benchContent').style.display = (mode === 'idle') ? 'none' : 'flex';
+            document.getElementById('resultView').style.display = 'none';
+
+            // Pane toggling
+            document.getElementById('pane-test').classList.toggle('hidden', mode !== 'test');
+            document.getElementById('pane-simulator').classList.toggle('hidden', mode !== 'simulator');
+            
+            // Button toggling
+            document.getElementById('btnRunTest').classList.toggle('hidden', mode !== 'test');
+            document.getElementById('btnRunSim').classList.toggle('hidden', mode !== 'simulator');
+
+            if (mode === 'simulator') {
+                activeExtractor = null;
+                document.querySelectorAll('.extractor-item').forEach(i => i.classList.remove('active'));
+                document.getElementById('item-simulator').classList.add('active');
+                document.getElementById('activeTitle').textContent = "PIPELINE SIMULATOR";
+                document.getElementById('simConsole').innerHTML = '<div style="opacity: 0.3">READY. SELECT TARGET FILE...</div>';
+            }
+        }
+
+        function selectExtractor(name) {
+            activeExtractor = extractors.find(e => e.name === name);
+            setLabMode('test');
+            
+            document.querySelectorAll('.extractor-item').forEach(i => i.classList.remove('active'));
+            document.getElementById(`item-${name}`).classList.add('active');
+            
+            document.getElementById('activeTitle').textContent = name.toUpperCase();
+            document.getElementById('extractorDoc').textContent = activeExtractor.doc;
+            
+            const settingsEl = document.getElementById('extractorSettings');
+            if (activeExtractor.settings.length === 0) {
+                settingsEl.innerHTML = '<div style="font-size: 0.7rem; opacity: 0.4">No environment settings found.</div>';
+            } else {
+                settingsEl.innerHTML = activeExtractor.settings.map(s => `
+                    <div class="setting-card">
+                        <div class="setting-key">${s.key}</div>
+                        <div class="setting-val">${s.value || '<em style="opacity:0.3">null</em>'}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function browse(mode) {
+            try {
+                const res = await api('/utils/browse', { method: 'POST', body: JSON.stringify({ mode }) });
+                if (res.path) document.getElementById('targetPath').value = res.path;
+            } catch (err) { console.error(err); }
+        }
+
+        async function runTest() {
+            if (currentMode !== 'test' || !activeExtractor) return;
+            const path = document.getElementById('targetPath').value;
+            if (!path) return alert("Please specify a target path.");
+
+            const btn = document.getElementById('btnRunTest');
+            btn.disabled = true; btn.textContent = "EXTRACTING..."; btn.classList.add('loading-text');
+            document.getElementById('resultView').style.display = 'none';
+
+            try {
+                const response = await api('/utils/test_extractor', {
+                    method: 'POST',
+                    body: JSON.stringify({ extractor_name: activeExtractor.name, file_path: path })
+                });
+                if (response.status === 'error') throw new Error(response.detail);
+                renderResult(response.result);
+            } catch (err) {
+                alert("Lab Execution Failed: " + err.message);
+            } finally {
+                btn.disabled = false; btn.textContent = "Execute Extraction"; btn.classList.remove('loading-text');
+            }
+        }
+
+        function renderResult(res) {
+            document.getElementById('resultView').style.display = 'grid';
+            document.getElementById('resultText').textContent = res.text || "// NO TEXT EXTRACTED";
+            document.getElementById('resultText').style.color = (res.status === 'failed') ? 'var(--ruby)' : 'var(--emerald)';
+            const meta = { status: res.status, elapsed: res.elapsed_secs.toFixed(3) + "s", metadata: res.metadata, errors: res.errors };
+            document.getElementById('resultMeta').textContent = JSON.stringify(meta, null, 2);
+            document.getElementById('benchStats').textContent = `LAST_RUN: ${res.status.toUpperCase()} [${meta.elapsed}]`;
+        }
+
+        async function runPipelineTrace() {
+            if (currentMode !== 'simulator') return;
+            const path = document.getElementById('targetPath').value;
+            const vaultId = document.getElementById('vContext').value;
+            if (!path) return alert("Please specify a target path.");
+
+            const btn = document.getElementById('btnRunSim');
+            const consoleEl = document.getElementById('simConsole');
+            btn.disabled = true; btn.textContent = "SIMULATING...";
+            consoleEl.innerHTML = '<div class="loading-text">INITIALIZING KERNEL TRACE...</div>';
+
+            try {
+                const res = await api('/utils/simulate_pipeline', {
+                    method: 'POST',
+                    body: JSON.stringify({ file_path: path, vault_id: vaultId || null })
+                });
+                if (res.status === 'error') throw new Error(res.detail);
+
+                let html = `<div class="sim-line"><span class="sim-tag">FILE</span><span>${res.filename}</span></div>`;
+                html += `<div class="sim-line"><span class="sim-tag">CONTEXT</span><span>${res.vault_context}</span></div>`;
+                res.trace.forEach(t => { html += `<div class="sim-line" style="border-left: 2px solid var(--amber); padding-left: 10px; margin-left: 5px;"><span>${t}</span></div>`; });
+                html += `<div class="mt-4 pt-4 border-t border-gray-900"><div class="text-[10px] font-bold text-gray-500 mb-2 uppercase">Kernel Execution Stack</div>`;
+                res.kernels.forEach((k, i) => { html += `<div class="sim-line"><span class="sim-tag">STACK[${i}]</span><span style="color:var(--emerald)">${k}</span></div>`; });
+                html += `</div>`;
+                consoleEl.innerHTML = html;
+            } catch (err) {
+                consoleEl.innerHTML = `<div style="color:var(--ruby)">SIMULATION FAILED: ${err.message}</div>`;
+            } finally {
+                btn.disabled = false; btn.textContent = "Run Pipeline Simulation";
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

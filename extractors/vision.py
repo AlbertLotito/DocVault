@@ -14,7 +14,8 @@ _MAX_ASPECT_RATIO = 10.0
 
 def is_enabled() -> bool:
     v = settings.get('vision:describe_images')
-    return str(v).lower() not in ('0', 'false', 'no')
+    if v is None: return True  # Default to enabled if not explicitly set
+    return str(v).lower() not in ('0', 'false', 'no', 'off')
 
 
 def _check_image(pil_image) -> tuple:
@@ -34,15 +35,18 @@ def describe(pil_image, prompt: str = None) -> str:
     Returns the model's response text, or '' if disabled, skipped, or on failure.
     """
     if not is_enabled():
+        print("  [vision] Stage disabled via settings (vision:describe_images)")
         return ''
 
     ok, reason = _check_image(pil_image)
     if not ok:
-        print(f"  [vision] Skipped: {reason}")
+        print(f"  [vision] Image skipped: {reason}")
         return ''
 
     try:
         import ollama
+        from core.monitor import ollama_governor
+        
         model = settings.get('vision:model') or 'minicpm-v'
         if prompt is None:
             prompt = (
@@ -52,16 +56,26 @@ def describe(pil_image, prompt: str = None) -> str:
         buf = io.BytesIO()
         pil_image.save(buf, format='PNG')
         b64 = base64.b64encode(buf.getvalue()).decode()
-        response = ollama.chat(
-            model=model,
-            messages=[{'role': 'user', 'content': prompt, 'images': [b64]}],
-            options={'temperature': 0},
-        )
-        return response['message']['content'].strip()
+
+        with ollama_governor():
+            response = ollama.chat(
+                model=model,
+                messages=[{'role': 'user', 'content': prompt, 'images': [b64]}],
+                options={'temperature': 0},
+            )
+            res_text = response['message']['content'].strip()
+            if not res_text:
+                print(f"  [vision] Model '{model}' returned empty response.")
+            return res_text
+
     except Exception as e:
         err = str(e)
-        if 'CUDA error' in err or 'illegal memory access' in err:
+        if 'connection' in err.lower():
+            print(f"  [vision] Connection error: Is Ollama running? {err}")
+        elif '404' in err or 'not found' in err.lower():
+            print(f"  [vision] Model error: Have you run 'ollama pull {settings.get('vision:model') or 'minicpm-v'}'?")
+        elif 'CUDA error' in err or 'illegal memory access' in err:
             print(f"  [vision:cuda] GPU error — Ollama will recover: {err[:120]}")
         else:
-            print(f"  [vision] {e}")
+            print(f"  [vision] Unexpected error: {e}")
         return ''

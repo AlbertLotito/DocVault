@@ -57,13 +57,28 @@ def main():
     results.append(_pass("Throttled -> Normal when pressure clears") if sm.state == 'normal'
                    else _fail(f"Expected normal, got {sm.state}"))
 
-    # Normal stays normal on safe readings
+    # Normal stays Normal on safe readings
     sm = ThrottleStateMachine()
     sm.update(MonitorReading(gpu_temp=50.0, gpu_util_pct=20.0, cpu_temp=40.0, ram_pct=30.0), t)
     results.append(_pass("Normal stays Normal on safe readings") if sm.state == 'normal'
                    else _fail(f"Expected normal, got {sm.state}"))
 
+    # Search Triggered Throttle
+    from core.monitor import notify_user_activity, get_throttle_state, _set_throttle_state
+    _set_throttle_state('normal', MonitorReading())
+    notify_user_activity()
+    state = get_throttle_state()
+    results.append(_pass("Search triggers Throttled state") if state == 'throttled'
+                   else _fail(f"Expected throttled after search, got {state}"))
+
+    # Cooldown Priority over Search Throttle
+    _set_throttle_state('cooldown', MonitorReading())
+    state = get_throttle_state()
+    results.append(_pass("Cooldown takes priority over Search throttle") if state == 'cooldown'
+                   else _fail(f"Expected cooldown, got {state}"))
+
     # RAM pressure
+
     sm = ThrottleStateMachine()
     sm.update(MonitorReading(ram_pct=90.0), t)
     results.append(_pass("Normal -> Throttled on RAM 90%") if sm.state == 'throttled'

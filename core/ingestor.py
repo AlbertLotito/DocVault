@@ -2,7 +2,7 @@ import os
 import hashlib
 import datetime
 import ctypes
-from core import manager
+from core import manager, logger
 from core.router import get_priority
 
 # Filenames always skipped regardless of location
@@ -52,7 +52,7 @@ def _update_qdrant_path(file_hash, new_path):
         )
         vs.update_path(file_hash, new_path)
     except Exception as e:
-        print(f"  [qdrant] Path update failed for {file_hash[:8]}: {e}")
+        logger.error(f"[qdrant] Path update failed for {file_hash[:8]}: {e}")
 
 
 def ingest(directory, db_path, vault_id=None):
@@ -96,19 +96,19 @@ def ingest(directory, db_path, vault_id=None):
                         vault_id=vault_id,
                     )
                     added += 1
-                    print(f"  Added: {name} (priority: {priority})")
+                    logger.info(f"  Added: {name} (priority: {priority})")
 
                 elif os.path.normpath(existing['file_path']) != file_path:
                     # Same content, new location — file was moved or renamed
                     manager.update_task_path(db_path, file_hash, file_path)
                     _update_qdrant_path(file_hash, file_path)
                     moved += 1
-                    print(f"  Moved: {existing['file_path']} → {file_path}")
+                    logger.info(f"  Moved: {existing['file_path']} → {file_path}")
 
                 # else: known file at known path — nothing to do
 
             except (OSError, PermissionError) as e:
-                print(f"  Skipped {name}: {e}")
+                logger.warn(f"  Skipped {name}: {e}")
 
-    print(f"Ingestion complete. Added {added}, moved {moved} file(s).")
+    logger.info(f"Ingestion complete. Added {added}, moved {moved} file(s).")
     return added, moved

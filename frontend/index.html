@@ -25,11 +25,15 @@
   <main class="max-w-6xl mx-auto p-6">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-800">Vault Status</h1>
-      <div class="flex gap-3">
-        <button onclick="pauseWorkers()" class="bg-yellow-400 hover:bg-yellow-500 text-white px-4 py-1.5 rounded text-sm">Pause</button>
-        <button onclick="resumeWorkers()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm">Resume</button>
+      <div class="flex gap-2">
+        <button onclick="openAddVaultWizard()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm transition-all">+ Add Vault</button>
+        <div class="w-px h-6 bg-gray-200 mx-1"></div>
+        <button id="btn-pause" onclick="pauseWorkers()" class="bg-yellow-400 hover:bg-yellow-500 text-white px-4 py-1.5 rounded text-sm">Pause</button>
+        <button id="btn-resume" onclick="resumeWorkers()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded text-sm">Resume</button>
+        <button onclick="resetStuck()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded text-sm">Reset Stuck</button>
         <span id="pause-status" class="text-sm text-gray-600 self-center">—</span>
       </div>
+
     </div>
 
     <!-- Global stats row -->
@@ -72,6 +76,104 @@
       </div>
       <div id="vault-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="text-sm text-gray-400">Loading vaults...</div>
+      </div>
+    </div>
+
+    <!-- Vault Control Center Modal (Add/Edit) -->
+    <div id="reset-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col" style="max-height: 90vh;">
+        
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 id="reset-title" class="text-lg font-bold text-gray-800">Vault Configuration</h3>
+          <button onclick="closeResetModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="flex border-b border-gray-100 bg-white">
+          <button id="v-tab-identity" onclick="showVaultTab('identity')" class="px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-700">1. Identity</button>
+          <button id="v-tab-extractors" onclick="showVaultTab('extractors')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700">2. Kernels</button>
+          <button id="v-tab-maintenance" onclick="showVaultTab('maintenance')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700">3. Maintenance</button>
+        </div>
+
+        <!-- Content Area -->
+        <div class="flex-1 overflow-y-auto p-6 bg-white">
+          
+          <!-- Tab: Identity -->
+          <div id="v-pane-identity" class="v-pane space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Vault Name</label>
+              <input type="text" id="v-input-name" placeholder="e.g. Legal Documents" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Scan Directory</label>
+              <div class="flex gap-2">
+                <input type="text" id="v-input-path" readonly placeholder="Select a folder..." class="flex-1 border border-gray-200 bg-gray-50 rounded px-3 py-2 text-sm outline-none">
+                <button onclick="browseVaultPath()" class="bg-gray-800 text-white px-4 py-2 rounded text-xs font-bold">Browse</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Processing Priority</label>
+                <select id="v-input-priority" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
+                  <option value="1">1 (Critical / Fast)</option>
+                  <option value="3">3 (High)</option>
+                  <option value="5" selected>5 (Standard)</option>
+                  <option value="7">7 (Low)</option>
+                  <option value="9">9 (Background / Slow)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">UI Accent Color</label>
+                <input type="color" id="v-input-color" value="#6366f1" class="w-full h-9 p-1 border border-gray-300 rounded">
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Extractors -->
+          <div id="v-pane-extractors" class="v-pane hidden space-y-4">
+            <p class="text-xs text-gray-500 italic mb-4">Define which extraction kernels are active for this vault and their importance.</p>
+            <div id="v-extractor-list" class="space-y-2">
+              <!-- Dynamically populated -->
+              <div class="text-gray-400 text-sm italic">Loading kernel registry...</div>
+            </div>
+          </div>
+
+          <!-- Tab: Maintenance -->
+          <div id="v-pane-maintenance" class="v-pane hidden space-y-3">
+            <div id="v-maint-new-msg" class="text-sm text-gray-500 italic p-4 border border-dashed border-gray-200 rounded">Maintenance tools become available after the vault is created.</div>
+            <div id="v-maint-tools" class="hidden space-y-3">
+              <button onclick="confirmResetAction('reindex')" class="w-full text-left p-3 rounded border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
+                <div class="font-bold text-sm text-indigo-700">Rebuild Vector Index</div>
+                <div class="text-xs text-gray-500">Wipes embeddings and re-vectorizes all files.</div>
+              </button>
+              <button onclick="confirmResetAction('gut')" class="w-full text-left p-3 rounded border border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all group">
+                <div class="font-bold text-sm text-orange-700">Gut Vault (Full Reset)</div>
+                <div class="text-xs text-gray-500">Deletes ALL extracted text and images.</div>
+              </button>
+              <button onclick="confirmResetAction('delete')" class="w-full text-left p-3 rounded border border-gray-200 hover:border-red-300 hover:bg-red-50 transition-all group">
+                <div class="font-bold text-sm text-red-700">Delete Vault</div>
+                <div class="text-xs text-gray-500">Removes this vault and all its data.</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Sub-pane: Confirm Action -->
+          <div id="confirm-step" class="hidden mt-6 bg-red-50 p-4 border border-red-100 rounded">
+            <p id="confirm-msg" class="text-sm text-red-800 font-bold mb-4"></p>
+            <div class="flex justify-end gap-3">
+              <button onclick="cancelReset()" class="px-4 py-2 rounded text-sm text-gray-600 hover:bg-white transition-colors">Cancel</button>
+              <button id="btn-execute-reset" class="px-4 py-2 rounded text-sm bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-lg">Yes, Proceed</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+          <button onclick="closeResetModal()" class="text-sm text-gray-500 hover:underline">Cancel</button>
+          <button id="btn-vault-save" onclick="saveVaultConfig()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded font-bold shadow-lg transition-all">Save Vault</button>
+        </div>
       </div>
     </div>
 
@@ -131,8 +233,10 @@
               <span class="text-xs px-2 py-0.5 rounded-full ${v.state==='active'?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${v.state}</span>
             </div>
             <div class="text-xs text-gray-500">Priority ${v.priority}</div>
-            <div class="mt-3 flex gap-2">
-              <a href="/catalog?vault_id=${v.vault_id}" class="text-xs text-indigo-600 hover:underline">View files</a>
+            <div class="mt-3 flex items-center gap-2">
+              <a href="/catalog?vault_id=${v.vault_id}" class="text-xs text-indigo-600 hover:underline leading-none">View files</a>
+              <span class="text-gray-300">|</span>
+              <button onclick="openVaultManagement('${v.vault_id}', '${escapeAttr(v.name)}')" class="text-xs text-red-600 hover:underline leading-none">Manage</button>
             </div>
           </div>
         `).join('');
@@ -156,6 +260,16 @@
       const s = await api('/workers/status');
       document.getElementById('pause-status').textContent =
         s.paused ? '⏸ Paused' : '▶ Running';
+      
+      const btnPause = document.getElementById('btn-pause');
+      const btnResume = document.getElementById('btn-resume');
+      if (s.paused) {
+        btnPause.classList.add('hidden');
+        btnResume.classList.remove('hidden');
+      } else {
+        btnPause.classList.remove('hidden');
+        btnResume.classList.add('hidden');
+      }
     }
 
     async function loadUnknowns() {
@@ -181,6 +295,224 @@
       const r = await api('/workers/reset_stuck', { method: 'POST' });
       alert(`Reset ${r.reset} stuck task(s) back to PENDING.`);
       loadStats();
+    }
+
+    let activeVaultId = null;
+    let activeResetAction = null;
+    let availableKernels = [];
+
+    // --- Vault Wizard & Editor Logic ---
+
+    async function openAddVaultWizard() {
+      activeVaultId = null;
+      document.getElementById('reset-title').textContent = "Add New Vault";
+      document.getElementById('v-input-name').value = "";
+      document.getElementById('v-input-path').value = "";
+      document.getElementById('v-input-priority').value = "5";
+      document.getElementById('v-input-color').value = "#6366f1";
+      document.getElementById('btn-vault-save').textContent = "Create Vault";
+      
+      document.getElementById('v-maint-new-msg').classList.remove('hidden');
+      document.getElementById('v-maint-tools').classList.add('hidden');
+      
+      showVaultTab('identity');
+      await loadKernelRegistry();
+      document.getElementById('reset-modal').classList.remove('hidden');
+    }
+
+    async function openVaultManagement(id, name) {
+      activeVaultId = id;
+      try {
+        const v = await api(`/vaults/${id}`);
+        document.getElementById('reset-title').textContent = `Manage Vault: ${v.name}`;
+        document.getElementById('v-input-name').value = v.name;
+        document.getElementById('v-input-path').value = v.scan_directory;
+        document.getElementById('v-input-priority').value = v.priority;
+        document.getElementById('v-input-color').value = v.color || "#6366f1";
+        document.getElementById('btn-vault-save').textContent = "Save Changes";
+
+        document.getElementById('v-maint-new-msg').classList.add('hidden');
+        document.getElementById('v-maint-tools').classList.remove('hidden');
+
+        showVaultTab('identity');
+        await loadKernelRegistry(id);
+        document.getElementById('reset-modal').classList.remove('hidden');
+        cancelReset();
+      } catch (err) {
+        alert("Could not load vault details: " + err.message);
+      }
+    }
+
+    function showVaultTab(tab) {
+      document.querySelectorAll('.v-pane').forEach(p => p.classList.add('hidden'));
+      document.getElementById(`v-pane-${tab}`).classList.remove('hidden');
+      
+      document.querySelectorAll('[id^="v-tab-"]').forEach(b => {
+        b.classList.remove('border-indigo-600', 'text-indigo-700');
+        b.classList.add('border-transparent', 'text-gray-500');
+      });
+      document.getElementById(`v-tab-${tab}`).classList.add('border-indigo-600', 'text-indigo-700');
+      document.getElementById(`v-tab-${tab}`).classList.remove('border-transparent', 'text-gray-500');
+    }
+
+    async function browseVaultPath() {
+      const res = await api('/utils/browse', { method: 'POST', body: JSON.stringify({ mode: 'folder' }) });
+      if (res.path) document.getElementById('v-input-path').value = res.path;
+    }
+
+    async function loadKernelRegistry(vaultId = null) {
+      const list = document.getElementById('v-extractor-list');
+      try {
+        // 1. Get all available extractors
+        if (availableKernels.length === 0) {
+          availableKernels = await api('/utils/extractors');
+        }
+
+        // 2. Get vault-specific config if editing
+        let config = [];
+        if (vaultId) {
+          config = await api(`/vaults/${vaultId}/extractors`);
+        }
+
+        list.innerHTML = availableKernels.map(k => {
+          const vConfig = config.find(c => c.name === k.name) || { enabled: true, priority: 10 };
+          return `
+            <div class="flex items-center gap-4 p-3 border border-gray-100 rounded hover:bg-gray-50 group">
+              <input type="checkbox" class="v-kernel-check w-4 h-4 text-indigo-600" data-name="${k.name}" ${vConfig.enabled ? 'checked' : ''}>
+              <div class="flex-1">
+                <div class="text-sm font-bold text-gray-800">${k.name}</div>
+                <div class="text-[10px] text-gray-400 uppercase tracking-tighter">${k.settings.length} configurable settings</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-gray-400 font-bold uppercase">Priority:</span>
+                <input type="number" class="v-kernel-priority w-12 border border-gray-200 rounded px-1 py-0.5 text-xs text-center" 
+                       data-name="${k.name}" value="${vConfig.priority}" min="1" max="99">
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        list.innerHTML = `<div class="text-red-500 text-sm">Registry error: ${err.message}</div>`;
+      }
+    }
+
+    async function saveVaultConfig() {
+      const btn = document.getElementById('btn-vault-save');
+      const payload = {
+        name: document.getElementById('v-input-name').value,
+        scan_directory: document.getElementById('v-input-path').value,
+        priority: parseInt(document.getElementById('v-input-priority').value),
+        color: document.getElementById('v-input-color').value
+      };
+
+      if (!payload.name || !payload.scan_directory) {
+        return alert("Name and Path are required.");
+      }
+
+      btn.disabled = true;
+      btn.textContent = "SAVING...";
+
+      try {
+        let v;
+        if (activeVaultId) {
+          // Update Identity
+          v = await api(`/vaults/${activeVaultId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+          // Create New
+          v = await api(`/vaults`, { method: 'POST', body: JSON.stringify(payload) });
+          activeVaultId = v.vault_id;
+        }
+
+        // Save Extractor Config
+        const extractorConfig = [];
+        document.querySelectorAll('.v-kernel-check').forEach(check => {
+          const name = check.dataset.name;
+          const priorityInput = document.querySelector(`.v-kernel-priority[data-name="${name}"]`);
+          extractorConfig.push({
+            name: name,
+            enabled: check.checked,
+            priority: parseInt(priorityInput.value)
+          });
+        });
+
+        // Sort by priority (higher first for UI representation, but here we just send the list)
+        await api(`/vaults/${activeVaultId}/extractors`, { 
+          method: 'POST', 
+          body: JSON.stringify(extractorConfig) 
+        });
+
+        closeResetModal();
+        refreshAll();
+      } catch (err) {
+        alert("Save failed: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = activeVaultId ? "Save Changes" : "Create Vault";
+      }
+    }
+
+    function closeResetModal() {
+      document.getElementById('reset-modal').classList.add('hidden');
+      activeVaultId = null;
+    }
+
+    function confirmResetAction(action) {
+      activeResetAction = action;
+      const confirmStep = document.getElementById('confirm-step');
+      const confirmMsg = document.getElementById('confirm-msg');
+      const executeBtn = document.getElementById('btn-execute-reset');
+      
+      confirmStep.classList.remove('hidden');
+      
+      if (action === 'reindex') {
+        confirmMsg.textContent = "WARNING: This will wipe all search vectors for this vault. Files will be re-embedded automatically. Extracted text remains safe.";
+        executeBtn.className = "px-4 py-2 rounded text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-lg";
+      } else if (action === 'gut') {
+        confirmMsg.textContent = "DANGER: This will delete ALL extracted text, images, and history for this vault. DocVault will behave as if it has never seen these files.";
+        executeBtn.className = "px-4 py-2 rounded text-sm bg-orange-600 hover:bg-orange-700 text-white font-bold transition-all shadow-lg";
+      } else if (action === 'delete') {
+        confirmMsg.textContent = "CRITICAL: This will permanently remove this vault and all its data from DocVault. (Your actual files on disk are never touched).";
+        executeBtn.className = "px-4 py-2 rounded text-sm bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-lg";
+      }
+
+      executeBtn.onclick = executeVaultReset;
+    }
+
+    function cancelReset() {
+      document.getElementById('confirm-step').classList.add('hidden');
+      activeResetAction = null;
+    }
+
+    async function executeVaultReset() {
+      if (!activeVaultId || !activeResetAction) return;
+      
+      const btn = document.getElementById('btn-execute-reset');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'PROCESSING...';
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      try {
+        let endpoint = '';
+        if (activeResetAction === 'reindex') endpoint = `/vaults/${activeVaultId}/reindex`;
+        else if (activeResetAction === 'gut') endpoint = `/vaults/${activeVaultId}/gut`;
+        else if (activeResetAction === 'delete') endpoint = `/vaults/${activeVaultId}/delete`;
+
+        const res = await api(endpoint, { method: 'POST' });
+        
+        closeResetModal();
+        refreshAll();
+      } catch (err) {
+        alert("Operation failed: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    function escapeAttr(s) {
+      return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
     function refreshAll() {

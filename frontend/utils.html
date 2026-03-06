@@ -19,6 +19,42 @@
   <main class="max-w-4xl mx-auto p-6">
     <h1 class="text-2xl font-bold text-gray-800 mb-6">System Utilities</h1>
 
+    <!-- System Telemetry Dashboard -->
+    <div class="bg-gray-900 rounded shadow-xl p-6 mb-6 border border-emerald-500/20">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold text-emerald-400 tracking-wider uppercase text-sm">System Telemetry</h2>
+        <span class="text-[10px] font-mono text-emerald-500/50">LIVE // HUD_v1.4</span>
+      </div>
+      <p class="text-sm text-gray-400 mb-6">
+        Real-time resource monitor, hardware telemetry, and active worker progress. 
+        Designed for full-screen secondary monitor deployment.
+      </p>
+      <div class="flex items-center gap-4">
+        <button onclick="location.href='telemetry.html'"
+          class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded text-sm font-bold tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+          Initialize Dashboard
+        </button>
+      </div>
+    </div>
+
+    <!-- Extractor Lab -->
+    <div class="bg-gray-900 rounded shadow-xl p-6 mb-6 border border-indigo-500/20">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold text-indigo-400 tracking-wider uppercase text-sm">Extractor Lab</h2>
+        <span class="text-[10px] font-mono text-indigo-500/50">STABLE // KERNEL_TOOL_v1.0</span>
+      </div>
+      <p class="text-sm text-gray-400 mb-6">
+        Inspect registered extraction kernels, view current configuration environment, and execute 
+        isolated tests against specific file targets.
+      </p>
+      <div class="flex items-center gap-4">
+        <button onclick="location.href='lab.html'"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded text-sm font-bold tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+          Enter Lab
+        </button>
+      </div>
+    </div>
+
     <!-- System Health -->
     <div class="bg-white rounded shadow p-6 mb-6">
       <div class="flex items-center justify-between mb-3">
