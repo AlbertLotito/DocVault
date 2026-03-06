@@ -325,6 +325,82 @@ class LegacyExtractorAdapter(BaseExtractor):
 
 
 # ---------------------------------------------------------------------------
+# SubprocessExtractorAdapter — executes external binaries
+# ---------------------------------------------------------------------------
+
+class SubprocessExtractorAdapter(BaseExtractor):
+    """
+    Adapter for external binaries (Go, Rust, Node, etc.).
+    Executes the binary and captures JSON from stdout.
+    """
+    def __init__(self, name: str, launch_config: list, description: str = ""):
+        self._name = name
+        self._launch_config = launch_config
+        self._description = description or f"External subprocess kernel: {name}"
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    def extract(self, file_path: Path, ctx: ExtractorContext):
+        import subprocess
+        import json
+        
+        # 1. Build Command
+        # Replace '{file_path}' placeholder with actual path
+        cmd = [arg.replace('{file_path}', str(file_path)) for arg in self._launch_config]
+
+        # 2. Execute
+        ctx.logger.info(f"Invoking binary: {' '.join(cmd)}")
+        try:
+            # We enforce a timeout so bad binaries don't lock the worker forever
+            process = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=ctx.timeout_secs or 300 # 5 min default
+            )
+
+            # 3. Capture Stderr (Logs/Progress)
+            if process.stderr:
+                ctx.logger.debug(f"Binary STDERR: {process.stderr.strip()}")
+
+            if process.returncode != 0:
+                return None, f"Binary exited with code {process.returncode}: {process.stderr}", {}
+
+            # 4. Parse Stdout (JSON Contract)
+            if not process.stdout.strip():
+                return None, "Binary returned no stdout", {}
+
+            try:
+                data = json.loads(process.stdout)
+            except json.JSONDecodeError:
+                return None, f"Binary output violated JSON contract: {process.stdout[:100]}...", {}
+
+            text = data.get("text")
+            error = data.get("error")
+            meta = data.get("metadata", {})
+
+            return text, error, meta
+
+        except subprocess.TimeoutExpired:
+            return None, "Binary execution timed out", {}
+        except Exception as e:
+            return None, f"Subprocess failed: {e}", {}
+
+    def normalize(self, result, ctx: ExtractorContext) -> IngestResult:
+        # We can reuse the LegacyExtractorAdapter logic since we return the exact same 3-tuple format
+        # For simplicity, we just instantiate a temporary legacy adapter to do the normalization
+        dummy_adapter = LegacyExtractorAdapter(None)
+        dummy_adapter._ext = type('Dummy', (), {'__name__': self.name})()
+        return dummy_adapter.normalize(result, ctx)
+
+
+# ---------------------------------------------------------------------------
 # Type-specific base classes (structural stubs for the hierarchy)
 # ---------------------------------------------------------------------------
 

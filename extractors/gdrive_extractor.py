@@ -1,26 +1,39 @@
 """
-Google Drive extractor.
+[ GOOGLE DRIVE EXTRACTION KERNEL ]
+Bridge kernel for synchronizing and extracting content from Google Workspace stubs.
 
-Handles local stub files created by Google Drive for Desktop:
-  .gdoc   → exported as DOCX  → microsoft_word_extractor
-  .gsheet → exported as XLSX  → microsoft_excel_extractor
-  .gslides→ exported as PPTX  → microsoft_powerpoint_extractor
-  .gform  → exported as CSV   → plaintext_extractor
-  .gdraw  → exported as PDF   → text_extractor + image_extractor
+PIPELINE:
+1. Stub Resolution: Reads local .gdoc, .gsheet, and .gslides files to retrieve 
+   the remote Document ID.
+2. Cloud Export: Authenticates via OAuth2 and triggers the Google Drive API 
+   to export Workspace documents into standard OpenXML or PDF formats.
+3. Kernel Handoff: Hands the exported bitstream to the appropriate internal 
+   kernel (Word, Excel, or PowerPoint) for high-fidelity extraction.
 
-The stub file is a small JSON containing a doc_id (and URL).
-The extractor reads the doc_id, calls the Drive API to export the document
-to a temp file, then hands it to the appropriate existing extractor.
-
-First-run OAuth: call ensure_authorized() once via the Utilities page before
-extraction will work. Subsequent runs use the saved token silently.
+REQUIRES: Google Drive API credentials, OAuth2 token.
 """
+
+MANIFEST = {
+    "id": "com.google.drive.bridge",
+    "version": "1.0.0",
+    "name": "Google Drive Bridge",
+    "extensions": ["gdoc", "gsheet", "gslides", "gform", "gdraw"],
+    "requires": ["google-api-python-client", "google-auth-oauthlib"]
+}
+
+__description__ = (
+    "A specialized bridge kernel for Google Workspace documents. It handles "
+    "stub resolution, OAuth2 authentication, and cloud-to-local export, "
+    "seamlessly integrating remote documents into the local extraction pipeline."
+)
+
 import json
 import os
 import tempfile
 
 from core.settings import settings
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
 # ── MIME type mappings ────────────────────────────────────────────────────────
@@ -75,8 +88,6 @@ def is_authorized() -> bool:
 def ensure_authorized() -> tuple:
     """
     Run the OAuth flow if no token exists.
-    Opens a browser window for the user to authorise DocVault.
-    Returns (True, '') on success or (False, error_message).
     """
     cp = _creds_path()
     tp = _token_path()
@@ -116,7 +127,7 @@ def _build_service():
 
 # ── Main extractor ────────────────────────────────────────────────────────────
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Extract content from a Google Drive stub file (.gdoc, .gsheet, etc.).
     """
@@ -168,7 +179,7 @@ def extract(file_path: str) -> tuple:
 
         for extractor in extractors:
             # We must use the module directly here as these are legacy extractors
-            result, err = extractor.extract(tmp_path)
+            result, err = extractor.extract(tmp_path, ctx)
             if err:
                 errors.append(f"[{getattr(extractor, '__name__', 'unknown')}] {err}")
             if isinstance(result, str) and result:

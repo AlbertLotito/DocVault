@@ -193,6 +193,11 @@ class Settings:
                 'type': 'string', 'default': 'false', 'label': 'Debug Mode', 'group': 'general',
                 'description': 'When enabled, the console output will include all logs (INFO, DEBUG). When disabled, only WARNINGS and ERRORS are shown. Useful for troubleshooting but can be noisy.',
             },
+            # Alerts
+            'alerts:ntfy_url': {
+                'type': 'string', 'default': '', 'label': 'ntfy.sh URL', 'group': 'general',
+                'description': 'Optional: A ntfy.sh topic URL (e.g. https://ntfy.sh/my-private-topic) to receive system alerts on your phone or desktop.',
+            },
         }
 
     def get(self, key: str):

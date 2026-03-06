@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>DocVault // Extractor Lab</title>
+    <title>DocVault // Extractor Lab & Certification</title>
     <link rel="stylesheet" href="static/styles.css">
     <style>
         :root {
@@ -15,35 +15,16 @@
             --terminal-gray: #1a1a1a;
         }
 
-        body, html {
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-black);
-            color: var(--slate);
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            height: 100%;
-        }
-
-        .lab-container {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            height: 100vh;
-        }
+        body, html { margin: 0; padding: 0; background-color: var(--bg-black); color: var(--slate); font-family: 'JetBrains Mono', 'Fira Code', monospace; height: 100%; overflow: hidden; }
+        .lab-container { display: grid; grid-template-columns: 350px 1fr; height: 100vh; }
 
         /* Sidebar */
-        .extractor-registry {
-            background: #0a0a0a;
-            border-right: 1px solid var(--terminal-gray);
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-
+        .extractor-registry { background: #0a0a0a; border-right: 1px solid var(--terminal-gray); overflow-y: auto; display: flex; flex-direction: column; }
         .registry-header { padding: 1.5rem; border-bottom: 1px solid var(--terminal-gray); background: #0d0d0d; }
         .registry-title { font-size: 0.8rem; font-weight: bold; letter-spacing: 0.2em; color: var(--indigo); text-transform: uppercase; }
 
         .extractor-list { padding: 0; margin: 0; list-style: none; }
-        .extractor-item { padding: 1rem 1.5rem; border-bottom: 1px solid rgba(148, 163, 184, 0.05); cursor: pointer; transition: all 0.2s; }
+        .extractor-item { padding: 1rem 1.5rem; border-bottom: 1px solid rgba(148, 163, 184, 0.05); cursor: pointer; transition: all 0.2s; position: relative; }
         .extractor-item:hover { background: rgba(99, 102, 241, 0.05); }
         .extractor-item.active { background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--indigo); }
         .extractor-item.simulator { border-top: 1px solid var(--terminal-gray); margin-top: 1rem; }
@@ -51,41 +32,49 @@
 
         .extractor-name { display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.2rem; }
         .extractor-meta { font-size: 0.65rem; opacity: 0.5; }
+        .status-pill { position: absolute; right: 1.5rem; top: 1.2rem; font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 2px; font-weight: bold; text-transform: uppercase; }
+        .pill-certified { color: var(--emerald); border: 1px solid var(--emerald); }
+        .pill-unverified { color: var(--amber); border: 1px solid var(--amber); }
+        .pill-tampered { color: var(--ruby); border: 1px solid var(--ruby); background: rgba(239, 68, 68, 0.1); }
 
-        /* Main */
+        /* Main Bench */
         .lab-bench { display: flex; flex-direction: column; overflow: hidden; }
         .bench-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--terminal-gray); display: flex; justify-content: space-between; align-items: center; }
         .bench-title { color: #fff; font-size: 1rem; display: flex; align-items: center; gap: 1rem; }
         .bench-content { flex-grow: 1; padding: 2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 2rem; }
+
+        /* Certification UI */
+        .cert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .cert-card { background: #0d0d0d; border: 1px solid var(--terminal-gray); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        .cert-step { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem; background: #050505; border: 1px solid #111; }
+        .step-label { font-size: 0.75rem; font-weight: bold; }
+        .step-status { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 2px; }
+        .status-pass { color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
+        .status-fail { color: var(--ruby); background: rgba(239, 68, 68, 0.1); }
+        .status-pending { color: var(--slate); opacity: 0.3; }
 
         /* Controls */
         .test-controls { background: #0d0d0d; border: 1px solid var(--terminal-gray); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
         .control-group { display: flex; flex-direction: column; gap: 0.5rem; }
         .control-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate); }
         input[type="text"] { background: #000; border: 1px solid var(--terminal-gray); color: #fff; padding: 0.6rem 1rem; font-family: inherit; font-size: 0.8rem; width: 100%; outline: none; }
-        input[type="text"]:focus { border-color: var(--indigo); }
-
+        
         .btn-run { background: var(--indigo); color: #fff; border: none; padding: 0.8rem 2rem; font-family: inherit; font-size: 0.8rem; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.2s; }
         .btn-run:hover { filter: brightness(1.1); }
         .btn-run:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-secondary { background: var(--terminal-gray); }
 
         .hidden { display: none !important; }
 
-        /* Result View */
-        .result-view { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; flex-grow: 1; }
+        /* Console */
+        .sim-console { background: #000; border: 1px solid var(--terminal-gray); padding: 1.5rem; font-size: 0.75rem; line-height: 1.6; color: var(--slate); flex-grow: 1; font-family: 'Consolas', monospace; }
+        .sim-line { display: flex; gap: 1rem; margin-bottom: 0.2rem; }
+        .sim-tag { color: var(--indigo); font-weight: bold; min-width: 80px; }
+
+        .result-view { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
         .result-panel { display: flex; flex-direction: column; background: #0d0d0d; border: 1px solid var(--terminal-gray); }
         .panel-header { padding: 0.6rem 1rem; background: #111; border-bottom: 1px solid var(--terminal-gray); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate); }
-        pre { margin: 0; padding: 1rem; font-size: 0.75rem; color: var(--emerald); white-space: pre-wrap; overflow-y: auto; flex-grow: 1; }
-
-        /* Console */
-        .sim-console { background: #000; border: 1px solid var(--terminal-gray); padding: 1.5rem; font-size: 0.8rem; line-height: 1.6; color: var(--slate); flex-grow: 1; }
-        .sim-line { display: flex; gap: 1rem; margin-bottom: 0.5rem; }
-        .sim-tag { color: var(--amber); font-weight: bold; min-width: 100px; }
-
-        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        .setting-card { background: #111; padding: 0.8rem; border: 1px solid rgba(148, 163, 184, 0.05); }
-        .setting-key { font-size: 0.65rem; color: var(--indigo); margin-bottom: 0.2rem; }
-        .setting-val { font-size: 0.75rem; color: #fff; }
+        pre { margin: 0; padding: 1rem; font-size: 0.7rem; color: var(--emerald); white-space: pre-wrap; overflow-y: auto; max-height: 300px; }
 
         @keyframes jitter { 0% { transform: translate(0,0); } 50% { transform: translate(1px, -1px); } 100% { transform: translate(-1px, 1px); } }
         .loading-text { animation: jitter 0.1s infinite; }
@@ -93,10 +82,57 @@
     </style>
 </head>
 <body>
-    <div class="lab-container">
+    <!-- Binary Wizard Modal -->
+    <div id="binaryModal" class="hidden fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-md">
+        <div class="bg-[#0a0a0a] border border-gray-800 rounded-lg shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-[#0d0d0d]">
+                <h3 class="text-sm font-bold text-indigo-400 uppercase tracking-widest">Register External Binary Kernel</h3>
+                <button onclick="closeBinaryWizard()" class="text-gray-500 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto" style="max-height: 70vh;">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Kernel Unique ID</label>
+                    <input type="text" id="bin-id" placeholder="com.custom.vision.face" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Display Name</label>
+                        <input type="text" id="bin-name" placeholder="Face AI Recognizer" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Extensions (CSV)</label>
+                        <input type="text" id="bin-exts" placeholder="jpg, png, mp4" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Binary Path</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="bin-path" readonly placeholder="Pick executable..." class="flex-1 bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white outline-none">
+                        <button onclick="browseBinary()" class="bg-gray-800 text-white px-4 py-2 rounded text-xs font-bold">Browse</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">CLI Arguments</label>
+                    <input type="text" id="bin-args" placeholder="--input {file_path} --output-json" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none font-mono">
+                    <p class="text-[9px] text-gray-600 mt-1 italic">Use {file_path} as a placeholder for the target file.</p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Description</label>
+                    <input type="text" id="bin-desc" placeholder="High-speed analysis written in Go." class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                </div>
+            </div>
+            <div class="p-4 bg-[#0d0d0d] border-t border-gray-800 flex justify-end gap-3">
+                <button onclick="closeBinaryWizard()" class="px-4 py-2 text-xs font-bold text-gray-500 hover:text-white uppercase">Cancel</button>
+                <button id="btn-bin-save" onclick="saveBinaryKernel()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded text-xs font-bold shadow-lg transition-all uppercase tracking-widest">Sign & Register</button>
+            </div>
+        </div>
+    </div>
         <aside class="extractor-registry">
             <div class="registry-header">
-                <div class="registry-title">Registry :: Node_01</div>
+                <div class="registry-title">Kernel Registry</div>
+            </div>
+            <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--terminal-gray)">
+                <button onclick="openBinaryWizard()" class="btn-run" style="width: 100%; background: var(--terminal-gray); font-size: 0.65rem">+ Register External Binary</button>
             </div>
             <ul class="extractor-list" id="extractorList"></ul>
             <ul class="extractor-list">
@@ -112,17 +148,52 @@
 
         <main class="lab-bench">
             <div class="bench-header">
-                <div class="bench-title" id="activeTitle">SELECT EXTRACTOR</div>
+                <div class="bench-title" id="activeTitle">CERTIFICATION SUITE</div>
                 <div id="benchStats" style="font-size: 0.7rem; color: var(--slate)"></div>
             </div>
 
             <div class="bench-content" id="benchContent" style="display: none;">
-                <!-- Mode: Extractor Test -->
-                <section id="pane-test" class="flex flex-col gap-6">
-                    <div>
-                        <div class="section-header" style="font-size: 0.7rem; margin-bottom: 1rem; color: var(--indigo)">[ SPECIFICATIONS ]</div>
-                        <p id="extractorDoc" style="font-size: 0.8rem; line-height: 1.6; margin-bottom: 1.5rem"></p>
-                        <div class="settings-grid" id="extractorSettings"></div>
+                
+                <!-- Mode: Certification & Diagnostics -->
+                <section id="pane-certify" class="flex flex-col gap-6">
+                    <div class="cert-grid">
+                        <!-- Static Analysis -->
+                        <div class="cert-card">
+                            <div class="section-header" style="font-size: 0.7rem; color: var(--indigo)">[ STATIC AUDIT ]</div>
+                            <div class="cert-step">
+                                <span class="step-label">Manifest Discovery</span>
+                                <span id="stat-manifest" class="step-status status-pending">PENDING</span>
+                            </div>
+                            <div class="cert-step">
+                                <span class="step-label">Strict Signatures</span>
+                                <span id="stat-signatures" class="step-status status-pending">PENDING</span>
+                            </div>
+                            <p id="audit-msg" class="text-[10px] text-gray-500 italic mt-2"></p>
+                        </div>
+                        <!-- Behavioral Analysis -->
+                        <div class="cert-card">
+                            <div class="section-header" style="font-size: 0.7rem; color: var(--emerald)">[ BEHAVIORAL SANDBOX ]</div>
+                            <div class="cert-step">
+                                <span class="step-label">Execution Flow</span>
+                                <span id="stat-execution" class="step-status status-pending">PENDING</span>
+                            </div>
+                            <div class="cert-step">
+                                <span class="step-label">I/O Integrity</span>
+                                <span id="stat-io" class="step-status status-pending">PENDING</span>
+                            </div>
+                            <button id="btn-activate" onclick="activateKernel()" disabled class="btn-run" style="margin-top: 1rem; width: 100%; opacity: 0.2">Activate Kernel</button>
+                        </div>
+                    </div>
+
+                    <div class="result-view" id="resultView" style="display: none;">
+                        <div class="result-panel">
+                            <div class="panel-header">I/O Telemetry Inspector</div>
+                            <div class="sim-console" id="ioConsole"></div>
+                        </div>
+                        <div class="result-panel">
+                            <div class="panel-header">Normalised Output</div>
+                            <pre id="resultText"></pre>
+                        </div>
                     </div>
                 </section>
 
@@ -132,47 +203,34 @@
                     <div class="sim-console" id="simConsole"></div>
                 </section>
 
-                <!-- Shared Controls -->
+                <!-- Shared Lab Bench Controls -->
                 <section class="test-controls">
-                    <div class="section-header" style="font-size: 0.7rem; color: var(--indigo)">[ LAB BENCH ]</div>
+                    <div class="section-header" style="font-size: 0.7rem; color: var(--indigo)">[ LABORATORY CONTROLS ]</div>
                     
                     <div class="control-group" id="vaultContextGroup">
-                        <label class="control-label">Vault Context (Overrides)</label>
+                        <label class="control-label">Vault Context (For Simulation)</label>
                         <select id="vContext" class="bg-black border border-gray-800 text-white p-2 text-xs outline-none">
                             <option value="">GLOBAL DEFAULT</option>
                         </select>
                     </div>
 
                     <div class="control-group">
-                        <label class="control-label">Target Path</label>
+                        <label class="control-label">Target Sample Path</label>
                         <div style="display: flex; gap: 0.5rem">
-                            <input type="text" id="targetPath" placeholder="Click browse to select a target..." readonly>
-                            <button class="btn-run" style="padding: 0.6rem 1rem; background: var(--terminal-gray); font-size: 0.65rem" onclick="browse('file')">Browse File</button>
-                            <button class="btn-run" style="padding: 0.6rem 1rem; background: var(--terminal-gray); font-size: 0.65rem" onclick="browse('folder')">Browse Folder</button>
+                            <input type="text" id="targetPath" placeholder="Pick a file to test behavioral contract..." readonly>
+                            <button class="btn-run btn-secondary" style="padding: 0.6rem 1rem; font-size: 0.65rem" onclick="browse('file')">Browse File</button>
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <button class="btn-run" id="btnRunTest" onclick="runTest()">Execute Extraction</button>
+                        <button class="btn-run" id="btnRunTest" onclick="runAutomatedCert()">Execute Automated Cert</button>
                         <button class="btn-run hidden" id="btnRunSim" onclick="runPipelineTrace()" style="background: var(--amber)">Run Pipeline Simulation</button>
-                    </div>
-                </section>
-
-                <!-- Results (Extractor Mode Only) -->
-                <section class="result-view" id="resultView" style="display: none;">
-                    <div class="result-panel">
-                        <div class="panel-header">Extracted Content</div>
-                        <pre id="resultText"></pre>
-                    </div>
-                    <div class="result-panel">
-                        <div class="panel-header">Kernel Metadata & Logs</div>
-                        <pre id="resultMeta" style="color: var(--slate)"></pre>
                     </div>
                 </section>
             </div>
 
             <div id="benchEmpty" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; opacity: 0.2;">
                 <div style="text-align: center">
-                    <div style="font-size: 3rem">🧪</div>
+                    <div style="font-size: 3rem">🧬</div>
                     <div style="margin-top: 1rem; letter-spacing: 0.3em">LAB_IDLE</div>
                 </div>
             </div>
@@ -181,17 +239,14 @@
 
     <script src="static/app.js"></script>
     <script>
-        let extractors = [];
-        let activeExtractor = null;
-        let currentMode = 'idle'; // 'test', 'simulator', 'idle'
+        let registry = [];
+        let activeEntry = null;
+        let currentMode = 'idle';
 
         async function init() {
             try {
-                const [exts, vaults] = await Promise.all([
-                    api('/utils/extractors'),
-                    api('/vaults')
-                ]);
-                extractors = exts;
+                const [reg, vaults] = await Promise.all([ api('/utils/registry'), api('/vaults') ]);
+                registry = reg;
                 renderList();
                 const vSelect = document.getElementById('vContext');
                 vaults.forEach(v => {
@@ -200,17 +255,16 @@
                     opt.textContent = `VAULT: ${v.name.toUpperCase()}`;
                     vSelect.appendChild(opt);
                 });
-            } catch (err) {
-                console.error("Init failed", err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         function renderList() {
             const list = document.getElementById('extractorList');
-            list.innerHTML = extractors.map(e => `
-                <li class="extractor-item" onclick="selectExtractor('${e.name}')" id="item-${e.name}">
-                    <span class="extractor-name">${e.name}</span>
-                    <span class="extractor-meta">${e.settings.length} params</span>
+            list.innerHTML = registry.map(e => `
+                <li class="extractor-item" onclick="selectKernel('${e.kernel_id}')" id="item-${e.kernel_id}">
+                    <span class="extractor-name">${e.module_name}</span>
+                    <span class="extractor-meta">v${e.version} // ID: ${e.kernel_id.split('.').pop()}</span>
+                    <span class="status-pill pill-${e.status}">${e.status}</span>
                 </li>
             `).join('');
         }
@@ -220,119 +274,187 @@
             document.getElementById('benchEmpty').style.display = (mode === 'idle') ? 'flex' : 'none';
             document.getElementById('benchContent').style.display = (mode === 'idle') ? 'none' : 'flex';
             document.getElementById('resultView').style.display = 'none';
-
-            // Pane toggling
-            document.getElementById('pane-test').classList.toggle('hidden', mode !== 'test');
+            document.getElementById('pane-certify').classList.toggle('hidden', mode !== 'test');
             document.getElementById('pane-simulator').classList.toggle('hidden', mode !== 'simulator');
-            
-            // Button toggling
             document.getElementById('btnRunTest').classList.toggle('hidden', mode !== 'test');
             document.getElementById('btnRunSim').classList.toggle('hidden', mode !== 'simulator');
+            document.getElementById('vaultContextGroup').classList.toggle('hidden', mode !== 'simulator');
 
             if (mode === 'simulator') {
-                activeExtractor = null;
+                activeEntry = null;
                 document.querySelectorAll('.extractor-item').forEach(i => i.classList.remove('active'));
                 document.getElementById('item-simulator').classList.add('active');
                 document.getElementById('activeTitle').textContent = "PIPELINE SIMULATOR";
-                document.getElementById('simConsole').innerHTML = '<div style="opacity: 0.3">READY. SELECT TARGET FILE...</div>';
             }
         }
 
-        function selectExtractor(name) {
-            activeExtractor = extractors.find(e => e.name === name);
+        function selectKernel(kid) {
+            activeEntry = registry.find(e => e.kernel_id === kid);
             setLabMode('test');
-            
             document.querySelectorAll('.extractor-item').forEach(i => i.classList.remove('active'));
-            document.getElementById(`item-${name}`).classList.add('active');
+            document.getElementById(`item-${kid}`).classList.add('active');
+            document.getElementById('activeTitle').textContent = `CERTIFY: ${activeEntry.module_name.toUpperCase()}`;
+            resetCertUI();
+        }
+
+        function resetCertUI() {
+            ['manifest', 'signatures', 'execution', 'io'].forEach(s => {
+                const el = document.getElementById(`stat-${s}`);
+                el.className = 'step-status status-pending';
+                el.textContent = 'PENDING';
+            });
+            document.getElementById('audit-msg').textContent = "Pick a sample file and run cert to verify kernel.";
+            document.getElementById('btn-activate').disabled = true;
+            document.getElementById('btn-activate').style.opacity = 0.2;
+        }
+
+        async function runAutomatedCert() {
+            const path = document.getElementById('targetPath').value;
+            if (!path) return alert("Select a sample file for behavioral testing.");
+
+            const btn = document.getElementById('btnRunTest');
+            btn.disabled = true; btn.textContent = "CERTIFYING..."; btn.classList.add('loading-text');
             
-            document.getElementById('activeTitle').textContent = name.toUpperCase();
-            document.getElementById('extractorDoc').textContent = activeExtractor.doc;
-            
-            const settingsEl = document.getElementById('extractorSettings');
-            if (activeExtractor.settings.length === 0) {
-                settingsEl.innerHTML = '<div style="font-size: 0.7rem; opacity: 0.4">No environment settings found.</div>';
-            } else {
-                settingsEl.innerHTML = activeExtractor.settings.map(s => `
-                    <div class="setting-card">
-                        <div class="setting-key">${s.key}</div>
-                        <div class="setting-val">${s.value || '<em style="opacity:0.3">null</em>'}</div>
-                    </div>
-                `).join('');
+            try {
+                // 1. Static Audit
+                const audit = await api(`/utils/certify/audit?module_name=${activeEntry.module_name}`, { method: 'POST' });
+                updateStepUI('manifest', audit.audit.manifest.passed);
+                updateStepUI('signatures', audit.audit.signatures.passed);
+                document.getElementById('audit-msg').textContent = audit.audit.signatures.message;
+
+                if (!audit.audit.manifest.passed || !audit.audit.signatures.passed) throw new Error("Contract Audit Failed");
+
+                // 2. Behavioral Sandbox
+                const bench = await api('/utils/test_extractor', {
+                    method: 'POST',
+                    body: JSON.stringify({ extractor_name: activeEntry.module_name, file_path: path })
+                });
+
+                if (bench.status === 'error') {
+                    updateStepUI('execution', false);
+                    throw new Error(bench.detail);
+                }
+
+                updateStepUI('execution', true);
+                updateStepUI('io', true);
+                renderCertResults(bench.result);
+
+                // Enable Activation
+                const activateBtn = document.getElementById('btn-activate');
+                activateBtn.disabled = false;
+                activateBtn.style.opacity = 1;
+
+            } catch (err) {
+                console.error(err);
+            } finally {
+                btn.disabled = false; btn.textContent = "Execute Automated Cert"; btn.classList.remove('loading-text');
             }
+        }
+
+        function updateStepUI(step, passed) {
+            const el = document.getElementById(`stat-${step}`);
+            el.className = 'step-status ' + (passed ? 'status-pass' : 'status-fail');
+            el.textContent = passed ? 'PASS' : 'FAIL';
+        }
+
+        function renderCertResults(res) {
+            document.getElementById('resultView').style.display = 'grid';
+            document.getElementById('resultText').textContent = res.text || "// NO TEXT RECOVERED";
+            
+            // Console Telemetry
+            const consoleEl = document.getElementById('ioConsole');
+            let html = `<div class="sim-line"><span class="sim-tag">CONTRACT</span><span style="color:var(--emerald)">STRICT_TYPING_VERIFIED</span></div>`;
+            html += `<div class="sim-line"><span class="sim-tag">STATUS</span><span>${res.status.toUpperCase()}</span></div>`;
+            html += `<div class="sim-line"><span class="sim-tag">METADATA</span><span>${JSON.stringify(res.metadata)}</span></div>`;
+            consoleEl.innerHTML = html;
+        }
+
+        async function activateKernel() {
+            try {
+                await api(`/utils/certify/register?kernel_id=${activeEntry.kernel_id}`, { method: 'POST' });
+                alert("Kernel activated successfully.");
+                location.reload();
+            } catch (err) { alert(err.message); }
         }
 
         async function browse(mode) {
-            try {
-                const res = await api('/utils/browse', { method: 'POST', body: JSON.stringify({ mode }) });
-                if (res.path) document.getElementById('targetPath').value = res.path;
-            } catch (err) { console.error(err); }
-        }
-
-        async function runTest() {
-            if (currentMode !== 'test' || !activeExtractor) return;
-            const path = document.getElementById('targetPath').value;
-            if (!path) return alert("Please specify a target path.");
-
-            const btn = document.getElementById('btnRunTest');
-            btn.disabled = true; btn.textContent = "EXTRACTING..."; btn.classList.add('loading-text');
-            document.getElementById('resultView').style.display = 'none';
-
-            try {
-                const response = await api('/utils/test_extractor', {
-                    method: 'POST',
-                    body: JSON.stringify({ extractor_name: activeExtractor.name, file_path: path })
-                });
-                if (response.status === 'error') throw new Error(response.detail);
-                renderResult(response.result);
-            } catch (err) {
-                alert("Lab Execution Failed: " + err.message);
-            } finally {
-                btn.disabled = false; btn.textContent = "Execute Extraction"; btn.classList.remove('loading-text');
-            }
-        }
-
-        function renderResult(res) {
-            document.getElementById('resultView').style.display = 'grid';
-            document.getElementById('resultText').textContent = res.text || "// NO TEXT EXTRACTED";
-            document.getElementById('resultText').style.color = (res.status === 'failed') ? 'var(--ruby)' : 'var(--emerald)';
-            const meta = { status: res.status, elapsed: res.elapsed_secs.toFixed(3) + "s", metadata: res.metadata, errors: res.errors };
-            document.getElementById('resultMeta').textContent = JSON.stringify(meta, null, 2);
-            document.getElementById('benchStats').textContent = `LAST_RUN: ${res.status.toUpperCase()} [${meta.elapsed}]`;
+            const res = await api('/utils/browse', { method: 'POST', body: JSON.stringify({ mode }) });
+            if (res.path) document.getElementById('targetPath').value = res.path;
         }
 
         async function runPipelineTrace() {
-            if (currentMode !== 'simulator') return;
             const path = document.getElementById('targetPath').value;
             const vaultId = document.getElementById('vContext').value;
-            if (!path) return alert("Please specify a target path.");
-
-            const btn = document.getElementById('btnRunSim');
+            if (!path) return alert("Select target file.");
             const consoleEl = document.getElementById('simConsole');
-            btn.disabled = true; btn.textContent = "SIMULATING...";
-            consoleEl.innerHTML = '<div class="loading-text">INITIALIZING KERNEL TRACE...</div>';
-
+            consoleEl.innerHTML = '<div class="loading-text">TRACING KERNEL BUS...</div>';
             try {
-                const res = await api('/utils/simulate_pipeline', {
-                    method: 'POST',
-                    body: JSON.stringify({ file_path: path, vault_id: vaultId || null })
-                });
-                if (res.status === 'error') throw new Error(res.detail);
-
-                let html = `<div class="sim-line"><span class="sim-tag">FILE</span><span>${res.filename}</span></div>`;
-                html += `<div class="sim-line"><span class="sim-tag">CONTEXT</span><span>${res.vault_context}</span></div>`;
-                res.trace.forEach(t => { html += `<div class="sim-line" style="border-left: 2px solid var(--amber); padding-left: 10px; margin-left: 5px;"><span>${t}</span></div>`; });
-                html += `<div class="mt-4 pt-4 border-t border-gray-900"><div class="text-[10px] font-bold text-gray-500 mb-2 uppercase">Kernel Execution Stack</div>`;
-                res.kernels.forEach((k, i) => { html += `<div class="sim-line"><span class="sim-tag">STACK[${i}]</span><span style="color:var(--emerald)">${k}</span></div>`; });
+                const res = await api('/utils/simulate_pipeline', { method: 'POST', body: JSON.stringify({ file_path: path, vault_id: vaultId || null }) });
+                let html = res.trace.map(t => `<div class="sim-line" style="border-left: 2px solid var(--amber); padding-left: 10px;"><span>${t}</span></div>`).join('');
+                html += `<div class="mt-4 pt-4 border-t border-gray-900">`;
+                res.kernels.forEach(k => { html += `<div class="sim-line"><span class="sim-tag" style="color:var(--emerald)">KERNEL</span><span>${k}</span></div>`; });
                 html += `</div>`;
                 consoleEl.innerHTML = html;
-            } catch (err) {
-                consoleEl.innerHTML = `<div style="color:var(--ruby)">SIMULATION FAILED: ${err.message}</div>`;
-            } finally {
-                btn.disabled = false; btn.textContent = "Run Pipeline Simulation";
-            }
+            } catch (err) { consoleEl.innerHTML = err.message; }
         }
 
         window.onload = init;
+
+        // --- Binary Wizard Logic ---
+
+        function openBinaryWizard() {
+            document.getElementById('binaryModal').classList.remove('hidden');
+        }
+
+        function closeBinaryWizard() {
+            document.getElementById('binaryModal').classList.add('hidden');
+        }
+
+        async function browseBinary() {
+            const res = await api('/utils/browse', { method: 'POST', body: JSON.stringify({ mode: 'file' }) });
+            if (res.path) {
+                document.getElementById('bin-path').value = res.path;
+                // Auto-suggest an ID if empty
+                if (!document.getElementById('bin-id').value) {
+                    const filename = res.path.split(/[/\\]/).pop().split('.')[0];
+                    document.getElementById('bin-id').value = `com.user.${filename.toLowerCase()}`;
+                    document.getElementById('bin-name').value = filename;
+                }
+            }
+        }
+
+        async function saveBinaryKernel() {
+            const btn = document.getElementById('btn-bin-save');
+            const payload = {
+                id: document.getElementById('bin-id').value,
+                name: document.getElementById('bin-name').value,
+                extensions: document.getElementById('bin-exts').value.split(',').map(s => s.trim().toLowerCase()).filter(s => s),
+                executable_path: document.getElementById('bin-path').value,
+                arguments: document.getElementById('bin-args').value,
+                description: document.getElementById('bin-desc').value
+            };
+
+            if (!payload.id || !payload.executable_path || payload.extensions.length === 0) {
+                return alert("ID, Path, and at least one Extension are required.");
+            }
+
+            btn.disabled = true;
+            btn.textContent = "SIGNING...";
+
+            try {
+                const res = await api('/utils/register_binary', { method: 'POST', body: JSON.stringify(payload) });
+                if (res.status === 'error') throw new Error(res.message);
+                
+                alert("External kernel manifest created and signed.");
+                closeBinaryWizard();
+                location.reload(); // Refresh registry
+            } catch (err) {
+                alert("Registration failed: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Sign & Register";
+            }
+        }
     </script>
 </body>
 </html>

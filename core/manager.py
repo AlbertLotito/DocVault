@@ -103,7 +103,7 @@ def init_logs_db():
 
 
 def init_settings_db():
-    """Create settings.db with just the settings table and paused default."""
+    """Create settings.db with the settings and extractor registry tables."""
     db_path = get_settings_db_path()
     with _connect(db_path) as conn:
         conn.executescript("""
@@ -120,7 +120,30 @@ def init_settings_db():
                 value    TEXT NOT NULL,
                 PRIMARY KEY (vault_id, key)
             );
+
+            CREATE TABLE IF NOT EXISTS ext_registry (
+                kernel_id      TEXT PRIMARY KEY,
+                module_name    TEXT NOT NULL,
+                version        TEXT NOT NULL,
+                file_hash      TEXT NOT NULL,
+                is_enabled     INTEGER DEFAULT 0,
+                status         TEXT DEFAULT 'unverified',
+                extensions     TEXT, -- JSON list
+                certified_at   TEXT,
+                last_seen_at   TEXT DEFAULT CURRENT_TIMESTAMP,
+                kernel_type    TEXT DEFAULT 'python',
+                launch_config  TEXT -- JSON object for subprocess args
+            );
         """)
+
+        # Migrations for ext_registry
+        cursor = conn.execute("PRAGMA table_info(ext_registry)")
+        ext_columns = [row['name'] for row in cursor.fetchall()]
+        if 'kernel_type' not in ext_columns:
+            conn.execute("ALTER TABLE ext_registry ADD COLUMN kernel_type TEXT DEFAULT 'python'")
+        if 'launch_config' not in ext_columns:
+            conn.execute("ALTER TABLE ext_registry ADD COLUMN launch_config TEXT")
+
         conn.commit()
 
 

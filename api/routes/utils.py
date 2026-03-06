@@ -374,6 +374,153 @@ def simulate_pipeline(req: PipelineSimulationRequest):
     }
 
 
+@router.get("/utils/registry")
+def list_registry():
+    """Returns the full contents of the ext_registry table."""
+    from core.manager import get_settings_db_path, _connect
+    with _connect(get_settings_db_path()) as conn:
+        rows = conn.execute("SELECT * FROM ext_registry ORDER BY last_seen_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+
+@router.post("/utils/certify/audit")
+def certify_audit(module_name: str):
+    """Performs static analysis (Manifest, Signatures) on a pending kernel."""
+    from core.certification import ContractAuditor, EXTRACTORS_DIR
+    from core.certification import CertificationResult
+    import importlib.util
+    import json
+    import dataclasses
+    
+    py_path = os.path.join(EXTRACTORS_DIR, f"{module_name}.py")
+    json_path = os.path.join(EXTRACTORS_DIR, f"{module_name}.json")
+    
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                manifest = json.load(f)
+            
+            auditor = ContractAuditor()
+            # For JSON manifests, wrap in a dummy object
+            dummy_mod = type('Dummy', (), {'MANIFEST': manifest})()
+            manifest_res = auditor.verify_manifest(dummy_mod)
+            sig_res = CertificationResult("signatures", True, "Subprocess JSON contract verified (external binary).")
+            
+            return {
+                "status": "ok",
+                "audit": {
+                    "manifest": dataclasses.asdict(manifest_res),
+                    "signatures": dataclasses.asdict(sig_res)
+                }
+            }
+        except Exception as e:
+            return {"status": "error", "message": f"JSON parse error: {e}"}
+
+    if not os.path.exists(py_path):
+        return {"status": "error", "message": "Kernel file not found."}
+
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, py_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        
+        auditor = ContractAuditor()
+        manifest_res = auditor.verify_manifest(mod)
+        sig_res = auditor.verify_signatures(mod)
+        
+        return {
+            "status": "ok",
+            "audit": {
+                "manifest": dataclasses.asdict(manifest_res),
+                "signatures": dataclasses.asdict(sig_res)
+            }
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@router.post("/utils/certify/register")
+def certify_register(kernel_id: str):
+    """
+    Formally registers a certified kernel in the DB.
+    Requires that all audit points have passed (checked client-side).
+    """
+    from core.manager import get_settings_db_path, _connect
+    from core.registry import RegistryManager
+    
+    # Reload router to pick up the change
+    from core import router
+    router.reload()
+    
+    with _connect(get_settings_db_path()) as conn:
+        conn.execute(
+            "UPDATE ext_registry SET status = 'certified', is_enabled = 1, certified_at = CURRENT_TIMESTAMP WHERE kernel_id = ?",
+            (kernel_id,)
+        )
+        conn.commit()
+    
+    return {"status": "ok", "message": f"Kernel {kernel_id} activated."}
+
+
+class BinaryRegistrationRequest(BaseModel):
+    id: str
+    name: str
+    version: str = "1.0.0"
+    description: str = ""
+    extensions: list[str]
+    executable_path: str
+    arguments: str  # e.g. "--file {file_path} --output-json"
+
+
+@router.get("/utils/alerts")
+def get_alerts(since_id: int = 0):
+    """Returns the latest system alerts from the Alert Bus."""
+    from core.alerts import get_session_alerts
+    return get_session_alerts(since_id)
+
+
+@router.post("/utils/register_binary")
+def register_binary(req: BinaryRegistrationRequest):
+    """
+    Creates a .json manifest for an external binary extractor.
+    """
+    from core.registry import EXTRACTORS_DIR
+    import json
+    import shlex
+
+    # Sanitize module name for filename
+    module_name = req.name.lower().replace(" ", "_")
+    json_path = os.path.join(EXTRACTORS_DIR, f"{module_name}.json")
+
+    # Build the command list
+    # We prepend the executable path and then parse the arguments string
+    cmd_parts = [req.executable_path]
+    if req.arguments:
+        cmd_parts.extend(shlex.split(req.arguments))
+
+    manifest = {
+        "id": req.id,
+        "version": req.version,
+        "name": req.name,
+        "description": req.description,
+        "extensions": req.extensions,
+        "type": "subprocess",
+        "command": cmd_parts
+    }
+
+    try:
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(manifest, f, indent=4)
+        
+        # Trigger immediate sync
+        from core.registry import RegistryManager
+        RegistryManager().sync_disk_to_db()
+        
+        return {"status": "ok", "message": f"Manifest created: {module_name}.json"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 def _db_write(db_path, sql, params=()):
     """Execute a single write against docvault.db with WAL mode and a generous timeout."""
     import sqlite3

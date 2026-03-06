@@ -14,6 +14,14 @@ PIPELINE:
 REQUIRES: openpyxl.
 """
 
+MANIFEST = {
+    "id": "com.microsoft.excel.standard",
+    "version": "1.0.0",
+    "name": "Microsoft Excel Extractor",
+    "extensions": ["xlsx", "xls"],
+    "requires": ["openpyxl"]
+}
+
 __description__ = (
     "A specialized Microsoft Excel engine featuring recursive sheet traversal "
     "and TSV reconstruction. It extracts calculated formula results from all "
@@ -23,9 +31,10 @@ __description__ = (
 import os
 from openpyxl import load_workbook
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     logger.info(f"Extracting: {os.path.basename(file_path)}", ext="ms-excel")
     try:
         wb = load_workbook(file_path, data_only=True, read_only=True)

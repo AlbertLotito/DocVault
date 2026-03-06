@@ -44,6 +44,92 @@ async function openFolder(path) {
   }
 }
 
+// ── Notifications (Alert Bus) ───────────────────────────────────────────────
+
+let lastAlertId = 0;
+
+function _ensureToastContainer() {
+  if (document.getElementById('toast-container')) return;
+  const container = document.createElement('div');
+  container.id = 'toast-container';
+  container.className = 'fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none';
+  document.body.appendChild(container);
+
+  // Add Toast Styles dynamically
+  const style = document.createElement('style');
+  style.textContent = `
+    .toast-card {
+      pointer-events: auto;
+      min-width: 320px;
+      max-width: 450px;
+      animation: toast-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(100%) scale(0.9); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    .toast-out {
+      animation: toast-out 0.3s ease forwards;
+    }
+    @keyframes toast-out {
+      to { opacity: 0; transform: translateX(20%) scale(0.95); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function showToast(title, message, level = 'info') {
+  _ensureToastContainer();
+  const container = document.getElementById('toast-container');
+  
+  const colors = {
+    info:     'bg-indigo-600',
+    success:  'bg-emerald-600',
+    warning:  'bg-amber-500',
+    error:    'bg-rose-600',
+    critical: 'bg-black border-2 border-rose-600 animate-pulse'
+  };
+  const color = colors[level] || colors.info;
+
+  const toast = document.createElement('div');
+  toast.className = `toast-card ${color} text-white p-4 rounded-lg shadow-2xl flex flex-col gap-1 cursor-pointer`;
+  toast.innerHTML = `
+    <div class="flex justify-between items-center">
+      <span class="text-[10px] font-bold uppercase tracking-widest opacity-80">${level}</span>
+      <button class="text-white/50 hover:text-white leading-none">&times;</button>
+    </div>
+    <div class="font-bold text-sm leading-tight">${_esc(title)}</div>
+    <div class="text-xs opacity-90 leading-normal">${_esc(message)}</div>
+  `;
+
+  const dismiss = () => {
+    toast.classList.add('toast-out');
+    setTimeout(() => toast.remove(), 300);
+  };
+  toast.onclick = dismiss;
+  container.appendChild(toast);
+
+  if (level !== 'critical') {
+    setTimeout(dismiss, 8000);
+  }
+}
+
+async function pollAlerts() {
+  try {
+    const alerts = await api(`/utils/alerts?since_id=${lastAlertId}`);
+    for (const a of alerts) {
+      showToast(a.title, a.message, a.level);
+      if (a.id > lastAlertId) lastAlertId = a.id;
+    }
+  } catch (err) {
+    console.error("Alert poll failed", err);
+  }
+}
+
+// Start notification poller
+setInterval(pollAlerts, 10000);
+setTimeout(pollAlerts, 1000); // Quick first check
+
 // ── Inspect modal ────────────────────────────────────────────────────────────
 
 function _esc(s) {

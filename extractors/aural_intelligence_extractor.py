@@ -13,6 +13,14 @@ PIPELINE:
 REQUIRES: NVIDIA GPU (8GB+ VRAM recommended), PyTorch, OpenAI-Whisper.
 """
 
+MANIFEST = {
+    "id": "com.openai.whisper.large-v3",
+    "version": "1.0.0",
+    "name": "Aural Intelligence Engine",
+    "extensions": ["mp3", "wav", "m4a", "flac", "ogg"],
+    "requires": ["torch", "openai-whisper"]
+}
+
 __description__ = (
     "A state-of-the-art 'Aural Intelligence' kernel utilizing OpenAI's Whisper "
     "large-v3 model. It performs high-fidelity speech-to-text conversion with "
@@ -24,9 +32,10 @@ import os
 import torch
 import whisper
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
-def _load_model():
+def _load_model() -> whisper.Whisper | None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Loading Whisper large-v3 model on {device}...", ext="aural-ai")
     try:
@@ -41,7 +50,7 @@ def _load_model():
 WHISPER_MODEL = _load_model()
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Transcribes audio from a media file using Whisper large-v3.
 

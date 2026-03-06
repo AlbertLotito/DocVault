@@ -16,6 +16,14 @@ PIPELINE:
 REQUIRES: FFmpeg, Aural Intelligence kernel, Vision AI model.
 """
 
+MANIFEST = {
+    "id": "com.docvault.video.multimodal",
+    "version": "1.0.0",
+    "name": "Multimodal Video Intelligence",
+    "extensions": ["mp4", "mov", "mkv", "avi", "webm"],
+    "requires": ["ffmpeg", "aural_intelligence_extractor", "ollama"]
+}
+
 __description__ = (
     "A sophisticated multimodal engine that synthesizes aural and visual data. "
     "It provides a synchronized report containing a full audio transcript and "
@@ -31,6 +39,7 @@ from extractors import aural_intelligence_extractor
 from extractors.vision import describe as vision_describe, is_enabled as vision_enabled
 from core.settings import settings
 from core import logger
+from core.extractors.base import ExtractorContext
 
 
 def _extract_audio(video_path: str) -> tuple:
@@ -85,7 +94,7 @@ def _fmt_ts(seconds: int) -> str:
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
-def extract(file_path: str) -> tuple:
+def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Multimodal extraction: Audio Transcript + Visual Scene Descriptions.
     """
@@ -100,7 +109,8 @@ def extract(file_path: str) -> tuple:
         errors.append(err)
     else:
         try:
-            transcript, err = aural_intelligence_extractor.extract(audio_path)
+            # We call the kernel directly as it is part of the system suite
+            transcript, err = aural_intelligence_extractor.extract(audio_path, ctx)
             if err:
                 errors.append(f"Transcription: {err}")
             elif transcript:

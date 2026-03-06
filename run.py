@@ -41,6 +41,11 @@ def start():
     scan_dir = settings.get('paths:scan_directory')
     manager.bootstrap_default_vault(DB_PATH, scan_directory=scan_dir)
 
+    # 2. Register/Certify System Kernels
+    from core.registry import RegistryManager
+    rm = RegistryManager()
+    rm.register_system_kernels()
+
     # Start resource governor daemon
     from core.monitor import HardwareMonitor
     monitor = HardwareMonitor()
