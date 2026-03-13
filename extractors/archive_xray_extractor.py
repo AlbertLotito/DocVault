@@ -226,17 +226,22 @@ def _read_7z(file_path: str) -> tuple:
         raise ImportError("py7zr is not installed — run: pip install py7zr")
     entries = []
     total_compressed = 0
-    with _py7zr.SevenZipFile(file_path, mode='r') as zf:
-        for info in zf.list():
-            entries.append({
-                'name': info.filename,
-                'size': info.uncompressed or 0,
-                'mtime': _fmt_date(info.creationtime) if info.creationtime else '',
-                'is_dir': info.is_directory,
-                'encrypted': False,
-            })
-            if info.compressed:
-                total_compressed += info.compressed
+    try:
+        with _py7zr.SevenZipFile(file_path, mode='r') as zf:
+            if zf.needs_password():
+                raise PermissionError("Password protected")
+            for info in zf.list():
+                entries.append({
+                    'name': info.filename,
+                    'size': info.uncompressed or 0,
+                    'mtime': _fmt_date(info.creationtime) if info.creationtime else '',
+                    'is_dir': info.is_directory,
+                    'encrypted': False,
+                })
+                if info.compressed:
+                    total_compressed += info.compressed
+    except _py7zr.exceptions.PasswordRequired:
+        raise PermissionError("Password protected")
     if not total_compressed:
         total_compressed = os.path.getsize(file_path)
     return entries, total_compressed, '7Z'
