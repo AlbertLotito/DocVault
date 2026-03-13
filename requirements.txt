@@ -19,3 +19,5 @@ pytest-asyncio>=0.23.0
 psutil
 nvidia-ml-py
 wmi
+py7zr==1.1.0
+rarfile==4.2
