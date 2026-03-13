@@ -300,7 +300,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             entries, total_compressed, fmt = _read_rar(file_path)
 
         else:
-            return None, f"Unsupported archive format: {archive_name}"
+            return None, f"Unsupported archive format: {archive_name}", None
 
         meta = {
             'format': fmt,
