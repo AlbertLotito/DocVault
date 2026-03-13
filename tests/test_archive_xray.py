@@ -118,7 +118,7 @@ def test_extract_zip_basic():
     })
     try:
         ctx = make_ctx()
-        result, err = mod.extract(path, ctx)
+        result, err, meta = mod.extract(path, ctx)
         assert err is None
         assert result is not None
         assert isinstance(result, str)
@@ -139,7 +139,7 @@ def test_extract_zip_readme_first():
     })
     try:
         ctx = make_ctx()
-        result, err = mod.extract(path, ctx)
+        result, err, meta = mod.extract(path, ctx)
         assert err is None
         # Find the first file entry listed after "File Listing:"
         listing_pos = result.index('File Listing:')
@@ -165,7 +165,7 @@ def test_extract_zip_nested_readme_not_prioritised():
     })
     try:
         ctx = make_ctx()
-        result, err = mod.extract(path, ctx)
+        result, err, meta = mod.extract(path, ctx)
         assert err is None
         assert 'docs/README.md' in result
     finally:
@@ -179,7 +179,7 @@ def test_extract_zip_grouped_summary():
     })
     try:
         ctx = make_ctx()
-        result, err = mod.extract(path, ctx)
+        result, err, meta = mod.extract(path, ctx)
         assert err is None
         assert 'Source Code' in result
         assert 'Documents' in result
@@ -191,7 +191,7 @@ def test_extract_zip_empty():
     path = make_zip({})
     try:
         ctx = make_ctx()
-        result, err = mod.extract(path, ctx)
+        result, err, meta = mod.extract(path, ctx)
         # Either a valid string result or a graceful error — must not crash
         assert result is not None or err is not None
     finally:
@@ -209,7 +209,7 @@ def test_extract_zip_directories_only():
             zf.writestr(zipfile.ZipInfo('subdir/'), '')
     try:
         ctx = make_ctx()
-        result, err = mod.extract(f.name, ctx)
+        result, err, meta = mod.extract(f.name, ctx)
         assert result is not None or err is not None
     finally:
         os.unlink(f.name)
@@ -220,7 +220,7 @@ def test_extract_tar_basic():
     path = make_tar({'README.md': 'readme', 'src/app.py': 'code'})
     try:
         ctx = make_ctx()
-        result, err = mod.extract(path, ctx)
+        result, err, meta = mod.extract(path, ctx)
         assert err is None
         assert 'Format: TAR' in result
         assert 'README.md' in result
@@ -231,7 +231,7 @@ def test_extract_tar_gz():
     path = make_tar({'hello.py': 'print(1)'}, suffix='.tar.gz')
     try:
         ctx = make_ctx()
-        result, err = mod.extract(path, ctx)
+        result, err, meta = mod.extract(path, ctx)
         assert err is None
         assert 'TAR.GZ' in result
     finally:
@@ -247,7 +247,7 @@ def test_extract_standalone_gz():
         gf.write(b'just some compressed data')
     try:
         ctx = make_ctx()
-        result, err = mod.extract(f.name, ctx)
+        result, err, meta = mod.extract(f.name, ctx)
         assert result is None
         assert err is not None  # key guarantee: must not be a silent (None, None) return
     finally:
@@ -257,6 +257,6 @@ def test_extract_standalone_gz():
 # --- extract: missing file ---
 def test_extract_missing_file():
     ctx = make_ctx()
-    result, err = mod.extract('/nonexistent/file.zip', ctx)
+    result, err, meta = mod.extract('/nonexistent/file.zip', ctx)
     assert result is None
     assert err is not None

@@ -76,12 +76,13 @@ def _classify(filename: str) -> str:
     return 'Other'
 
 
-def _fmt_size(n: int) -> str:
+def _fmt_size(n: int | float) -> str:
+    val = float(n)
     for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} PB"
+        if val < 1024:
+            return f"{val:.1f} {unit}"
+        val /= 1024
+    return f"{val:.1f} PB"
 
 
 def _fmt_date(dt) -> str:
@@ -250,20 +251,20 @@ def _read_7z(file_path: str) -> tuple:
 def _read_rar(file_path: str) -> tuple:
     if not _HAS_RAR:
         raise ImportError("rarfile is not installed — run: pip install rarfile")
-    rf = _rarfile.RarFile(file_path)
-    if rf.needs_password():
-        raise PermissionError("Password protected")
     entries = []
     total_compressed = 0
-    for info in rf.infolist():
-        entries.append({
-            'name': info.filename,
-            'size': info.file_size,
-            'mtime': _fmt_date(info.date_time) if info.date_time else '',
-            'is_dir': info.is_dir(),
-            'encrypted': False,
-        })
-        total_compressed += info.compress_size
+    with _rarfile.RarFile(file_path) as rf:
+        if rf.needs_password():
+            raise PermissionError("Password protected")
+        for info in rf.infolist():
+            entries.append({
+                'name': info.filename,
+                'size': info.file_size,
+                'mtime': _fmt_date(info.date_time) if info.date_time else '',
+                'is_dir': info.is_dir(),
+                'encrypted': False,
+            })
+            total_compressed += info.compress_size
     return entries, total_compressed, 'RAR'
 
 
@@ -290,7 +291,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             try:
                 entries, total_compressed, fmt = _read_tar(file_path)
             except tarfile.TarError:
-                return None, "Standalone compressed file — not a tar archive"
+                return None, "Standalone compressed file — not a tar archive", None
 
         elif name_lower.endswith('.7z'):
             entries, total_compressed, fmt = _read_7z(file_path)
@@ -301,7 +302,12 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         else:
             return None, f"Unsupported archive format: {archive_name}"
 
-        return _build_output(archive_name, fmt, entries, total_compressed), None
+        meta = {
+            'format': fmt,
+            'file_count': len([e for e in entries if not e['is_dir']]),
+            'total_size_bytes': sum(e['size'] for e in entries if not e['is_dir']),
+        }
+        return _build_output(archive_name, fmt, entries, total_compressed), None, meta
 
     except PermissionError:
         fmt_guess = name_lower.rsplit('.', 1)[-1].upper()
@@ -309,10 +315,10 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             f"Archive: {archive_name}\n"
             f"Format: {fmt_guess}\n\n"
             f"Password protected — file listing unavailable"
-        ), None
+        ), None, {'format': fmt_guess, 'password_protected': True}
 
     except ImportError as e:
-        return None, str(e)
+        return None, str(e), None
 
     except Exception as e:
-        return None, f"Archive read failed: {e}"
+        return None, f"Archive read failed: {e}", None
