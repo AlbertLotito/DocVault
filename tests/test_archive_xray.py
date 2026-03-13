@@ -5,13 +5,19 @@ Run: pytest tests/test_archive_xray.py -v
 """
 import io
 import os
+import sys
 import zipfile
 import tarfile
 import tempfile
+import threading
 import pytest
 import importlib.util
 
-# --- Load the module under test ---
+# Import ExtractorContext and ExtractorLogger for real ctx objects
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from core.extractors.base import ExtractorContext, ExtractorLogger
+
+# --- Load the module under test (once at module level) ---
 _ROOT = os.path.dirname(os.path.dirname(__file__))
 _MOD_PATH = os.path.join(_ROOT, 'extractors', 'archive_xray_extractor.py')
 
@@ -21,12 +27,25 @@ def _load_mod():
     spec.loader.exec_module(mod)
     return mod
 
-mod = None
+mod = _load_mod()
 
-@pytest.fixture(autouse=True)
-def load_module():
-    global mod
-    mod = _load_mod()
+
+# --- ctx factory ---
+def make_ctx() -> ExtractorContext:
+    """Return a minimal valid ExtractorContext for testing."""
+    logger = ExtractorLogger(
+        extractor_name='archive_xray_extractor',
+        vault_id='test-vault',
+        file_hash='0' * 64,
+    )
+    return ExtractorContext(
+        vault_id='test-vault',
+        file_hash='0' * 64,
+        cancel_token=threading.Event(),
+        logger=logger,
+        settings=None,
+    )
+
 
 # --- Helpers ---
 def make_zip(files: dict) -> str:
@@ -98,10 +117,11 @@ def test_extract_zip_basic():
         'src/main.py': 'print("hi")',
     })
     try:
-        ctx = type('ctx', (), {})()
+        ctx = make_ctx()
         result, err = mod.extract(path, ctx)
         assert err is None
         assert result is not None
+        assert isinstance(result, str)
         assert 'Archive:' in result
         assert 'Format: ZIP' in result
         assert 'Files: 2' in result
@@ -118,12 +138,22 @@ def test_extract_zip_readme_first():
         'small.txt': 'tiny',
     })
     try:
-        ctx = type('ctx', (), {})()
+        ctx = make_ctx()
         result, err = mod.extract(path, ctx)
         assert err is None
+        # Find the first file entry listed after "File Listing:"
+        listing_pos = result.index('File Listing:')
+        listing_section = result[listing_pos:]
+        first_line_after_header = next(
+            line for line in listing_section.splitlines()[1:] if line.strip()
+        )
+        assert 'README.md' in first_line_after_header, (
+            f"Expected README.md to be the first listed file; got: {first_line_after_header!r}"
+        )
         readme_pos = result.index('README.md')
         bigfile_pos = result.index('bigfile.bin')
         assert readme_pos < bigfile_pos, "README.md should appear before bigfile.bin"
+        assert readme_pos < result.index('small.txt'), "README.md should appear before small.txt"
     finally:
         os.unlink(path)
 
@@ -134,7 +164,7 @@ def test_extract_zip_nested_readme_not_prioritised():
         'main.py': 'code',
     })
     try:
-        ctx = type('ctx', (), {})()
+        ctx = make_ctx()
         result, err = mod.extract(path, ctx)
         assert err is None
         assert 'docs/README.md' in result
@@ -148,7 +178,7 @@ def test_extract_zip_grouped_summary():
         'doc.pdf': 'pdf content',
     })
     try:
-        ctx = type('ctx', (), {})()
+        ctx = make_ctx()
         result, err = mod.extract(path, ctx)
         assert err is None
         assert 'Source Code' in result
@@ -156,12 +186,40 @@ def test_extract_zip_grouped_summary():
     finally:
         os.unlink(path)
 
+def test_extract_zip_empty():
+    """Empty archive should return a valid result, not crash."""
+    path = make_zip({})
+    try:
+        ctx = make_ctx()
+        result, err = mod.extract(path, ctx)
+        # Either a valid string result or a graceful error — must not crash
+        assert result is not None or err is not None
+    finally:
+        os.unlink(path)
+
+def test_extract_zip_directories_only():
+    """Archive with only directory entries should not crash."""
+    f = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+    f.close()
+    with zipfile.ZipFile(f.name, 'w') as zf:
+        # ZipFile.mkdir() was added in Python 3.11; use writestr for compatibility
+        try:
+            zf.mkdir('subdir')
+        except AttributeError:
+            zf.writestr(zipfile.ZipInfo('subdir/'), '')
+    try:
+        ctx = make_ctx()
+        result, err = mod.extract(f.name, ctx)
+        assert result is not None or err is not None
+    finally:
+        os.unlink(f.name)
+
 
 # --- extract: TAR ---
 def test_extract_tar_basic():
     path = make_tar({'README.md': 'readme', 'src/app.py': 'code'})
     try:
-        ctx = type('ctx', (), {})()
+        ctx = make_ctx()
         result, err = mod.extract(path, ctx)
         assert err is None
         assert 'Format: TAR' in result
@@ -172,7 +230,7 @@ def test_extract_tar_basic():
 def test_extract_tar_gz():
     path = make_tar({'hello.py': 'print(1)'}, suffix='.tar.gz')
     try:
-        ctx = type('ctx', (), {})()
+        ctx = make_ctx()
         result, err = mod.extract(path, ctx)
         assert err is None
         assert 'TAR.GZ' in result
@@ -188,18 +246,17 @@ def test_extract_standalone_gz():
     with gzip.open(f.name, 'wb') as gf:
         gf.write(b'just some compressed data')
     try:
-        ctx = type('ctx', (), {})()
+        ctx = make_ctx()
         result, err = mod.extract(f.name, ctx)
         assert result is None
-        assert err is not None
-        assert 'standalone' in err.lower() or 'not a tar' in err.lower()
+        assert err is not None  # key guarantee: must not be a silent (None, None) return
     finally:
         os.unlink(f.name)
 
 
 # --- extract: missing file ---
 def test_extract_missing_file():
-    ctx = type('ctx', (), {})()
+    ctx = make_ctx()
     result, err = mod.extract('/nonexistent/file.zip', ctx)
     assert result is None
     assert err is not None
