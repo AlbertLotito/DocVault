@@ -227,7 +227,7 @@ if (-not $skipQdrant) {
     $ready = $false
     for ($i = 0; $i -lt 30; $i++) {
         try {
-            $r = Invoke-RestMethod -Uri 'http://localhost:6333/health' -TimeoutSec 2
+            $r = Invoke-RestMethod -Uri 'http://localhost:6333/collections' -TimeoutSec 2
             if ($r.status -eq 'ok') { $ready = $true; break }
         } catch {}
         Start-Sleep -Seconds 1
