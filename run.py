@@ -9,7 +9,7 @@ import configparser
 import os
 from core import manager, ingestor, logger
 from core.settings import settings
-from workers import extraction_worker, embedding_worker
+from workers import extraction_worker, embedding_worker, art_enrichment_worker
 
 DB_PATH = manager.get_db_path()
 
@@ -69,6 +69,12 @@ def start():
         target=embedding_worker.run, args=(DB_PATH, None), daemon=True # Pass None for shutdown_event
     )
     t_embed.start()
+
+    # Start art enrichment worker (always; worker self-gates if nothing is configured)
+    t_art = threading.Thread(
+        target=art_enrichment_worker.run, args=(DB_PATH, None), daemon=True
+    )
+    t_art.start()
 
     # Start web server (blocking)
     logger.critical("Starting DocVault at http://localhost:8000")

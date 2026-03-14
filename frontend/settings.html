@@ -7,111 +7,81 @@
   <script src="/static/app.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
-  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow">
+  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
     <span class="font-bold text-lg">DocVault</span>
     <a href="/search" class="hover:underline">Search</a>
     <a href="/" class="hover:underline">Vault Status</a>
     <a href="/catalog" class="hover:underline">Vault Log</a>
     <a href="/identity" class="hover:underline">Identity Hub</a>
+    <a href="/lab" class="hover:underline">Lab</a>
     <a href="/utils" class="hover:underline">Utilities</a>
     <a href="/settings" class="hover:underline font-semibold">Settings</a>
   </nav>
 
-  <main class="max-w-2xl mx-auto p-6">
-    <h1 class="text-2xl font-bold text-gray-800 mb-2">Settings</h1>
-    <p class="text-sm text-gray-500 mb-5">
-      Changes are saved immediately to the database and take effect on the next
-      worker cycle — no restart required.
-    </p>
+  <div class="flex" style="height: calc(100vh - 52px)">
 
-    <!-- Tabs -->
-    <div class="flex gap-1 mb-6 border-b border-gray-200">
-      <button id="tab-general" onclick="showTab('general')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-indigo-600 text-indigo-700">
-        General
-      </button>
-      <button id="tab-ollama" onclick="showTab('ollama')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Ollama
-      </button>
-      <button id="tab-qdrant" onclick="showTab('qdrant')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Qdrant
-      </button>
-      <button id="tab-pdf" onclick="showTab('pdf')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        PDF
-      </button>
-      <button id="tab-embeddings" onclick="showTab('embeddings')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Embeddings
-      </button>
-      <button id="tab-search" onclick="showTab('search')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Search
-      </button>
-      <button id="tab-vision" onclick="showTab('vision')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Vision
-      </button>
-      <button id="tab-video" onclick="showTab('video')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Video
-      </button>
-      <button id="tab-google" onclick="showTab('google')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Google
-      </button>
-      <button id="tab-monitor" onclick="showTab('monitor')"
-        class="tab-btn px-4 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Monitor
-      </button>
-    </div>
+    <!-- Sidebar -->
+    <aside class="w-48 shrink-0 bg-white border-r border-gray-200 overflow-y-auto">
+      <div class="p-4 border-b border-gray-100">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Settings</div>
+      </div>
+      <nav class="p-2 flex flex-col gap-0.5" id="sidebar-nav">
+        <!-- populated by JS -->
+      </nav>
+    </aside>
 
-    <div id="pane-general"    class="tab-pane space-y-4"></div>
-    <div id="pane-ollama"     class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-qdrant"     class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-pdf"        class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-embeddings" class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-search"     class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-vision"     class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-video"      class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-google"     class="tab-pane space-y-4 hidden"></div>
-    <div id="pane-monitor"    class="tab-pane space-y-4 hidden"></div>
+    <!-- Content -->
+    <main class="flex-1 overflow-y-auto p-8">
+      <div class="max-w-2xl">
 
-    <div id="empty-msg" class="hidden text-gray-400 text-sm">Loading…</div>
+        <div id="empty-msg" class="text-gray-400 text-sm">Loading…</div>
 
-    <!-- Danger Zone -->
-    <div class="mt-10 border border-red-200 rounded-lg p-5 bg-red-50">
-      <h2 class="text-base font-bold text-red-700 mb-1">Danger Zone</h2>
-      <p class="text-sm text-gray-600 mb-4">
-        These actions are destructive and cannot be undone.
-      </p>
+        <div id="pane-general"      class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-ollama"       class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-qdrant"       class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-pdf"          class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-embeddings"   class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-search"       class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-vision"       class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-video"        class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-google"       class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-monitor"      class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-art"          class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-bing"         class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-huggingface"  class="tab-pane space-y-4 hidden"></div>
+        <div id="pane-lab"          class="tab-pane space-y-4 hidden"></div>
 
-      <div class="bg-white border border-red-200 rounded p-4 flex flex-col gap-2">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="font-semibold text-sm text-gray-800">Rebuild Vector Index</div>
-            <div class="text-xs text-gray-500 mt-0.5">
-              Wipes the Qdrant vector store and re-queues all documents for embedding.
-              Extracted text, FTS search, file metadata, and settings are preserved.
-              Semantic search and the Ask chat will be unavailable until re-embedding completes.
+        <!-- Danger Zone (always visible at bottom of content) -->
+        <div id="danger-zone" class="hidden mt-10 border border-red-200 rounded-lg p-5 bg-red-50">
+          <h2 class="text-base font-bold text-red-700 mb-1">Danger Zone</h2>
+          <p class="text-sm text-gray-600 mb-4">
+            These actions are destructive and cannot be undone.
+          </p>
+          <div class="bg-white border border-red-200 rounded p-4 flex flex-col gap-2">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="font-semibold text-sm text-gray-800">Rebuild Vector Index</div>
+                <div class="text-xs text-gray-500 mt-0.5">
+                  Wipes the Qdrant vector store and re-queues all documents for embedding.
+                  Extracted text, FTS search, file metadata, and settings are preserved.
+                  Semantic search and the Ask chat will be unavailable until re-embedding completes.
+                </div>
+              </div>
+              <button onclick="startReindex()"
+                class="shrink-0 bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded font-medium">
+                Rebuild Index
+              </button>
             </div>
           </div>
-          <button onclick="startReindex()"
-            class="shrink-0 bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded font-medium">
-            Rebuild Index
-          </button>
         </div>
+
       </div>
-    </div>
-  </main>
+    </main>
+  </div>
 
   <!-- Reindex confirmation modal -->
   <div id="reindex-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40">
     <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-
-      <!-- Step 1 -->
       <div id="reindex-step-1">
         <h3 class="text-lg font-bold text-gray-800 mb-2">Rebuild Vector Index?</h3>
         <p class="text-sm text-gray-600 mb-4">
@@ -128,8 +98,6 @@
           <button onclick="reindexStep2()" class="px-4 py-2 rounded text-sm bg-red-100 hover:bg-red-200 text-red-700 font-medium">I understand, continue</button>
         </div>
       </div>
-
-      <!-- Step 2 -->
       <div id="reindex-step-2" class="hidden">
         <h3 class="text-lg font-bold text-red-700 mb-3">Final Confirmation</h3>
         <p class="text-sm text-gray-700 mb-4">
@@ -150,8 +118,6 @@
           </button>
         </div>
       </div>
-
-      <!-- Done -->
       <div id="reindex-done" class="hidden text-center">
         <div class="text-green-600 text-3xl mb-3">&#10003;</div>
         <h3 class="text-lg font-bold text-gray-800 mb-2">Reindex Started</h3>
@@ -177,33 +143,70 @@
   </div>
 
   <script>
-    let activeTab = 'general';
+    const GROUPS = [
+      { id: 'general',      label: 'General' },
+      { id: 'ollama',       label: 'Ollama' },
+      { id: 'qdrant',       label: 'Qdrant' },
+      { id: 'pdf',          label: 'PDF' },
+      { id: 'embeddings',   label: 'Embeddings' },
+      { id: 'search',       label: 'Search' },
+      { id: 'vision',       label: 'Vision' },
+      { id: 'video',        label: 'Video' },
+      { id: 'google',       label: 'Google' },
+      { id: 'bing',         label: 'Bing' },
+      { id: 'huggingface',  label: 'HuggingFace' },
+      { id: 'art',          label: 'Art' },
+      { id: 'monitor',      label: 'Monitor' },
+      { id: 'lab',          label: 'Lab' },
+    ];
+
+    let activeGroup = 'general';
+
+    function buildSidebar() {
+      const nav = document.getElementById('sidebar-nav');
+      nav.innerHTML = '';
+      for (const g of GROUPS) {
+        const btn = document.createElement('button');
+        btn.id = `tab-${g.id}`;
+        btn.textContent = g.label;
+        btn.onclick = () => showTab(g.id);
+        btn.className = 'tab-btn w-full text-left px-3 py-2 rounded text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900';
+        nav.appendChild(btn);
+      }
+    }
 
     function showTab(name) {
-      activeTab = name;
+      activeGroup = name;
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
       document.getElementById(`pane-${name}`).classList.remove('hidden');
-
       document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.remove('border-indigo-600', 'text-indigo-700');
-        b.classList.add('border-transparent', 'text-gray-500');
+        b.classList.remove('bg-indigo-50', 'text-indigo-700', 'font-semibold');
+        b.classList.add('text-gray-600');
       });
       const btn = document.getElementById(`tab-${name}`);
-      btn.classList.add('border-indigo-600', 'text-indigo-700');
-      btn.classList.remove('border-transparent', 'text-gray-500');
+      if (btn) {
+        btn.classList.add('bg-indigo-50', 'text-indigo-700', 'font-semibold');
+        btn.classList.remove('text-gray-600');
+      }
+      document.getElementById('empty-msg').classList.add('hidden');
+      document.getElementById('danger-zone').classList.remove('hidden');
     }
 
     async function loadSettings() {
+      buildSidebar();
       const data = await api('/settings');
 
-      const groups = { general: [], ollama: [], qdrant: [], pdf: [], embeddings: [], search: [], vision: [], video: [], google: [], monitor: [] };
+      const groupMap = {};
+      for (const g of GROUPS) groupMap[g.id] = [];
+
       for (const s of data.settings) {
         const g = s.group || 'general';
-        if (groups[g]) groups[g].push(s);
+        if (groupMap[g]) groupMap[g].push(s);
       }
 
-      for (const [group, items] of Object.entries(groups)) {
+      for (const [group, items] of Object.entries(groupMap)) {
         const pane = document.getElementById(`pane-${group}`);
+        if (!pane) continue;
         pane.innerHTML = '';
         for (const s of items) {
           const row = document.createElement('div');
@@ -235,6 +238,9 @@
           pane.appendChild(row);
         }
       }
+
+      // Show first group
+      showTab('general');
     }
 
     async function saveSetting(key) {
@@ -300,12 +306,9 @@
       document.getElementById('desc-label').textContent = label;
       document.getElementById('desc-text').textContent = description;
       document.getElementById('desc-key').textContent = key;
-
       const popup = document.getElementById('desc-popup');
       popup.classList.remove('hidden');
       document.getElementById('desc-overlay').classList.remove('hidden');
-
-      // Position near the ? button
       const btn = event.currentTarget;
       const rect = btn.getBoundingClientRect();
       const popupW = 320;

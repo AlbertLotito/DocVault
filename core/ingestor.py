@@ -11,6 +11,9 @@ _BLOCKLIST = frozenset({
     'ntuser.dat.log', 'ntuser.pol', 'usrclass.dat',
 })
 
+# Extensions always skipped — sidecars and system metadata files
+_BLOCKED_EXTENSIONS = frozenset({'.nfo'})
+
 _FILE_ATTRIBUTE_HIDDEN = 0x2
 _FILE_ATTRIBUTE_SYSTEM = 0x4
 
@@ -109,7 +112,10 @@ def ingest(directory, db_path, vault_id=None):
             file_path = os.path.normpath(os.path.join(root, name))
             if _is_hidden_or_system(file_path):
                 continue
-            ext = os.path.splitext(name)[1].lstrip('.').lower()
+            ext = os.path.splitext(name)[1].lower()
+            if ext in _BLOCKED_EXTENSIONS:
+                continue
+            ext = ext.lstrip('.')
             try:
                 file_hash = _sha256(file_path)
                 existing  = manager.get_task(db_path, file_hash)

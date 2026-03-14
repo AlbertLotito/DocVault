@@ -134,6 +134,58 @@ class Settings:
                 'type': 'int', 'default': 10, 'label': 'Frame interval (seconds)', 'group': 'video',
                 'description': 'How often to sample a frame from the video, in seconds. Lower values produce more descriptions but take longer. For a 5-minute video at 10s intervals = ~30 frames. For long videos (>30 min) consider raising this to 30–60 seconds.',
             },
+            # Google Vision API (Art Enrichment)
+            'google:vision_api_key': {
+                'type': 'string', 'default': '', 'label': 'Vision API Key', 'group': 'google',
+                'description': 'Google Cloud Vision API key for art identification. Required by the Art Enrichment worker (Tier 3) to identify artworks, fill metadata, and rename image files. Get a key from Google Cloud Console → APIs & Services → Credentials.',
+            },
+            # Art Collection Enrichment
+            'art:enrichment_requests_per_minute': {
+                'type': 'int', 'default': 5, 'label': 'Requests per minute', 'group': 'art',
+                'description': 'Maximum Google Vision API calls per minute during art enrichment. Keep this low to stay within free-tier quotas and be respectful to the API. Default: 5.',
+            },
+            'art:enrichment_confidence_threshold': {
+                'type': 'float', 'default': 0.85, 'label': 'Rename confidence threshold', 'group': 'art',
+                'description': 'Minimum confidence score (0.0–1.0) required before the enrichment worker renames an image file to "<Artist> - <Title>.<ext>". Below this threshold the .nfo sidecar is written but the file is left as-is for manual review. Default: 0.85.',
+            },
+            'art:enrichment_retry_hours': {
+                'type': 'int', 'default': 24, 'label': 'Retry failed lookups after (hours)', 'group': 'art',
+                'description': 'How many hours to wait before retrying a failed identification lookup. Failed images have renamed_to=(failed) in their .nfo sidecar. Default: 24.',
+            },
+            # Art — Tier 1: Local CLIP
+            'art:clip_enabled': {
+                'type': 'string', 'default': 'true', 'label': 'Enable local CLIP lookup', 'group': 'art',
+                'description': 'Set to "true" to query a local Qdrant art index using CLIP embeddings before calling any cloud API. Zero cost and fully private. Requires the art index to be pre-built (see docs). If the index is absent, this tier is silently skipped.',
+            },
+            'art:clip_qdrant_collection': {
+                'type': 'string', 'default': 'art_index', 'label': 'Art index collection name', 'group': 'art',
+                'description': 'Name of the Qdrant collection that holds the pre-indexed art dataset (WikiArt, MET, etc.). Must be populated separately before CLIP lookup will return results.',
+            },
+            'art:clip_accept_threshold': {
+                'type': 'float', 'default': 0.80, 'label': 'CLIP accept threshold', 'group': 'art',
+                'description': 'Minimum CLIP cosine similarity (0.0–1.0) to accept a local match and skip cloud lookup entirely. Higher values are more conservative. Default: 0.80.',
+            },
+            'art:clip_fallback_threshold': {
+                'type': 'float', 'default': 0.70, 'label': 'CLIP fallback threshold', 'group': 'art',
+                'description': 'If CLIP confidence is below this value, cloud lookup is attempted as a fallback. Set equal to clip_accept_threshold to always try cloud when CLIP confidence is not high enough to accept. Default: 0.70.',
+            },
+            # Art — Tier 2: Cloud
+            'art:cloud_provider': {
+                'type': 'string', 'default': 'google', 'label': 'Primary cloud provider', 'group': 'art',
+                'description': 'Which cloud API to call first for art identification. Options: "google" (Google Vision WEB_DETECTION), "bing" (Bing Visual Search). The other provider is used as automatic fallback if the primary returns low confidence and both keys are configured.',
+            },
+            'art:cloud_fallback_threshold': {
+                'type': 'float', 'default': 0.70, 'label': 'Cloud fallback threshold', 'group': 'art',
+                'description': 'If the primary cloud provider returns confidence below this value and the secondary provider is configured, the secondary is tried automatically. Default: 0.70.',
+            },
+            'art:google_monthly_limit': {
+                'type': 'int', 'default': 1000, 'label': 'Art identification monthly limit', 'group': 'google',
+                'description': 'Maximum Google Vision API calls per calendar month for art identification. When this limit is reached, Google is skipped and Bing is used as fallback (if configured). Set to 0 to disable Google entirely. Resets on the 1st of each month.',
+            },
+            'art:bing_monthly_limit': {
+                'type': 'int', 'default': 1000, 'label': 'Art identification monthly limit', 'group': 'bing',
+                'description': 'Maximum Bing Visual Search API calls per calendar month for art identification. When this limit is reached, Bing is skipped for the rest of the month. Set to 0 to disable Bing entirely. Resets on the 1st of each month.',
+            },
             # Google Drive
             'google:credentials_path': {
                 'type': 'string', 'default': '', 'label': 'Credentials JSON path', 'group': 'google',
@@ -142,6 +194,16 @@ class Settings:
             'google:token_path': {
                 'type': 'string', 'default': '', 'label': 'Token JSON path', 'group': 'google',
                 'description': 'Path where the OAuth access token will be saved after the first authorisation. This file is created automatically when you authorise DocVault via the Utilities page. Keep it in the credentials folder alongside the credentials JSON.',
+            },
+            # HuggingFace
+            'huggingface:access_token': {
+                'type': 'string', 'default': '', 'label': 'Access Token', 'group': 'huggingface',
+                'description': 'HuggingFace access token. Used when downloading datasets (e.g. WikiArt for the art index). Not required for public datasets but prevents auth prompts if a dataset becomes gated. Generate one at huggingface.co/settings/tokens.',
+            },
+            # Bing Visual Search (Art Enrichment)
+            'bing:visual_search_api_key': {
+                'type': 'string', 'default': '', 'label': 'Visual Search API Key', 'group': 'bing',
+                'description': 'Microsoft Bing Visual Search API key. Used as an alternative or fallback cloud provider for art identification. Get a key from Azure Portal → Cognitive Services → Bing Search v7. Leave blank to disable Bing.',
             },
             # Monitor / Resource Governor
             'monitor:enabled': {
@@ -197,6 +259,11 @@ class Settings:
             'alerts:ntfy_url': {
                 'type': 'string', 'default': '', 'label': 'ntfy.sh URL', 'group': 'general',
                 'description': 'Optional: A ntfy.sh topic URL (e.g. https://ntfy.sh/my-private-topic) to receive system alerts on your phone or desktop.',
+            },
+            # Extractor Lab
+            'lab:test_timeout_secs': {
+                'type': 'int', 'default': 300, 'label': 'Lab test timeout (s)', 'group': 'lab',
+                'description': 'Maximum seconds the Extractor Lab will wait for a kernel test to complete before returning a timeout error. Increase this for AI kernels (Whisper, vision, face) that load large models on first use. Default: 300 (5 minutes).',
             },
         }
 

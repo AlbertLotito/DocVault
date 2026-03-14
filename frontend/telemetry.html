@@ -282,6 +282,9 @@
             padding: 4rem;
         }
 
+        /* Hide nav in fullscreen so the dashboard fills the screen */
+        :fullscreen .docvault-nav { display: none; }
+
         /* Colors based on states */
         .value-emerald { color: var(--emerald); }
         .value-amber { color: var(--amber); }
@@ -427,6 +430,16 @@
     </style>
 </head>
 <body>
+    <nav class="docvault-nav" style="background:#4338ca; color:#fff; padding:0.6rem 1.5rem; display:flex; gap:1.5rem; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.4); position:sticky; top:0; z-index:50; font-family:sans-serif;">
+      <span style="font-weight:700; font-size:1rem;">DocVault</span>
+      <a href="/search" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Search</a>
+      <a href="/" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Vault Status</a>
+      <a href="/catalog" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Vault Log</a>
+      <a href="/identity" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Identity Hub</a>
+      <a href="/lab" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Lab</a>
+      <a href="/utils" style="color:#fff; font-weight:700; text-decoration:none; font-size:0.875rem;">Utilities</a>
+      <a href="/settings" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Settings</a>
+    </nav>
     <div class="matrix-overlay"></div>
     <div class="scanning-line" id="scanningLine"></div>
 

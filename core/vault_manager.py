@@ -9,6 +9,7 @@ Source files on disk are NEVER touched.
 """
 
 from __future__ import annotations
+import json
 import uuid
 from datetime import datetime, timezone
 from core.manager import _connect, get_db_path

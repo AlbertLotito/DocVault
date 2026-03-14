@@ -3,8 +3,13 @@ Shared vision model utility for all extractors.
 Sends a PIL image to the configured Ollama vision model and returns the response.
 """
 import io
+import time
 import base64
 from core.settings import settings
+
+# Retry config for "no slots available" Ollama rejections
+_NO_SLOTS_RETRIES = 4
+_NO_SLOTS_BACKOFF = [10, 20, 40, 60]  # seconds between retries
 
 # Images smaller than this in either dimension are skipped (px)
 _MIN_DIMENSION = 64
@@ -43,39 +48,47 @@ def describe(pil_image, prompt: str = None) -> str:
         print(f"  [vision] Image skipped: {reason}")
         return ''
 
-    try:
-        import ollama
-        from core.monitor import ollama_governor
-        
-        model = settings.get('vision:model') or 'minicpm-v'
-        if prompt is None:
-            prompt = (
-                'Describe this image in detail. '
-                'If the image contains any text, also transcribe it exactly.'
-            )
-        buf = io.BytesIO()
-        pil_image.save(buf, format='PNG')
-        b64 = base64.b64encode(buf.getvalue()).decode()
+    import ollama
+    from core.monitor import ollama_governor
 
-        with ollama_governor():
-            response = ollama.chat(
-                model=model,
-                messages=[{'role': 'user', 'content': prompt, 'images': [b64]}],
-                options={'temperature': 0},
-            )
-            res_text = response['message']['content'].strip()
-            if not res_text:
-                print(f"  [vision] Model '{model}' returned empty response.")
-            return res_text
+    model = settings.get('vision:model') or 'minicpm-v'
+    if prompt is None:
+        prompt = (
+            'Describe this image in detail. '
+            'If the image contains any text, also transcribe it exactly.'
+        )
+    buf = io.BytesIO()
+    pil_image.save(buf, format='PNG')
+    b64 = base64.b64encode(buf.getvalue()).decode()
 
-    except Exception as e:
-        err = str(e)
-        if 'connection' in err.lower():
-            print(f"  [vision] Connection error: Is Ollama running? {err}")
-        elif '404' in err or 'not found' in err.lower():
-            print(f"  [vision] Model error: Have you run 'ollama pull {settings.get('vision:model') or 'minicpm-v'}'?")
-        elif 'CUDA error' in err or 'illegal memory access' in err:
-            print(f"  [vision:cuda] GPU error — Ollama will recover: {err[:120]}")
-        else:
-            print(f"  [vision] Unexpected error: {e}")
-        return ''
+    for attempt in range(_NO_SLOTS_RETRIES + 1):
+        try:
+            with ollama_governor():
+                response = ollama.chat(
+                    model=model,
+                    messages=[{'role': 'user', 'content': prompt, 'images': [b64]}],
+                    options={'temperature': 0},
+                )
+                res_text = response['message']['content'].strip()
+                if not res_text:
+                    print(f"  [vision] Model '{model}' returned empty response.")
+                return res_text
+
+        except Exception as e:
+            err = str(e)
+            if 'no slots' in err.lower() and attempt < _NO_SLOTS_RETRIES:
+                wait = _NO_SLOTS_BACKOFF[attempt]
+                print(f"  [vision] Ollama busy (no slots), retry {attempt + 1}/{_NO_SLOTS_RETRIES} in {wait}s…")
+                time.sleep(wait)
+                continue
+            if 'connection' in err.lower():
+                print(f"  [vision] Connection error: Is Ollama running? {err}")
+            elif '404' in err or 'not found' in err.lower():
+                print(f"  [vision] Model error: Have you run 'ollama pull {settings.get('vision:model') or 'minicpm-v'}'?")
+            elif 'CUDA error' in err or 'illegal memory access' in err:
+                print(f"  [vision:cuda] GPU error — Ollama will recover: {err[:120]}")
+            elif 'no slots' in err.lower():
+                print(f"  [vision] Ollama still busy after {_NO_SLOTS_RETRIES} retries — skipping.")
+            else:
+                print(f"  [vision] Unexpected error: {e}")
+            return ''

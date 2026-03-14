@@ -9,21 +9,15 @@
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
 
-  <nav class="bg-indigo-700 text-white shadow-lg">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        <div class="flex items-center gap-8">
-          <span class="font-bold text-xl tracking-tight">DocVault</span>
-          <div class="flex items-baseline space-x-4">
-            <a href="/status" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Status</a>
-            <a href="/catalog" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Log</a>
-            <a href="/identity" class="px-3 py-2 rounded-md text-sm font-medium bg-indigo-800">Identity Hub</a>
-            <a href="/search" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Search</a>
-            <a href="/utils" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Utilities</a>
-          </div>
-        </div>
-      </div>
-    </div>
+  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
+    <span class="font-bold text-lg">DocVault</span>
+    <a href="/search" class="hover:underline">Search</a>
+    <a href="/" class="hover:underline">Vault Status</a>
+    <a href="/catalog" class="hover:underline">Vault Log</a>
+    <a href="/identity" class="hover:underline font-semibold">Identity Hub</a>
+    <a href="/lab" class="hover:underline">Lab</a>
+    <a href="/utils" class="hover:underline">Utilities</a>
+    <a href="/settings" class="hover:underline">Settings</a>
   </nav>
 
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">

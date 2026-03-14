@@ -31,7 +31,8 @@ __description__ = (
 
 import os
 import re
-from pygments import lexers, tokens
+from pygments import lexers
+from pygments import token as tokens
 from core import logger
 from core.extractors.base import ExtractorContext
 

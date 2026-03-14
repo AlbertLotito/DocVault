@@ -39,7 +39,7 @@ from extractors.vision import describe as vision_describe
 
 
 def _get_exif_data(image: Image.Image) -> dict:
-    """Extract and humanize EXIF tags."""
+    """Extract and humanize EXIF tags, ensuring all values are JSON-serializable."""
     exif_data = {}
     try:
         info = image._getexif()
@@ -50,12 +50,21 @@ def _get_exif_data(image: Image.Image) -> dict:
                     gps_data = {}
                     for t in value:
                         sub_tag = GPSTAGS.get(t, t)
-                        gps_data[sub_tag] = value[t]
+                        # Standardise specialized Pillow types to string or float
+                        val = value[t]
+                        if isinstance(val, (bytes, str, int, float)):
+                            gps_data[sub_tag] = val
+                        else:
+                            gps_data[sub_tag] = str(val)
                     exif_data["GPS"] = gps_data
                 else:
                     # Filter for useful tags
                     if decoded in ('Make', 'Model', 'DateTimeOriginal', 'ExposureTime', 'FNumber', 'ISOSpeedRatings', 'FocalLength'):
-                        exif_data[decoded] = str(value)
+                        # Standardise specialized Pillow types
+                        if isinstance(value, (bytes, str, int, float)):
+                            exif_data[decoded] = value
+                        else:
+                            exif_data[decoded] = str(value)
     except Exception as e:
         logger.debug(f"EXIF extraction failed: {e}", ext="photo-ai")
     return exif_data

@@ -273,7 +273,7 @@ def list_all_extractors():
         results.append({
             'name': name,
             'settings': relevant_settings,
-            'doc': adapter.description
+            'description': adapter.description
         })
     return results
 
@@ -283,51 +283,146 @@ class TestExtractorRequest(BaseModel):
     file_path: str
 
 
+ACTIVE_TESTS = {} # { extractor_name: threading.Event }
+
 @router.post("/utils/test_extractor")
 def test_extractor(req: TestExtractorRequest):
     """Run a specific extractor against a file and return the result."""
     from core import router
-    from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger
+    from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger, BaseExtractor
     from core.settings import SettingsResolver
     import threading
     import time
     import dataclasses
+    import json as _json
 
-    # Find the extractor module
-    extractor_mod = None
-    for mod in router._all_extractors:
-        if getattr(mod, '__name__', '') == req.extractor_name:
-            extractor_mod = mod
-            break
-    
-    if not extractor_mod:
-        return {"status": "error", "detail": f"Extractor {req.extractor_name} not found."}
+    TIMEOUT_SECS = int(settings.get('lab:test_timeout_secs') or 300)
 
-    if not os.path.exists(req.file_path):
-        return {"status": "error", "detail": f"File not found: {req.file_path}"}
+    # 1. Register cancel token
+    cancel_token = threading.Event()
+    ACTIVE_TESTS[req.extractor_name] = cancel_token
 
-    # Setup context
-    dummy_hash = "TEST_RUN_" + str(int(time.time()))
-    logger = ExtractorLogger(req.extractor_name, "TEST_VAULT", dummy_hash, debug_enabled=True)
-    ctx = ExtractorContext(
-        vault_id="TEST_VAULT",
-        file_hash=dummy_hash,
-        cancel_token=threading.Event(),
-        logger=logger,
-        settings=SettingsResolver()
-    )
-
+    ext_logger = None
     try:
-        adapter = LegacyExtractorAdapter(extractor_mod)
-        result = adapter.run(req.file_path, ctx)
-        
-        # Convert to serializable dict
+        # Check if it's currently active in the router
+        extractor_mod = None
+        for mod in router._all_extractors:
+            if getattr(mod, '__name__', '') == req.extractor_name:
+                extractor_mod = mod
+                break
+
+        # 2. If not active (e.g. unverified in Lab), try to load it manually from disk
+        if not extractor_mod:
+            from core.registry import EXTRACTORS_DIR
+            import importlib.util
+
+            py_path = os.path.join(EXTRACTORS_DIR, f"{req.extractor_name}.py")
+            json_path = os.path.join(EXTRACTORS_DIR, f"{req.extractor_name}.json")
+
+            if os.path.exists(json_path):
+                from core.extractors.base import SubprocessExtractorAdapter
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    manifest = _json.load(f)
+                extractor_mod = SubprocessExtractorAdapter(req.extractor_name, manifest.get('command', []))
+            elif os.path.exists(py_path):
+                spec = importlib.util.spec_from_file_location(req.extractor_name, py_path)
+                extractor_mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(extractor_mod)
+                extractor_mod.__name__ = req.extractor_name
+
+        if not extractor_mod:
+            return {"status": "error", "detail": f"Extractor {req.extractor_name} not found."}
+
+        if not os.path.exists(req.file_path):
+            return {"status": "error", "detail": f"File not found: {req.file_path}"}
+
+        # Setup context
+        dummy_hash = "TEST_RUN_" + str(int(time.time()))
+        ext_logger = ExtractorLogger(req.extractor_name, "TEST_VAULT", dummy_hash, debug_enabled=True)
+        ctx = ExtractorContext(
+            vault_id="TEST_VAULT",
+            file_hash=dummy_hash,
+            cancel_token=cancel_token,
+            logger=ext_logger,
+            settings=SettingsResolver()
+        )
+
+        if isinstance(extractor_mod, BaseExtractor):
+            adapter = extractor_mod
+        else:
+            adapter = LegacyExtractorAdapter(extractor_mod)
+
+        # 3. Run in a thread with timeout so the request never hangs indefinitely.
+        #    Heavy AI kernels may take minutes on first load; this gives them time
+        #    while still returning a clean error if something truly locks up.
+        result_box = {}
+        error_box  = {}
+
+        def _run():
+            try:
+                result_box['v'] = adapter.run(req.file_path, ctx)
+            except Exception as exc:
+                import traceback as _tb
+                error_box['e'] = exc
+                error_box['tb'] = _tb.format_exc()
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+        # Poll in short intervals so a kill signal is honoured within ~0.5s
+        # rather than waiting the full timeout before checking.
+        deadline = time.monotonic() + TIMEOUT_SECS
+        while t.is_alive() and time.monotonic() < deadline:
+            t.join(timeout=0.5)
+            if cancel_token.is_set():
+                # Kill was requested by the user via /utils/kill_test
+                return {"status": "killed", "detail": "Test was cancelled by user."}
+
+        if t.is_alive():
+            cancel_token.set()
+            return {
+                "status": "error",
+                "detail": (
+                    f"Extraction timed out after {TIMEOUT_SECS}s. "
+                    "If this is an AI kernel (Whisper, vision, face), it may still be loading "
+                    "its model in the background — try again in a minute."
+                ),
+                "traceback": ""
+            }
+
+        if 'e' in error_box:
+            return {
+                "status": "error",
+                "detail": str(error_box['e']),
+                "traceback": error_box['tb']
+            }
+
         return {
             "status": "ok",
-            "result": dataclasses.asdict(result)
+            "result": dataclasses.asdict(result_box['v'])
         }
+
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        import traceback as _tb
+        tb = _tb.format_exc()
+        if ext_logger:
+            ext_logger.error(f"Lab Certification Crash: {e}\n{tb}")
+        return {
+            "status": "error",
+            "detail": str(e),
+            "traceback": tb
+        }
+    finally:
+        ACTIVE_TESTS.pop(req.extractor_name, None)
+
+
+@router.post("/utils/kill_test")
+def kill_test(extractor_name: str):
+    """Signals a running lab test to stop."""
+    if extractor_name in ACTIVE_TESTS:
+        ACTIVE_TESTS[extractor_name].set()
+        return {"status": "ok", "message": f"Sent kill signal to {extractor_name}"}
+    return {"status": "not_running", "message": "No active test found for that kernel"}
 
 
 class PipelineSimulationRequest(BaseModel):
@@ -375,9 +470,14 @@ def simulate_pipeline(req: PipelineSimulationRequest):
 
 
 @router.get("/utils/registry")
-def list_registry():
+def list_registry(sync: bool = False):
     """Returns the full contents of the ext_registry table."""
     from core.manager import get_settings_db_path, _connect
+    from core.registry import RegistryManager
+    
+    if sync:
+        RegistryManager().sync_disk_to_db()
+
     with _connect(get_settings_db_path()) as conn:
         rows = conn.execute("SELECT * FROM ext_registry ORDER BY last_seen_at DESC").fetchall()
         return [dict(r) for r in rows]
@@ -386,8 +486,8 @@ def list_registry():
 @router.post("/utils/certify/audit")
 def certify_audit(module_name: str):
     """Performs static analysis (Manifest, Signatures) on a pending kernel."""
-    from core.certification import ContractAuditor, EXTRACTORS_DIR
-    from core.certification import CertificationResult
+    from core.certification import ContractAuditor, CertificationResult
+    from core.registry import EXTRACTORS_DIR
     import importlib.util
     import json
     import dataclasses
@@ -443,24 +543,36 @@ def certify_audit(module_name: str):
 def certify_register(kernel_id: str):
     """
     Formally registers a certified kernel in the DB.
-    Requires that all audit points have passed (checked client-side).
+    Blesses the current disk hash and enables the kernel.
     """
-    from core.manager import get_settings_db_path, _connect
     from core.registry import RegistryManager
     
-    # Reload router to pick up the change
+    # 1. Update Database Status AND refresh the blessed hash
+    rm = RegistryManager()
+    rm.certify_kernel(kernel_id)
+
+    # 2. Reload router to pick up the change (but avoid heavy disk sync)
     from core import router
-    router.reload()
-    
-    with _connect(get_settings_db_path()) as conn:
-        conn.execute(
-            "UPDATE ext_registry SET status = 'certified', is_enabled = 1, certified_at = CURRENT_TIMESTAMP WHERE kernel_id = ?",
-            (kernel_id,)
-        )
-        conn.commit()
-    
+    router.reload(sync_disk=False)
+
     return {"status": "ok", "message": f"Kernel {kernel_id} activated."}
 
+
+@router.post("/utils/certify/decertify")
+def decertify_register(kernel_id: str):
+    """
+    Removes certification from a kernel, setting it back to 'unverified'.
+    """
+    from core.registry import RegistryManager
+    
+    rm = RegistryManager()
+    rm.decertify_kernel(kernel_id)
+
+    # Reload router to pick up the change
+    from core import router
+    router.reload(sync_disk=False)
+
+    return {"status": "ok", "message": f"Kernel {kernel_id} decertified."}
 
 class BinaryRegistrationRequest(BaseModel):
     id: str

@@ -46,7 +46,7 @@ async function openFolder(path) {
 
 // ── Notifications (Alert Bus) ───────────────────────────────────────────────
 
-let lastAlertId = 0;
+let lastAlertId = parseInt(localStorage.getItem('docvault_last_alert_id') || '0');
 
 function _ensureToastContainer() {
   if (document.getElementById('toast-container')) return;
@@ -117,9 +117,16 @@ function showToast(title, message, level = 'info') {
 async function pollAlerts() {
   try {
     const alerts = await api(`/utils/alerts?since_id=${lastAlertId}`);
+    let updated = false;
     for (const a of alerts) {
       showToast(a.title, a.message, a.level);
-      if (a.id > lastAlertId) lastAlertId = a.id;
+      if (a.id > lastAlertId) {
+        lastAlertId = a.id;
+        updated = true;
+      }
+    }
+    if (updated) {
+      localStorage.setItem('docvault_last_alert_id', lastAlertId.toString());
     }
   } catch (err) {
     console.error("Alert poll failed", err);

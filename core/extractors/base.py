@@ -265,7 +265,22 @@ class LegacyExtractorAdapter(BaseExtractor):
         return f"Legacy adapter for {self.name} kernel."
 
     def extract(self, file_path: Path, ctx: ExtractorContext):
-        return self._ext.extract(str(file_path))
+        import inspect
+        # 1. Determine if the underlying extract() wants 'ctx' or not
+        func = getattr(self._ext, 'extract', None)
+        if not func:
+            return None, f"Extractor {self.name} has no extract() method"
+
+        sig = inspect.signature(func)
+        params = list(sig.parameters.values())
+        
+        # 2. Call based on signature
+        if len(params) >= 2:
+            # Modern: extract(path, ctx)
+            return func(str(file_path), ctx)
+        else:
+            # Legacy: extract(path)
+            return func(str(file_path))
 
     def normalize(self, result, ctx: ExtractorContext) -> IngestResult:
         # result is (value, err) or (value, err, meta) from legacy extractor
@@ -349,37 +364,58 @@ class SubprocessExtractorAdapter(BaseExtractor):
     def extract(self, file_path: Path, ctx: ExtractorContext):
         import subprocess
         import json
+        import time
         
         # 1. Build Command
-        # Replace '{file_path}' placeholder with actual path
         cmd = [arg.replace('{file_path}', str(file_path)) for arg in self._launch_config]
 
         # 2. Execute
         ctx.logger.info(f"Invoking binary: {' '.join(cmd)}")
         try:
-            # We enforce a timeout so bad binaries don't lock the worker forever
-            process = subprocess.run(
+            # We use Popen so we can kill the process if the cancel token is set
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
-                text=True,
-                timeout=ctx.timeout_secs or 300 # 5 min default
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
 
+            # Poll for completion or cancellation
+            timeout = ctx.timeout_secs or 300
+            start_time = time.time()
+            
+            while process.poll() is None:
+                # Check for cancellation
+                if ctx.cancel_token.is_set():
+                    ctx.logger.warning(f"Killing subprocess {self.name} due to cancellation.")
+                    process.kill()
+                    return None, "Extraction cancelled by user", {}
+                
+                # Check for timeout
+                if time.time() - start_time > timeout:
+                    ctx.logger.error(f"Killing subprocess {self.name} due to timeout.")
+                    process.kill()
+                    return None, "Binary execution timed out", {}
+                
+                time.sleep(0.5)
+
+            stdout, stderr = process.communicate()
+
             # 3. Capture Stderr (Logs/Progress)
-            if process.stderr:
-                ctx.logger.debug(f"Binary STDERR: {process.stderr.strip()}")
+            if stderr:
+                ctx.logger.debug(f"Binary STDERR: {stderr.strip()}")
 
             if process.returncode != 0:
-                return None, f"Binary exited with code {process.returncode}: {process.stderr}", {}
+                return None, f"Binary exited with code {process.returncode}: {stderr}", {}
 
             # 4. Parse Stdout (JSON Contract)
-            if not process.stdout.strip():
+            if not stdout.strip():
                 return None, "Binary returned no stdout", {}
 
             try:
-                data = json.loads(process.stdout)
+                data = json.loads(stdout)
             except json.JSONDecodeError:
-                return None, f"Binary output violated JSON contract: {process.stdout[:100]}...", {}
+                return None, f"Binary output violated JSON contract: {stdout[:100]}...", {}
 
             text = data.get("text")
             error = data.get("error")
@@ -387,8 +423,6 @@ class SubprocessExtractorAdapter(BaseExtractor):
 
             return text, error, meta
 
-        except subprocess.TimeoutExpired:
-            return None, "Binary execution timed out", {}
         except Exception as e:
             return None, f"Subprocess failed: {e}", {}
 

@@ -133,7 +133,8 @@ def init_settings_db():
                 last_seen_at   TEXT DEFAULT CURRENT_TIMESTAMP,
                 kernel_type    TEXT DEFAULT 'python',
                 launch_config  TEXT, -- JSON object for subprocess args
-                target_type    TEXT DEFAULT 'file' -- 'file' or 'folder'
+                target_type    TEXT DEFAULT 'file', -- 'file' or 'folder'
+                description    TEXT
             );
         """)
 
@@ -146,6 +147,8 @@ def init_settings_db():
             conn.execute("ALTER TABLE ext_registry ADD COLUMN launch_config TEXT")
         if 'target_type' not in ext_columns:
             conn.execute("ALTER TABLE ext_registry ADD COLUMN target_type TEXT DEFAULT 'file'")
+        if 'description' not in ext_columns:
+            conn.execute("ALTER TABLE ext_registry ADD COLUMN description TEXT")
 
         conn.commit()
 

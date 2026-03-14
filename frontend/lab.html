@@ -16,14 +16,14 @@
         }
 
         body, html { margin: 0; padding: 0; background-color: var(--bg-black); color: var(--slate); font-family: 'JetBrains Mono', 'Fira Code', monospace; height: 100%; overflow: hidden; }
-        .lab-container { display: grid; grid-template-columns: 350px 1fr; height: 100%; }
+        .lab-container { display: grid; grid-template-columns: 350px 1fr; height: calc(100vh - 52px); }
 
         /* Sidebar */
-        .extractor-registry { background: #0a0a0a; border-right: 1px solid var(--terminal-gray); overflow-y: auto; display: flex; flex-direction: column; }
+        .extractor-registry { background: #0a0a0a; border-right: 1px solid var(--terminal-gray); display: flex; flex-direction: column; height: 100%; overflow: hidden; }
         .registry-header { padding: 1.5rem; border-bottom: 1px solid var(--terminal-gray); background: #0d0d0d; }
         .registry-title { font-size: 0.8rem; font-weight: bold; letter-spacing: 0.2em; color: var(--indigo); text-transform: uppercase; }
 
-        .extractor-list { padding: 0; margin: 0; list-style: none; }
+        .extractor-list { padding: 0; margin: 0; list-style: none; overflow-y: auto; flex: 1; }
         .extractor-item { padding: 1rem 1.5rem; border-bottom: 1px solid rgba(148, 163, 184, 0.05); cursor: pointer; transition: all 0.2s; position: relative; }
         .extractor-item:hover { background: rgba(99, 102, 241, 0.05); }
         .extractor-item.active { background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--indigo); }
@@ -31,8 +31,8 @@
         .extractor-item.simulator.active { border-left-color: var(--amber); background: rgba(245, 158, 11, 0.05); }
 
         .extractor-name { display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.2rem; }
-        .extractor-meta { font-size: 0.65rem; opacity: 0.5; }
-        .status-pill { position: absolute; right: 1.5rem; top: 1.2rem; font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 2px; font-weight: bold; text-transform: uppercase; }
+        .extractor-meta { font-size: 0.65rem; opacity: 0.5; display: block; margin-bottom: 0.5rem; }
+        .status-pill { font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 2px; font-weight: bold; text-transform: uppercase; display: inline-block; }
         .pill-certified { color: var(--emerald); border: 1px solid var(--emerald); }
         .pill-unverified { color: var(--amber); border: 1px solid var(--amber); }
         .pill-tampered { color: var(--ruby); border: 1px solid var(--ruby); background: rgba(239, 68, 68, 0.1); }
@@ -83,21 +83,15 @@
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
 
-  <nav class="bg-indigo-700 text-white shadow-lg shrink-0">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        <div class="flex items-center gap-8">
-          <span class="font-bold text-xl tracking-tight">DocVault</span>
-          <div class="flex items-baseline space-x-4">
-            <a href="/status" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Status</a>
-            <a href="/catalog" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Vault Log</a>
-            <a href="/identity" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Identity Hub</a>
-            <a href="/search" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-600">Search</a>
-            <a href="/utils" class="px-3 py-2 rounded-md text-sm font-medium bg-indigo-800">Utilities</a>
-          </div>
-        </div>
-      </div>
-    </div>
+  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
+    <span class="font-bold text-lg">DocVault</span>
+    <a href="/search" class="hover:underline">Search</a>
+    <a href="/" class="hover:underline">Vault Status</a>
+    <a href="/catalog" class="hover:underline">Vault Log</a>
+    <a href="/identity" class="hover:underline">Identity Hub</a>
+    <a href="/lab" class="hover:underline font-semibold">Lab</a>
+    <a href="/utils" class="hover:underline">Utilities</a>
+    <a href="/settings" class="hover:underline">Settings</a>
   </nav>
 
   <div class="flex-1 flex overflow-hidden">
@@ -150,12 +144,21 @@
         <aside class="extractor-registry">
             <div class="registry-header">
                 <div class="registry-title">Kernel Registry</div>
+                <div class="mt-4">
+                    <input type="text" id="registrySearch" placeholder="SEARCH KERNELS..." 
+                           oninput="renderList()"
+                           style="background: #000; border: 1px solid #222; font-size: 0.65rem; padding: 0.4rem 0.8rem; letter-spacing: 0.1em;">
+                </div>
             </div>
             <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--terminal-gray)">
                 <button onclick="openBinaryWizard()" class="btn-run" style="width: 100%; background: var(--terminal-gray); font-size: 0.65rem">+ Register External Binary</button>
             </div>
-            <ul class="extractor-list" id="extractorList"></ul>
             <ul class="extractor-list">
+                <div id="extractorList">
+                    <li class="p-6 text-center opacity-40 italic text-[10px] tracking-widest animate-pulse">
+                        SYNCING KERNEL REGISTRY...
+                    </li>
+                </div>
                 <li class="extractor-item simulator" onclick="setLabMode('simulator')" id="item-simulator">
                     <span class="extractor-name" style="color: var(--amber)">PIPELINE SIMULATOR</span>
                     <span class="extractor-meta">Test routing & identification</span>
@@ -168,7 +171,7 @@
 
         <main class="lab-bench">
             <div class="bench-header">
-                <div class="bench-title" id="activeTitle">CERTIFICATION SUITE</div>
+                <div class="bench-title" id="activeTitle">CERTIFICATION SUITE <span style="font-size: 0.6rem; opacity: 0.3; margin-left: 10px;">[ LAB_ENGINE_V1.3 ]</span></div>
                 <div id="benchStats" style="font-size: 0.7rem; color: var(--slate)"></div>
             </div>
 
@@ -176,6 +179,13 @@
                 
                 <!-- Mode: Certification & Diagnostics -->
                 <section id="pane-certify" class="flex flex-col gap-6">
+                    <!-- Extractor Specifications Header -->
+                    <div id="cert-specs" class="cert-card" style="border-left: 4px solid var(--indigo)">
+                        <div class="section-header" style="font-size: 0.7rem; color: var(--indigo)">[ KERNEL SPECIFICATIONS ]</div>
+                        <p id="extractorDoc" style="font-size: 0.8rem; line-height: 1.6; color: #fff"></p>
+                        <div class="settings-grid mt-4" id="extractorSettings"></div>
+                    </div>
+
                     <div class="cert-grid">
                         <!-- Static Analysis -->
                         <div class="cert-card">
@@ -201,7 +211,10 @@
                                 <span class="step-label">I/O Integrity</span>
                                 <span id="stat-io" class="step-status status-pending">PENDING</span>
                             </div>
-                            <button id="btn-activate" onclick="activateKernel()" disabled class="btn-run" style="margin-top: 1rem; width: 100%; opacity: 0.2">Activate Kernel</button>
+                            <div class="flex gap-2" style="margin-top: 1rem;">
+                                <button id="btn-activate" onclick="activateKernel()" disabled class="btn-run" style="flex: 1; opacity: 0.2">Activate Kernel</button>
+                                <button id="btn-decertify" onclick="decertifyKernel()" disabled class="btn-run hidden" style="flex: 1; background: var(--terminal-gray); opacity: 0.2">Decertify Kernel</button>
+                            </div>
                         </div>
                     </div>
 
@@ -234,15 +247,16 @@
                         </select>
                     </div>
 
-                    <div class="control-group">
-                        <label class="control-label">Target Sample Path</label>
-                        <div style="display: flex; gap: 0.5rem">
-                            <input type="text" id="targetPath" placeholder="Pick a file to test behavioral contract..." readonly>
-                            <button class="btn-run btn-secondary" style="padding: 0.6rem 1rem; font-size: 0.65rem" onclick="browse('file')">Browse File</button>
-                        </div>
-                    </div>
+            <div class="control-group">
+                <label class="control-label">Target Sample Path</label>
+                <div style="display: flex; gap: 0.5rem">
+                    <input type="text" id="targetPath" placeholder="Pick a sample to test behavioral contract..." readonly>
+                    <button id="btnBrowse" class="btn-run btn-secondary" style="padding: 0.6rem 1rem; font-size: 0.65rem" onclick="browse(activeEntry ? activeEntry.target_type : 'file')">Browse File</button>
+                </div>
+            </div>
                     <div class="flex gap-2">
                         <button class="btn-run" id="btnRunTest" onclick="runAutomatedCert()">Execute Automated Cert</button>
+                        <button class="btn-run btn-secondary" id="btnKillTest" onclick="killActiveTest()" disabled style="background: var(--ruby); opacity: 0.2">Kill Test</button>
                         <button class="btn-run hidden" id="btnRunSim" onclick="runPipelineTrace()" style="background: var(--amber)">Run Pipeline Simulation</button>
                     </div>
                 </section>
@@ -263,9 +277,13 @@
         let activeEntry = null;
         let currentMode = 'idle';
 
+        function _esc(s) {
+            return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
         async function init() {
             try {
-                const [reg, vaults] = await Promise.all([ api('/utils/registry'), api('/vaults') ]);
+                const [reg, vaults] = await Promise.all([ api('/utils/registry?sync=true'), api('/vaults') ]);
                 registry = reg;
                 renderList();
                 const vSelect = document.getElementById('vContext');
@@ -280,7 +298,29 @@
 
         function renderList() {
             const list = document.getElementById('extractorList');
-            list.innerHTML = registry.map(e => `
+            const query = (document.getElementById('registrySearch').value || '').toLowerCase().trim();
+
+            // Define status priority - Uncertified (Lower priority values) first
+            const statusOrder = { 'certified': 3, 'unverified': 2, 'tampered': 1, 'missing': 0 };
+
+            const filtered = query
+                ? registry.filter(e =>
+                    e.module_name.toLowerCase().includes(query) ||
+                    e.kernel_id.toLowerCase().includes(query) ||
+                    (e.description || '').toLowerCase().includes(query))
+                : registry;
+
+            const sortedRegistry = [...filtered].sort((a, b) => {
+                // 1. Level: Status Priority (Ascending: unverified/tampered/missing FIRST)
+                const priorityA = statusOrder[a.status] || 0;
+                const priorityB = statusOrder[b.status] || 0;
+                if (priorityA !== priorityB) return priorityA - priorityB;
+
+                // 2. Level: Name (Ascending)
+                return a.module_name.localeCompare(b.module_name);
+            });
+
+            list.innerHTML = sortedRegistry.map(e => `
                 <li class="extractor-item" onclick="selectKernel('${e.kernel_id}')" id="item-${e.kernel_id}">
                     <span class="extractor-name">${e.module_name}</span>
                     <span class="extractor-meta">v${e.version} // ID: ${e.kernel_id.split('.').pop()}</span>
@@ -310,12 +350,65 @@
 
         function selectKernel(kid) {
             activeEntry = registry.find(e => e.kernel_id === kid);
+            if (!activeEntry) return;
+
             setLabMode('test');
             document.querySelectorAll('.extractor-item').forEach(i => i.classList.remove('active'));
-            document.getElementById(`item-${kid}`).classList.add('active');
-            document.getElementById('activeTitle').textContent = `CERTIFY: ${activeEntry.module_name.toUpperCase()}`;
+            const el = document.getElementById(`item-${kid}`);
+            if (el) el.classList.add('active');
+
+            document.getElementById('activeTitle').textContent = `TESTER / CERTIFY: ${activeEntry.module_name.toUpperCase()}`;
+            document.getElementById('btnBrowse').textContent = activeEntry.target_type === 'folder' ? 'Browse Folder' : 'Browse File';
+            
+            // Populate Description & Settings
+            document.getElementById('extractorDoc').textContent = activeEntry.description || "No technical description available for this kernel.";
+            
+            const settingsEl = document.getElementById('extractorSettings');
+            const settings = activeEntry.settings || [];
+            if (settings.length === 0) {
+                settingsEl.innerHTML = '<div class="text-[10px] text-gray-500 italic uppercase">No environment variables detected for this kernel.</div>';
+            } else {
+                settingsEl.innerHTML = settings.map(s => `
+                    <div class="setting-card">
+                        <div class="setting-key">${s.key}</div>
+                        <div class="setting-val">${s.value || '<em style="opacity:0.3">null</em>'}</div>
+                    </div>
+                `).join('');
+            }
+
+            // DECERTIFY BUTTON LOGIC
+            const decBtn = document.getElementById('btn-decertify');
+            if (activeEntry.status === 'certified') {
+                decBtn.classList.remove('hidden');
+                decBtn.disabled = false;
+                decBtn.style.opacity = 1;
+            } else {
+                decBtn.classList.add('hidden');
+                decBtn.disabled = true;
+                decBtn.style.opacity = 0.2;
+            }
+
             resetCertUI();
         }
+
+        async function decertifyKernel() {
+            if (!activeEntry || !confirm(`Are you sure you want to decertify '${activeEntry.module_name}'? It will be disabled until re-certified.`)) return;
+            
+            const btn = document.getElementById('btn-decertify');
+            btn.disabled = true;
+            btn.textContent = "DECERTIFYING...";
+
+            try {
+                await api(`/utils/certify/decertify?kernel_id=${activeEntry.kernel_id}`, { method: 'POST' });
+                alert("Kernel decertified.");
+                location.reload();
+            } catch (err) {
+                alert("Decertification failed: " + err.message);
+                btn.disabled = false;
+                btn.textContent = "Decertify Kernel";
+            }
+        }
+
 
         function resetCertUI() {
             ['manifest', 'signatures', 'execution', 'io'].forEach(s => {
@@ -333,8 +426,26 @@
             if (!path) return alert("Select a sample file for behavioral testing.");
 
             const btn = document.getElementById('btnRunTest');
-            btn.disabled = true; btn.textContent = "CERTIFYING..."; btn.classList.add('loading-text');
+            const killBtn = document.getElementById('btnKillTest');
+            const ioConsole = document.getElementById('ioConsole');
+            const resultView = document.getElementById('resultView');
             
+            // ATOMIC UI UPDATE: V1.3
+            resultView.style.display = 'grid';
+            killBtn.disabled = false;
+            killBtn.style.opacity = '1';
+            killBtn.classList.remove('hidden');
+            
+            btn.disabled = true; 
+            btn.textContent = "CERTIFYING..."; 
+            btn.classList.add('loading-text');
+            
+            // Telemetry
+            ioConsole.innerHTML = '<div class="sim-line"><span class="sim-tag">SYSTEM</span><span style="color:var(--amber)">JS_ENGINE_V1.3_ACTIVE</span></div>' +
+                                  '<div class="sim-line"><span class="sim-tag">SYSTEM</span><span>INITIALIZING BEHAVIORAL SANDBOX...</span></div>' +
+                                  '<div class="sim-line"><span class="sim-tag">KERNEL</span><span>INVOKING EXTRACTOR (This may take time for AI kernels)...</span></div>';
+            document.getElementById('resultText').textContent = "Waiting for kernel output...";
+
             try {
                 // 1. Static Audit
                 const audit = await api(`/utils/certify/audit?module_name=${activeEntry.module_name}`, { method: 'POST' });
@@ -350,10 +461,21 @@
                     body: JSON.stringify({ extractor_name: activeEntry.module_name, file_path: path })
                 });
 
+                if (bench.status === 'killed') {
+                    updateStepUI('execution', false);
+                    ioConsole.innerHTML += `<div class="sim-line" style="color:var(--amber)"><span class="sim-tag">KILLED</span><span>Test was cancelled by user.</span></div>`;
+                    return;
+                }
+
                 if (bench.status === 'error') {
                     updateStepUI('execution', false);
+                    ioConsole.innerHTML += `<div class="sim-line" style="color:var(--ruby)"><span class="sim-tag">CRASH</span><span>${_esc(bench.detail)}</span></div>`;
+                    if (bench.traceback) {
+                        ioConsole.innerHTML += `<pre style="font-size:0.6rem; color:var(--ruby); opacity:0.7; margin-top:10px">${_esc(bench.traceback)}</pre>`;
+                    }
                     throw new Error(bench.detail);
                 }
+
 
                 updateStepUI('execution', true);
                 updateStepUI('io', true);
@@ -366,8 +488,28 @@
 
             } catch (err) {
                 console.error(err);
+                ioConsole.innerHTML += `<div class="sim-line" style="color:var(--ruby)"><span class="sim-tag">ERROR</span><span>${_esc(err.message)}</span></div>`;
             } finally {
-                btn.disabled = false; btn.textContent = "Execute Automated Cert"; btn.classList.remove('loading-text');
+                btn.disabled = false; 
+                btn.textContent = "Execute Automated Cert"; 
+                btn.classList.remove('loading-text');
+                
+                // V1.3: Disable but don't hide
+                killBtn.disabled = true;
+                killBtn.style.opacity = '0.2';
+            }
+        }
+
+        async function killActiveTest() {
+            if (!activeEntry) return;
+            try {
+                await api(`/utils/kill_test?extractor_name=${activeEntry.module_name}`, { method: 'POST' });
+                const ioConsole = document.getElementById('ioConsole');
+                if (ioConsole) {
+                    ioConsole.innerHTML += `<div class="sim-line" style="color:var(--amber)"><span class="sim-tag">SYSTEM</span><span>Kill signal sent — waiting for kernel to stop...</span></div>`;
+                }
+            } catch (err) {
+                console.error("Failed to send kill signal:", err);
             }
         }
 
@@ -378,23 +520,52 @@
         }
 
         function renderCertResults(res) {
-            document.getElementById('resultView').style.display = 'grid';
-            document.getElementById('resultText').textContent = res.text || "// NO TEXT RECOVERED";
+            const resultView = document.getElementById('resultView');
+            const ioConsole = document.getElementById('ioConsole');
+            const resultText = document.getElementById('resultText');
             
-            // Console Telemetry
-            const consoleEl = document.getElementById('ioConsole');
+            resultView.style.display = 'grid';
+            
+            // 1. Handle Errors inside the result object
+            let errorMsg = "";
+            if (res.errors && res.errors.length > 0) {
+                errorMsg = res.errors.map(e => `[${e.extractor_name}] ${e.message}`).join(' | ');
+            }
+
+            // 2. Extracted Text
+            resultText.textContent = res.text || (errorMsg ? `ERROR: ${errorMsg}` : "// NO TEXT RECOVERED");
+            resultText.style.color = (res.status === 'failed') ? 'var(--ruby)' : 'var(--emerald)';
+            
+            // 3. Console Telemetry
             let html = `<div class="sim-line"><span class="sim-tag">CONTRACT</span><span style="color:var(--emerald)">STRICT_TYPING_VERIFIED</span></div>`;
-            html += `<div class="sim-line"><span class="sim-tag">STATUS</span><span>${res.status.toUpperCase()}</span></div>`;
-            html += `<div class="sim-line"><span class="sim-tag">METADATA</span><span>${JSON.stringify(res.metadata)}</span></div>`;
-            consoleEl.innerHTML = html;
+            html += `<div class="sim-line"><span class="sim-tag">STATUS</span><span style="color:${res.status === 'failed' ? 'var(--ruby)' : 'inherit'}">${res.status.toUpperCase()}</span></div>`;
+            
+            if (errorMsg) {
+                html += `<div class="sim-line" style="color:var(--ruby)"><span class="sim-tag">ERROR</span><span>${_esc(errorMsg)}</span></div>`;
+            }
+
+            html += `<div class="sim-line"><span class="sim-tag">METADATA</span><span>${_esc(JSON.stringify(res.metadata))}</span></div>`;
+            ioConsole.innerHTML = html;
         }
 
         async function activateKernel() {
+            const btn = document.getElementById('btn-activate');
+            const originalText = btn.textContent;
+            
+            btn.disabled = true;
+            btn.textContent = "ACTIVATING...";
+            btn.classList.add('loading-text');
+
             try {
                 await api(`/utils/certify/register?kernel_id=${activeEntry.kernel_id}`, { method: 'POST' });
                 alert("Kernel activated successfully.");
                 location.reload();
-            } catch (err) { alert(err.message); }
+            } catch (err) { 
+                alert(err.message); 
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.classList.remove('loading-text');
+            }
         }
 
         async function browse(mode) {
@@ -407,7 +578,11 @@
             const vaultId = document.getElementById('vContext').value;
             if (!path) return alert("Select target file.");
             const consoleEl = document.getElementById('simConsole');
+            const killBtn = document.getElementById('btnKillTest');
+            
             consoleEl.innerHTML = '<div class="loading-text">TRACING KERNEL BUS...</div>';
+            killBtn.classList.remove('hidden');
+
             try {
                 const res = await api('/utils/simulate_pipeline', { method: 'POST', body: JSON.stringify({ file_path: path, vault_id: vaultId || null }) });
                 let html = res.trace.map(t => `<div class="sim-line" style="border-left: 2px solid var(--amber); padding-left: 10px;"><span>${t}</span></div>`).join('');
@@ -415,7 +590,11 @@
                 res.kernels.forEach(k => { html += `<div class="sim-line"><span class="sim-tag" style="color:var(--emerald)">KERNEL</span><span>${k}</span></div>`; });
                 html += `</div>`;
                 consoleEl.innerHTML = html;
-            } catch (err) { consoleEl.innerHTML = err.message; }
+            } catch (err) { 
+                consoleEl.innerHTML = err.message; 
+            } finally {
+                killBtn.classList.add('hidden');
+            }
         }
 
         window.onload = init;
