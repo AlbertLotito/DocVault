@@ -10,14 +10,12 @@
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-function Write-Step  { param($msg) Write-Host "`n==> $msg" -ForegroundColor Cyan }
-function Write-OK    { param($msg) Write-Host "    [OK] $msg" -ForegroundColor Green }
-function Write-Warn  { param($msg) Write-Host "    [!!] $msg" -ForegroundColor Yellow }
-function Write-Fail  { param($msg) Write-Host "    [XX] $msg" -ForegroundColor Red }
+function Write-Step { param($msg) Write-Host "`n==> $msg" -ForegroundColor Cyan }
+function Write-OK   { param($msg) Write-Host "    [OK] $msg" -ForegroundColor Green }
+function Write-Warn { param($msg) Write-Host "    [!!] $msg" -ForegroundColor Yellow }
+function Write-Fail { param($msg) Write-Host "    [XX] $msg" -ForegroundColor Red }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Docker daemon
-# ─────────────────────────────────────────────────────────────────────────────
+# --- 1. Docker daemon ---
 Write-Step "Checking Docker"
 try {
     docker version 2>&1 | Out-Null
@@ -29,9 +27,7 @@ try {
     exit 1
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Qdrant container
-# ─────────────────────────────────────────────────────────────────────────────
+# --- 2. Qdrant container ---
 Write-Step "Starting Qdrant"
 $qdrantContainer = 'docvault-qdrant-1'
 
@@ -74,9 +70,7 @@ if (-not $qdrantReady) {
 }
 Write-OK "Qdrant healthy at http://localhost:6333"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. Ollama — warn only, do not block startup
-# ─────────────────────────────────────────────────────────────────────────────
+# --- 3. Ollama (warn only, do not block startup) ---
 Write-Step "Checking Ollama"
 $ollamaOk = $false
 try {
@@ -93,12 +87,11 @@ if ($ollamaOk) {
     try {
         $tags = (Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -TimeoutSec 5).models.name
         foreach ($m in $requiredModels) {
-            # Model names may include :latest suffix
-            $found = $tags | Where-Object { $_ -eq $m -or $_ -eq "$m`:latest" }
+            $found = $tags | Where-Object { $_ -like "${m}*" }
             if ($found) {
-                Write-OK "Model $m"
+                Write-OK "Model: $m"
             } else {
-                Write-Warn "Model $m not pulled — run: ollama pull $m"
+                Write-Warn "Model not pulled: $m  -- run: ollama pull $m"
             }
         }
     } catch {
@@ -106,9 +99,7 @@ if ($ollamaOk) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. Verify venv
-# ─────────────────────────────────────────────────────────────────────────────
+# --- 4. Verify venv ---
 Write-Step "Checking Python environment"
 $venvPython = Join-Path $scriptDir 'venv\Scripts\python.exe'
 if (-not (Test-Path $venvPython)) {
@@ -117,9 +108,7 @@ if (-not (Test-Path $venvPython)) {
 }
 Write-OK "venv found"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 5. Start DocVault
-# ─────────────────────────────────────────────────────────────────────────────
+# --- 5. Start DocVault ---
 Write-Host ""
 Write-Host "  Starting DocVault at http://localhost:8000  (Ctrl+C to stop)" -ForegroundColor Cyan
 Write-Host ""

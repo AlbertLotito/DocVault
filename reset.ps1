@@ -5,13 +5,13 @@
 
     DESTROYS:
       - docvault.db   (all tasks, FTS index, extracted text, extracted images)
-      - Qdrant vectors (the docvault collection — all embeddings)
-      - logs.db       (optional — asked interactively)
+      - Qdrant vectors (the docvault collection - all embeddings)
+      - logs.db       (optional - asked interactively)
 
     PRESERVES:
-      - settings.db   (all config, API keys, vault settings — untouched)
+      - settings.db   (all config, API keys, vault settings - untouched)
       - Source files  (DocVault never owns your documents)
-      - art_index     (Qdrant art collection — untouched)
+      - art_index     (Qdrant art collection - untouched)
       - qdrant_storage layout (Qdrant is restarted clean)
 
     When to use:
@@ -31,9 +31,9 @@ function Write-OK    { param($msg) Write-Host "    [OK] $msg" -ForegroundColor G
 function Write-Warn  { param($msg) Write-Host "    [!!] $msg" -ForegroundColor Yellow }
 function Write-Fail  { param($msg) Write-Host "    [XX] $msg" -ForegroundColor Red }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Warning and confirmation
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Host ""
 Write-Host "  ╔══════════════════════════════════════════════════════════╗" -ForegroundColor Red
 Write-Host "  ║              DOCVAULT CLEAN SLATE RESET                  ║" -ForegroundColor Red
@@ -55,16 +55,16 @@ if ($confirm -ne 'RESET') {
     exit 0
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# logs.db — ask separately
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
+# logs.db - ask separately
+# ---
 $clearLogs = $false
 $logsAnswer = Read-Host "`n  Also clear logs.db? (task timings, worker errors, system stats) [y/N]"
 if ($logsAnswer -match '^[Yy]') { $clearLogs = $true }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Verify DocVault server is not running
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Checking for running DocVault server"
 try {
     $r = Invoke-RestMethod -Uri 'http://localhost:8000/api/workers/status' -TimeoutSec 2
@@ -75,9 +75,9 @@ try {
     Write-OK "No DocVault server detected on port 8000"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Stop Qdrant
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Stopping Qdrant"
 $qdrantContainer = 'docvault-qdrant-1'
 $qdrantWasRunning = $false
@@ -91,12 +91,12 @@ try {
         Write-OK "Qdrant was not running"
     }
 } catch {
-    Write-Warn "Could not check Qdrant container — Docker may not be running"
+    Write-Warn "Could not check Qdrant container - Docker may not be running"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Delete docvault.db
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Deleting docvault.db"
 $dbPath = Join-Path $scriptDir 'docvault.db'
 if (Test-Path $dbPath) {
@@ -106,10 +106,10 @@ if (Test-Path $dbPath) {
     Write-OK "docvault.db not found (already clean)"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Clear Qdrant docvault collection (delete storage for that collection only)
 # The art_index collection lives in a separate subdirectory and is untouched.
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Clearing Qdrant docvault collection"
 $qdrantStorage = Join-Path $scriptDir 'qdrant_storage'
 
@@ -125,9 +125,9 @@ if (Test-Path $docvaultCollectionPath) {
 # Also clear the WAL/alias entries that reference the docvault collection
 # (Qdrant's raft state and aliases are safe to leave; they'll be recreated on next upsert)
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Optionally clear logs.db
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 if ($clearLogs) {
     Write-Step "Clearing logs.db"
     $logsPath = Join-Path $scriptDir 'logs.db'
@@ -139,9 +139,9 @@ if ($clearLogs) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Clear .cache extracted images (regenerable artefacts)
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Clearing cached extracted images"
 $cachePath = 'E:\DocVault\.cache\extracted_images'
 if (Test-Path $cachePath) {
@@ -153,9 +153,9 @@ if (Test-Path $cachePath) {
     Write-OK "Cache directory not found (already clean)"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Restart Qdrant
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Restarting Qdrant"
 if ($qdrantWasRunning) {
     try {
@@ -170,18 +170,18 @@ if ($qdrantWasRunning) {
             Start-Sleep -Seconds 1
         }
         if ($ready) { Write-OK "Qdrant restarted and healthy" }
-        else { Write-Warn "Qdrant restarted but health check timed out — check: docker logs $qdrantContainer" }
+        else { Write-Warn "Qdrant restarted but health check timed out - check: docker logs $qdrantContainer" }
     } catch {
-        Write-Warn "Could not restart Qdrant — run: docker start $qdrantContainer"
+        Write-Warn "Could not restart Qdrant - run: docker start $qdrantContainer"
     }
 } else {
-    Write-OK "Qdrant was not running before reset — skipping restart"
+    Write-OK "Qdrant was not running before reset - skipping restart"
     Write-Host "    Run .\start.ps1 when ready to start the system" -ForegroundColor Gray
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Summary
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Host ""
 Write-Host "  ╔══════════════════════════════════════════════════════════╗" -ForegroundColor Green
 Write-Host "  ║  Reset complete. DocVault is on a clean slate.           ║" -ForegroundColor Green
