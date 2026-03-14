@@ -12,7 +12,7 @@ def test_get_logs_db_path_returns_string(tmp_path, monkeypatch):
 
 
 def test_init_logs_db_creates_all_tables(tmp_path, monkeypatch):
-    """init_logs_db() must create all five tables."""
+    """init_logs_db() must create all six tables."""
     import core.manager as m
     db = str(tmp_path / 'logs.db')
     monkeypatch.setattr(m, 'get_logs_db_path', lambda: db)
@@ -23,7 +23,7 @@ def test_init_logs_db_creates_all_tables(tmp_path, monkeypatch):
     ).fetchall()}
     conn.close()
     assert {'task_timings', 'worker_errors', 'worker_log',
-            'extractor_stats', 'system_stats'}.issubset(tables)
+            'extractor_stats', 'system_stats', 'benchmark_runs'}.issubset(tables)
 
 
 def test_init_logs_db_is_idempotent(tmp_path, monkeypatch):
@@ -41,7 +41,6 @@ def test_init_logs_db_creates_benchmark_runs_table(tmp_path, monkeypatch):
     db = str(tmp_path / 'logs.db')
     monkeypatch.setattr(m, 'get_logs_db_path', lambda: db)
     m.init_logs_db()
-    import sqlite3
     conn = sqlite3.connect(db)
     tables = {r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
