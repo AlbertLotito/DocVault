@@ -40,6 +40,46 @@ def _cache_dir() -> str:
     return d
 
 
+def _analyze_image(img_path: str, pil_img, ctx: ExtractorContext) -> str:
+    """
+    Dispatches an extracted image to the system's image-processing kernels.
+    Falls back to direct Vision AI if no specialized kernels are active.
+    """
+    from core import router
+    from core.extractors.base import LegacyExtractorAdapter, BaseExtractor
+
+    # 1. Get kernels registered for PNG (our cache format)
+    kernels = router.get_extractors('png', vault_id=ctx.vault_id)
+    
+    # 2. Filter out the fallback kernel to see if we have specialized intelligence active
+    active_kernels = [k for k in kernels if getattr(k, '__name__', '') != 'fallback_kernel']
+    
+    if not active_kernels:
+        return vision_describe(pil_img)
+
+    results = []
+    for kernel in active_kernels:
+        # Avoid circularity (though image_extractor is usually pdf-only)
+        if getattr(kernel, '__name__', '') == 'image_extractor':
+            continue
+            
+        adapter = kernel if isinstance(kernel, BaseExtractor) else LegacyExtractorAdapter(kernel)
+        
+        try:
+            # Run the specialized kernel on the saved image asset
+            res = adapter.run(img_path, ctx)
+            if res.text:
+                results.append(res.text)
+        except Exception as e:
+            logger.debug(f"Sub-extraction failed for {adapter.name}: {e}", ext="image")
+
+    # 3. Combine specialized results, or fallback to generic vision if nothing was recovered
+    if results:
+        return "\n\n".join(results)
+    
+    return vision_describe(pil_img)
+
+
 def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Extracts all embedded images from a PDF and saves them as PNGs.
@@ -68,14 +108,17 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             for img_idx, img_obj in enumerate(page.images, start=1):
                 filename = f"page_{page_num:03d}_img_{img_idx:03d}.png"
                 out_path = os.path.normpath(os.path.join(output_dir, filename))
-                img_obj.image.save(out_path, "PNG")
-                width, height = img_obj.image.size
+                pil_img = img_obj.image
+                if pil_img.mode not in ('RGB', 'RGBA', 'L', 'P'):
+                    pil_img = pil_img.convert('RGB')
+                pil_img.save(out_path, "PNG")
+                width, height = pil_img.size
                 logger.debug(f"Saved: {filename} ({width}x{height})", ext="image")
 
-                # Describe the image while we still have it in memory
-                description = vision_describe(img_obj.image)
+                # Dispatch to specialized image kernels (Face, OCR, Photo-AI, etc.)
+                description = _analyze_image(out_path, pil_img, ctx)
                 if description:
-                    logger.debug(f"Described: {filename} → {len(description)} chars", ext="image")
+                    logger.debug(f"Analyzed: {filename} via sub-kernels → {len(description)} chars", ext="image")
 
                 extracted.append({
                     "file_path":   out_path,

@@ -13,13 +13,44 @@ from core import logger
 _all_extractors = []
 ROUTES = {'file': {}, 'folder': {}}
 FALLBACK_KERNEL = None
+DEFAULT_PRIORITY = 10
 
-def reload():
+class LazyPythonKernel:
+    """
+    A proxy object that only imports and executes the actual Python kernel
+    module when a method or attribute (like .extract) is accessed.
+    """
+    def __init__(self, module_name: str, description: str = ""):
+        self.__name__ = module_name
+        self.__description__ = description
+        self._mod = None
+
+    def _ensure_loaded(self):
+        if self._mod is None:
+            try:
+                logger.info(f"Lazy-loading kernel: {self.__name__}...", ext="router")
+                file_path = os.path.join(EXTRACTORS_DIR, f"{self.__name__}.py")
+                spec = importlib.util.spec_from_file_location(self.__name__, file_path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                self._mod = mod
+            except Exception as e:
+                logger.error(f"Failed to lazy-load kernel {self.__name__}: {e}", ext="router")
+                raise
+
+    def __getattr__(self, name):
+        if name == "__name__": return self.__name__
+        if name == "__description__": return self.__description__
+        self._ensure_loaded()
+        return getattr(self._mod, name)
+
+
+def reload(sync_disk: bool = True):
     """
     Refreshes the routing map from the database.
     Can be called during 'Hot Reload' events.
     """
-    global _all_extractors, ROUTES, FALLBACK_KERNEL
+    global _all_extractors, ROUTES, FALLBACK_KERNEL, _initialized
     
     logger.info("Initializing dynamic router...", ext="router")
     
@@ -27,7 +58,9 @@ def reload():
     new_routes = {'file': {}, 'folder': {}}
     
     rm = RegistryManager()
-    rm.sync_disk_to_db() # Ensure DB is current with disk
+    if sync_disk:
+        rm.sync_disk_to_db() # Ensure DB is current with disk
+    
     active = rm.get_active_kernels()
     
     for entry in active:
@@ -36,18 +69,15 @@ def reload():
         target_type = entry.get('target_type', 'file')
         
         try:
-            # 1. Dynamic Load
+            # 1. Prepare Kernel Proxy
             if kernel_type == 'subprocess':
                 from core.extractors.base import SubprocessExtractorAdapter
                 launch_config = json.loads(entry['launch_config']) if entry.get('launch_config') else []
-                mod = SubprocessExtractorAdapter(mod_name, launch_config)
+                mod = SubprocessExtractorAdapter(mod_name, launch_config, description=entry.get('description', ''))
                 mod.__name__ = mod_name
             else:
-                file_path = os.path.join(EXTRACTORS_DIR, f"{mod_name}.py")
-                spec = importlib.util.spec_from_file_location(mod_name, file_path)
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
-                mod.__name__ = mod_name
+                # Use Lazy Loader for Python kernels to avoid heavy re-imports
+                mod = LazyPythonKernel(mod_name, description=entry.get('description', ''))
             
             new_extractors.append(mod)
             
@@ -64,15 +94,16 @@ def reload():
                     target_map[ext] = []
                 target_map[ext].append(mod)
             
-            logger.debug(f"Router activated kernel: {entry['kernel_id']} ({kernel_type}/{target_type})", ext="router")
+            logger.debug(f"Router mapped kernel: {entry['kernel_id']} ({kernel_type}/{target_type})", ext="router")
             
         except Exception as e:
-            logger.error(f"Failed to load activated kernel {mod_name}: {e}", ext="router")
+            logger.error(f"Failed to map activated kernel {mod_name}: {e}", ext="router")
 
     _all_extractors = new_extractors
     ROUTES = new_routes
+    _initialized = True
     
-    logger.info(f"Router active. {len(_all_extractors)} kernels loaded.", ext="router")
+    logger.info(f"Router updated. {len(_all_extractors)} kernels mapped.", ext="router")
 
 # --- Initialize on first use ---
 _initialized = False
@@ -82,7 +113,6 @@ def _ensure_initialized():
     if not _initialized:
         try:
             reload()
-            _initialized = True
         except Exception as e:
             # If DB isn't ready yet, we'll try again on the next call
             pass
