@@ -89,6 +89,14 @@ def init_logs_db():
                 disk_free_pct REAL,
                 throttle_state TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS benchmark_runs (
+                run_id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_at                 TEXT NOT NULL,
+                results                TEXT NOT NULL,
+                bottleneck_extractor   TEXT,
+                overall_files_per_hour REAL
+            );
         """)
 
         # Logs DB migrations

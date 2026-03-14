@@ -265,6 +265,11 @@ class Settings:
                 'type': 'int', 'default': 300, 'label': 'Lab test timeout (s)', 'group': 'lab',
                 'description': 'Maximum seconds the Extractor Lab will wait for a kernel test to complete before returning a timeout error. Increase this for AI kernels (Whisper, vision, face) that load large models on first use. Default: 300 (5 minutes).',
             },
+            'tuning:benchmark_samples_per_type': {
+                'type': 'int', 'default': 10,
+                'label': 'Benchmark samples per type', 'group': 'lab',
+                'description': 'Number of COMPLETED files per type sampled during benchmark runs and optimizer mini-benchmarks. Random selection, no fixed seed.',
+            },
         }
 
     def get(self, key: str):
