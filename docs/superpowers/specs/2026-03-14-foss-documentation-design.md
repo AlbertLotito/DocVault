@@ -69,31 +69,60 @@ Screenshots to be captured once the vault has processed a representative documen
 
 ---
 
+## Platform Support & Dependency Warnings
+
+DocVault is Windows-first (reference platform). Two dependencies are platform-specific:
+
+- **`wmi`** — Windows only (CPU temperature sensor). On Linux/macOS, the import is
+  handled gracefully — the WMI sensor is silently replaced by a DummySensor and the
+  system continues normally. This must be called out in setup.md and configuration.md.
+- **`nvidia-ml-py`** — NVIDIA GPU only (GPU temperature/utilisation sensor). On
+  machines without NVIDIA hardware, the NvidiaSensor fails to init and the system
+  degrades gracefully. Must be called out in the hardware requirements section.
+
+Both degradations are already implemented in core/monitor.py. The docs just need to
+tell users about them so they aren't surprised.
+
+### Docker path
+The repo ships a `Dockerfile` and `docker-compose.yml`. The README quickstart must
+present two paths side by side:
+- **Native (Windows):** `.\setup.ps1` + `.\start.ps1`
+- **Docker:** `docker compose up`
+
+`docs/setup.md` must include a dedicated Docker section covering Linux/macOS users,
+and note that `wmi` is not relevant inside a container.
+
+---
+
 ## Document Structure
 
 ### Root files (new)
 | File | Purpose |
 |------|---------|
-| `README.md` | Hero, features, hardware tiers, quickstart (3 steps), screenshot placeholders, links to docs |
+| `README.md` | Hero, features, hardware tiers, quickstart (native + Docker), screenshot placeholders, links to docs |
 | `LICENSE` | Apache 2.0 full text |
-| `CONTRIBUTING.md` | How to write a kernel, PR process, running tests, code conventions |
+| `CONTRIBUTING.md` | How to write a kernel, worker pipeline overview, PR process, running tests, code conventions |
 
 ### docs/ (user-facing, new)
 | File | Audience | Purpose |
 |------|----------|---------|
-| `docs/architecture.md` | B | System overview, data pipeline diagram, component map, three-database layout, worker model |
-| `docs/setup.md` | A | Full first-time setup: prerequisites, `setup.ps1`, config questions, Ollama model pulls, verification |
-| `docs/configuration.md` | A+B | Every setting key, group, default, and description. config.ini reference. settings.db overrides. |
-| `docs/troubleshooting.md` | A | Port conflicts, DB corruption, Qdrant down, WMI access denied, Ollama no slots, charmap errors |
+| `docs/architecture.md` | B | System overview, data pipeline diagram, component map, three-database layout, three-worker model |
+| `docs/setup.md` | A | Full first-time setup: prerequisites, native (setup.ps1) path, Docker path, config questions, Ollama model pulls, platform-specific dependency notes, verification |
+| `docs/configuration.md` | A+B | Every setting key, group, default, and description. config.ini reference. settings.db overrides. Notes on which settings are inert on non-Windows hosts. |
+| `docs/troubleshooting.md` | A | Port conflicts, DB corruption, Qdrant down, WMI access denied (non-admin), Ollama no slots, charmap OCR errors, common first-run failures |
 | `docs/extractors/contract.md` | B | The kernel contract: MANIFEST dict, required signatures, BaseExtractor/ExtractorContext/IngestResult, certification lifecycle |
 | `docs/extractors/writing-an-extractor.md` | B | Step-by-step guide with a fully worked example kernel from scratch |
-| `docs/extractors/catalogue.md` | A+B | Every built-in extractor: what it does, what it extracts, dependencies, file types handled |
+| `docs/extractors/catalogue.md` | A+B | Every built-in extractor: what it does, what it extracts, file types handled, and installation status (built-in / requires binary / requires model download) |
 | `docs/tools/test-kernel.md` | B | Expand existing docs/test-kernel-cli.md into full tool reference |
-| `docs/tools/build-art-index.md` | B | How to seed and extend the art identification index |
+| `docs/tools/build-art-index.md` | B | How to seed and extend the art identification index. Marked "Advanced / Optional — only relevant if you have an art collection configured." |
 
 ### docs/internals/ (moved, not public-facing)
-Existing planning and session docs move here. Not linked from README — they are
-development history, not user documentation.
+Existing planning and session docs move here. Not linked from README.
+
+`docs/internals/plans/` contains both **completed** and **active** design work.
+An index file (`docs/internals/plans/PLANS_INDEX.md`) will list each plan with a
+status tag: `[ACTIVE]`, `[PARTIAL]`, or `[COMPLETE]`. This lets contributors find
+open work without treating all plans as historical.
 
 | Source | Destination |
 |--------|-------------|
@@ -108,12 +137,12 @@ development history, not user documentation.
 
 ## README Structure
 
-1. **Badge row** — license, Python version
+1. **Badge row** — license badge, Python version badge, platform badge (Windows reference / Linux partial)
 2. **One-line description** — what DocVault is
 3. **Hero screenshot placeholder**
 4. **Feature highlights** — bulleted, capability-first, grouped by category
-5. **Hardware requirements** — two-tier table with honest expectations
-6. **Quickstart** — three steps: clone, `.\setup.ps1`, `.\start.ps1`
+5. **Hardware requirements** — two-tier table with honest expectations; NVIDIA + wmi notes
+6. **Quickstart** — two paths side by side: native Windows (`.\setup.ps1`) and Docker (`docker compose up`)
 7. **What gets extracted** — table of file types and what DocVault pulls from each
 8. **Architecture overview** — two-paragraph summary, link to `docs/architecture.md`
 9. **Writing extractors** — two sentences + link to `docs/extractors/contract.md`
@@ -127,10 +156,13 @@ development history, not user documentation.
 
 1. Welcome + philosophy (maximum extraction, local-first)
 2. Development setup (venv, running tests)
-3. Writing a new extractor — link to full guide, key rules summarised
-4. PR conventions (commit message style, test requirements)
-5. Code conventions (settings at call time, route ordering, Pydantic v2 patterns)
-6. Known limitations / side quests (link to internals/SideQuests.md)
+3. The three-worker pipeline — extraction worker, embedding worker, art enrichment
+   worker; what belongs at the extractor level vs the worker level; link to
+   `docs/architecture.md` for depth
+4. Writing a new extractor — link to full guide, key rules summarised
+5. PR conventions (commit message style, test requirements)
+6. Code conventions (settings at call time, route ordering, Pydantic v2 patterns)
+7. Known limitations / side quests (link to `docs/internals/SideQuests.md`)
 
 ---
 
@@ -142,5 +174,5 @@ development history, not user documentation.
 - The `docs/superpowers/` directory (this spec and future specs) stays as-is.
 - All new docs are written in GitHub-flavoured Markdown, rendered correctly in the
   GitHub UI without any external tooling.
-- Windows-first setup instructions (the reference platform), with notes where
-  Linux/macOS paths differ.
+- Windows-first setup instructions (the reference platform), with a dedicated Docker
+  section covering Linux/macOS users.
