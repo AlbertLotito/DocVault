@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse
 from search import fts, semantic, hybrid
 from core import manager
 from core.settings import settings
@@ -34,17 +35,30 @@ async def search(q: str = Query(..., min_length=1),
     )
 
     if mode == 'fts':
-        return fts.search(db, q, n,
-                          file_type=file_type, date_from=date_from, date_to=date_to)
+        results = fts.search(db, q, n,
+                             file_type=file_type, date_from=date_from, date_to=date_to)
+        return JSONResponse(content={'results': results, 'degraded': False})
 
     if mode == 'semantic':
-        return await semantic.async_search(q, top_k=n, hash_filter=hash_filter)
+        results = await semantic.async_search(q, top_k=n, hash_filter=hash_filter)
+        # semantic already returns [] gracefully when Qdrant is down
+        return JSONResponse(content={'results': results, 'degraded': False})
 
-    return await hybrid.async_search(
+    results, qdrant_offline = await hybrid.async_search(
         db_path=db, query=q, top_k=n,
         file_type=file_type, date_from=date_from, date_to=date_to,
         hash_filter=hash_filter
     )
+    if qdrant_offline:
+        # Qdrant offline — fall back to FTS-only and tell the UI
+        fts_results = fts.search(db, q, n,
+                                 file_type=file_type, date_from=date_from, date_to=date_to)
+        return JSONResponse(content={
+            'results': fts_results,
+            'degraded': True,
+            'degraded_reason': 'Qdrant unavailable — showing full-text results only',
+        })
+    return JSONResponse(content={'results': results, 'degraded': False})
 
 
 @router.get("/search/filename")

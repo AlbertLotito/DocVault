@@ -70,6 +70,7 @@
           class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
         <button onclick="clearFilters('search')" class="text-xs text-gray-400 hover:text-red-400">✕ Clear</button>
       </div>
+      <div id="search-degraded-banner" class="hidden mb-2 rounded px-3 py-2 text-xs text-amber-800 bg-amber-50 border border-amber-200"></div>
       <div id="search-results" class="divide-y divide-gray-100 mt-3"></div>
     </div>
 
@@ -200,8 +201,15 @@
       if (f.date_to)    url += `&date_to=${f.date_to}`;
       const vaultIds = getSelectedVaultIds();
       if (vaultIds.length) url += `&vault_ids=${vaultIds.join(',')}`;
-      const results = await api(url);
-      renderResults(results);
+      const data = await api(url);
+      const banner = document.getElementById('search-degraded-banner');
+      if (data.degraded) {
+        banner.textContent = '⚠ ' + (data.degraded_reason || 'Qdrant unavailable — showing full-text results only');
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+      renderResults(data.results || data);
     }
 
     // ── Filename search ────────────────────────────────────────────────────────

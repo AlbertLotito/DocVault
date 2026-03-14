@@ -24,8 +24,13 @@ def search(query: str, top_k: int = 5, hash_filter: list[str] = None,
     if not vector:
         return []
     threshold = score_threshold if score_threshold is not None else _threshold()
-    return _vs().search(vector, top_k=top_k, score_threshold=threshold,
-                        hash_filter=hash_filter)
+    try:
+        return _vs().search(vector, top_k=top_k, score_threshold=threshold,
+                            hash_filter=hash_filter)
+    except Exception as e:
+        from core import logger
+        logger.warn(f"[semantic] Qdrant unavailable: {e}")
+        return []
 
 
 async def async_search(query: str, top_k: int = 5,
@@ -65,5 +70,11 @@ async def async_search(query: str, top_k: int = 5,
             with_payload=True,
         )
         return [{'score': r.score, **r.payload} for r in response.points]
+    except Exception as e:
+        # Qdrant unavailable — degrade gracefully rather than propagating a 500.
+        # Callers (hybrid search, search route) will fall back to FTS-only.
+        from core import logger
+        logger.warn(f"[semantic] Qdrant unavailable: {e}")
+        return []
     finally:
         await async_client.close()

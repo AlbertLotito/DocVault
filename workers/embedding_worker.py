@@ -55,10 +55,12 @@ def process_task(db_path, task, vs):
                 }
             )
         except Exception as e:
-            error_msg = f"Failed to upsert chunk {i} to Qdrant: {e}"
-            logger.error(error_msg)
-            manager.complete_extraction(db_path, file_hash, status='ERROR', error=error_msg)
-            return
+            # Qdrant connection failure — reset task to EXTRACTED so it is
+            # retried automatically when Qdrant comes back. Never mark ERROR
+            # for a transient infrastructure failure.
+            logger.error(f"Qdrant upsert failed on chunk {i}: {e}. Resetting task to EXTRACTED.")
+            manager.update_task_status(db_path, file_hash, status='EXTRACTED')
+            raise  # re-raise so outer loop detects connection loss and resets vs
 
     manager.update_task_status(db_path, file_hash, status='COMPLETED')
     logger.info(f"  Embedded {len(chunks)} chunk(s).")
@@ -102,11 +104,9 @@ def run(db_path, shutdown_event=None, worker_id=None): # shutdown_event is ignor
             try:
                 process_task(db_path, task, vs)
             except Exception as e:
-                if "connection" in str(e).lower():
-                    logger.error(f"Qdrant connection lost. Will attempt to reconnect. Error: {e}")
-                    vs = None
-                else:
-                    logger.error(f"Unhandled exception in embedding worker for task {task.get('file_hash')}: {e}")
-                manager.update_task_status(db_path, task['file_hash'], status='ERROR')
+                # process_task re-raises on Qdrant failure after resetting to EXTRACTED.
+                # Reset vs so next iteration re-connects.
+                logger.error(f"Qdrant connection lost. Will reconnect in 10s. Error: {e}")
+                vs = None
         else:
             interruptible_sleep(db_path, 10)
