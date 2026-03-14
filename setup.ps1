@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     One-time DocVault setup. Creates the venv, writes config.ini, pulls Ollama
-    models, and starts Qdrant. Re-running is safe — it skips steps already done.
+    models, and starts Qdrant. Re-running is safe - it skips steps already done.
 .EXAMPLE
     .\setup.ps1
 #>
@@ -27,9 +27,9 @@ Write-Host "  DocVault Setup" -ForegroundColor Cyan
 Write-Host "  Press Enter to accept defaults (current production values)" -ForegroundColor Gray
 Write-Host ""
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 1. Python version check
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Checking Python"
 try {
     $pyVer = (python --version 2>&1).ToString().Trim()
@@ -42,9 +42,9 @@ try {
     exit 1
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 2. Virtual environment
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Python virtual environment"
 $venvPath = Join-Path $scriptDir 'venv'
 $venvPython = Join-Path $venvPath 'Scripts\python.exe'
@@ -62,9 +62,9 @@ Write-Host "    Installing / updating requirements..." -ForegroundColor Gray
 & $venvPython -m pip install -r (Join-Path $scriptDir 'requirements.txt') --quiet
 Write-OK "Dependencies installed"
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 3. Configuration
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Configuration (config.ini)"
 
 $configPath = Join-Path $scriptDir 'config.ini'
@@ -166,10 +166,10 @@ token_path = $scriptDir\credentials\google_token.json
 Set-Content -Path $configPath -Value $configContent -Encoding UTF8
 Write-OK "config.ini written"
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 4. One-time cleanup: remove orphaned docvault-app containers
 #    (from a previous docker-compose attempt for the app itself)
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Cleaning up orphaned containers"
 $orphans = @('hopeful_edison', 'strange_payne', 'docvault-docvault-1')
 foreach ($name in $orphans) {
@@ -181,23 +181,23 @@ foreach ($name in $orphans) {
 }
 Write-OK "Cleanup done"
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 5. Docker check
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Checking Docker"
 try {
     docker version 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw }
     Write-OK "Docker daemon running"
 } catch {
-    Write-Warn "Docker is not running — skipping Qdrant setup."
+    Write-Warn "Docker is not running - skipping Qdrant setup."
     Write-Warn "Start Docker Desktop, then run start.ps1 to continue."
     $skipQdrant = $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 6. Qdrant
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 if (-not $skipQdrant) {
     Write-Step "Starting Qdrant"
     $qdrantContainer = 'docvault-qdrant-1'
@@ -233,12 +233,12 @@ if (-not $skipQdrant) {
         Start-Sleep -Seconds 1
     }
     if ($ready) { Write-OK "Qdrant healthy" }
-    else { Write-Warn "Qdrant did not respond after 30s — check: docker logs $qdrantContainer" }
+    else { Write-Warn "Qdrant did not respond after 30s - check: docker logs $qdrantContainer" }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 7. Ollama models
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Pulling Ollama models"
 $ollamaRunning = $false
 try {
@@ -269,9 +269,9 @@ if (-not $ollamaRunning) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # 8. Tesseract sanity check
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Step "Checking Tesseract"
 if (Test-Path $tesseract) {
     Write-OK "Found at $tesseract"
@@ -281,9 +281,9 @@ if (Test-Path $tesseract) {
     Write-Host "    Then update config.ini [tesseract] path= to point to tesseract.exe" -ForegroundColor Gray
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 # Done
-# ─────────────────────────────────────────────────────────────────────────────
+# ---
 Write-Host ""
 Write-Host "  Setup complete. Run .\start.ps1 to launch DocVault." -ForegroundColor Green
 Write-Host ""
