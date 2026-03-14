@@ -1708,6 +1708,7 @@ Expected: JSON with `extractor_stats`, `throughput_24h`, `bottleneck`, `benchmar
 
 - [ ] **Step 4: Verify optimizer full run (manual)**
 
+Happy path:
 1. Open `http://localhost:8000/utils`
 2. Click "⚡ Run Optimizer"
 3. Overlay opens; log shows "Optimizer started"
@@ -1715,10 +1716,19 @@ Expected: JSON with `extractor_stats`, `throughput_24h`, `bottleneck`, `benchmar
 5. Click "↓ Apply" on a card; log shows "✓ Applied"
 6. Workers resume automatically
 
+Abort path (safety-critical — must also verify):
+1. Click "⚡ Run Optimizer" again
+2. While running, click "■ ABORT" (bottom bar or title bar)
+3. Log shows "Abort signal sent — restoring settings..."
+4. State transitions to "aborted"; overlay can be closed
+5. Run `curl -s http://localhost:8000/api/utils/health` — workers should be processing again (not paused)
+
 - [ ] **Step 5: Final commit**
 
 ```bash
-git add .
+git add core/tuner.py tools/benchmark.py core/manager.py core/settings.py run.py \
+        api/routes/utils.py frontend/telemetry.html frontend/utils.html \
+        tests/unit/test_tuner.py tests/unit/test_logs_db.py
 git commit -m "feat(perf-tuning): complete performance tuning system
 
 - Standalone CLI benchmark: tools/benchmark.py
