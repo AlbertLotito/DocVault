@@ -70,6 +70,13 @@
       </a>
     </div>
 
+    <!-- Stuck task banner (shown when health check detects stuck tasks) -->
+    <div id="stuck-banner" class="hidden mb-6 flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800">
+      <span class="text-lg">⚠</span>
+      <span id="stuck-banner-msg"></span>
+      <button onclick="resetStuck()" class="ml-auto shrink-0 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-xs font-medium">Reset Now</button>
+    </div>
+
     <!-- Vault cards -->
     <div class="mb-8">
       <div class="flex justify-between items-center mb-3">
@@ -258,6 +265,26 @@
       document.getElementById('stat-embedding').textContent = s.embedding || '0';
       document.getElementById('stat-completed').textContent = s.completed || '0';
       document.getElementById('stat-error').textContent = s.error || '0';
+
+      // Check for stuck tasks and surface a banner + tile highlight if found
+      try {
+        const h = await api('/utils/health');
+        const stuckIssue = (h.issues || []).find(i => i.id === 'stuck_processing');
+        const banner = document.getElementById('stuck-banner');
+        const stuckTiles = ['stat-processing', 'stat-embedding'].map(id =>
+          document.getElementById(id).closest('a')
+        );
+
+        if (stuckIssue) {
+          document.getElementById('stuck-banner-msg').textContent =
+            `${stuckIssue.count} task${stuckIssue.count !== 1 ? 's' : ''} stuck in ${stuckIssue.title.replace(/^\d+ /, '')} — inactive for >10 minutes.`;
+          banner.classList.remove('hidden');
+          stuckTiles.forEach(el => el && el.classList.add('ring-2', 'ring-amber-400'));
+        } else {
+          banner.classList.add('hidden');
+          stuckTiles.forEach(el => el && el.classList.remove('ring-2', 'ring-amber-400'));
+        }
+      } catch (_) { /* health check failure is non-fatal */ }
     }
 
     async function loadWorkerStatus() {
@@ -297,6 +324,11 @@
 
     async function resetStuck() {
       const r = await api('/workers/reset_stuck', { method: 'POST' });
+      document.getElementById('stuck-banner').classList.add('hidden');
+      ['stat-processing', 'stat-embedding'].forEach(id => {
+        const el = document.getElementById(id).closest('a');
+        if (el) el.classList.remove('ring-2', 'ring-amber-400');
+      });
       alert(`Reset ${r.reset} stuck task(s) back to PENDING.`);
       loadStats();
     }
