@@ -4,12 +4,12 @@
 
 Read the following files in full before doing anything else:
 
-1. `docs/status/2026-03-05-project-status.md` — authoritative current state of the project
-2. `docs/plans/2026-03-02-future-architecture.md` — planned future architecture (vaults, logs.db, resource governor)
-3. `docs/plans/2026-02-26-docvault-design.md` — original design document
-4. `docs/plans/2026-02-26-docvault-implementation.md` — original implementation plan
+1. `docs/internals/status/2026-03-05-project-status.md` — authoritative current state of the project
+2. `docs/internals/plans/2026-03-02-future-architecture.md` — planned future architecture (vaults, logs.db, resource governor)
+3. `docs/internals/plans/2026-02-26-docvault-design.md` — original design document
+4. `docs/internals/plans/2026-02-26-docvault-implementation.md` — original implementation plan
 
-When a new status document appears (e.g. `docs/status/2026-03-03-project-status.md`), read it instead of the previous one — it supersedes all earlier status docs.
+When a new status document appears (e.g. `docs/internals/status/2026-03-03-project-status.md`), read it instead of the previous one — it supersedes all earlier status docs.
 
 ## Project Location
 
