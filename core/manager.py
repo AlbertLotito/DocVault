@@ -668,7 +668,7 @@ def reset_stuck_tasks(db_path) -> int:
     with _connect(db_path) as conn:
         cur = conn.execute(
             "UPDATE tasks SET status='PENDING', worker_id=NULL "
-            "WHERE status IN ('EXTRACTING', 'EMBEDDING')"
+            "WHERE status IN ('PROCESSING', 'EMBEDDING')"
         )
         conn.commit()
         return cur.rowcount

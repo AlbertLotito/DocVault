@@ -37,6 +37,12 @@ def start():
     manager.init_db(DB_PATH)
     manager.init_logs_db()
 
+    # Reset any tasks left in PROCESSING or EMBEDDING from the previous process.
+    # These are always orphaned on startup — the workers that claimed them are gone.
+    n = manager.reset_stuck_tasks(DB_PATH)
+    if n:
+        logger.info(f"Startup: reset {n} orphaned PROCESSING/EMBEDDING task(s) to PENDING.")
+
     # Bootstrap default vault on first run or migration from pre-vault version
     scan_dir = settings.get('paths:scan_directory')
     manager.bootstrap_default_vault(DB_PATH, scan_directory=scan_dir)
