@@ -33,3 +33,22 @@ def test_init_logs_db_is_idempotent(tmp_path, monkeypatch):
     monkeypatch.setattr(m, 'get_logs_db_path', lambda: db)
     m.init_logs_db()
     m.init_logs_db()  # second call
+
+
+def test_init_logs_db_creates_benchmark_runs_table(tmp_path, monkeypatch):
+    """benchmark_runs table must be created by init_logs_db()."""
+    import core.manager as m
+    db = str(tmp_path / 'logs.db')
+    monkeypatch.setattr(m, 'get_logs_db_path', lambda: db)
+    m.init_logs_db()
+    import sqlite3
+    conn = sqlite3.connect(db)
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    cols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(benchmark_runs)"
+    ).fetchall()}
+    conn.close()
+    assert 'benchmark_runs' in tables
+    assert {'run_id', 'run_at', 'results', 'bottleneck_extractor', 'overall_files_per_hour'}.issubset(cols)
