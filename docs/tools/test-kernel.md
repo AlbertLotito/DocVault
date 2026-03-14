@@ -194,3 +194,60 @@ python tools/test_kernel.py plaintext_extractor E:/note.txt 2>/dev/null
 ```
 
 The JSON output is designed to be unambiguous — all durations are in seconds as floats, all counts are integers, status is always one of the six named strings above.
+
+## Common patterns
+
+**Audit all kernels at once:**
+
+```bash
+for kernel in extractors/*_extractor.py; do
+    python tools/test_kernel.py "$kernel" --audit --quiet
+done
+```
+
+**Compare output before and after changes:**
+
+```bash
+# Save baseline
+python tools/test_kernel.py my_extractor sample.pdf --output before.json
+
+# (make your changes)
+
+# Save new output
+python tools/test_kernel.py my_extractor sample.pdf --output after.json
+
+# Compare key fields
+python -c "
+import json
+a = json.load(open('before.json'))
+b = json.load(open('after.json'))
+print('text_chars:', a['text_chars'], '->', b['text_chars'])
+print('metadata keys:', sorted(a['metadata']), '->', sorted(b['metadata']))
+print('status:', a['status'], '->', b['status'])
+"
+```
+
+**Vault-aware test** (respects per-vault settings overrides):
+
+```bash
+python tools/test_kernel.py my_extractor sample.pdf --vault vault_abc123 --pretty
+```
+
+The `--vault` flag injects a vault context into `ExtractorContext`. If the specified vault has settings overrides (e.g., `describe_images = false`), the kernel will see those values — useful for testing vault-specific behaviour without running the full server.
+
+**Batch test across many files:**
+
+```bash
+# Test against all PDFs in a directory — shows pass/fail for each
+python tools/test_kernel.py text_extractor samples/*.pdf --no-text --quiet
+
+# Save all results to a file for diffing
+python tools/test_kernel.py text_extractor samples/*.pdf --output batch_results.json
+```
+
+**Suppress the spinner for CI / scripted use:**
+
+```bash
+# Clean JSON on stdout, no spinner
+python tools/test_kernel.py plaintext_extractor note.txt 2>/dev/null
+```
