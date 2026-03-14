@@ -58,7 +58,7 @@ Write-Host "    Waiting for Qdrant to accept connections..." -ForegroundColor Gr
 $qdrantReady = $false
 for ($i = 0; $i -lt 30; $i++) {
     try {
-        $r = Invoke-RestMethod -Uri 'http://localhost:6333/health' -TimeoutSec 2
+        $r = Invoke-RestMethod -Uri 'http://localhost:6333/collections' -TimeoutSec 2
         if ($r.status -eq 'ok') { $qdrantReady = $true; break }
     } catch {}
     Start-Sleep -Seconds 1
