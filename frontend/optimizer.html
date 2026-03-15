@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocVault — Optimizer</title>
+  <link rel="stylesheet" href="/static/lcars.css">
+  <style>
+    .mc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      grid-template-rows: 1fr 1fr 40px;
+      gap: 0;
+      height: calc(100vh - 180px);
+      min-height: 500px;
+    }
+    .mc-hist-container {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 4px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+    }
+    .mc-gauge-label {
+      font-size: 10px;
+      color: var(--c-label);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .mc-meter-bg {
+      height: 6px;
+      background: var(--c-surface);
+      border-radius: 3px;
+      position: relative;
+      border: 1px solid var(--c-border);
+      overflow: hidden;
+    }
+    .mc-meter-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s;
+      border-radius: 2px;
+    }
+    .mc-meter-peak {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: #fff;
+      box-shadow: 0 0 4px #fff;
+      left: 0%;
+      transition: left 0.5s;
+    }
+    .mc-log-line {
+      padding: 2px 0;
+      border-bottom: 1px solid var(--c-border);
+    }
+    .mc-profile-card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 10px;
+      min-width: 140px;
+      flex: 1;
+    }
+    .mc-profile-name {
+      font-size: 11px;
+      color: var(--c-label);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+    .mc-profile-val {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--c-ok);
+    }
+    .mc-apply-btn {
+      background: var(--c-surface);
+      color: var(--c-accent);
+      border: 1px solid var(--c-accent-dim);
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      width: 100%;
+    }
+    .mc-apply-btn:hover {
+      background: var(--c-accent-dim);
+      color: #000;
+    }
+    .mc-cfg-section {
+      font-size: 11px;
+      color: var(--c-label);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: 10px 0 5px;
+      border-bottom: 1px solid var(--c-border);
+      padding-bottom: 3px;
+    }
+    .mc-preset-btn {
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+    .mc-preset-btn.active {
+      background: var(--c-accent-dim);
+      color: #000;
+      border: 1px solid var(--c-accent);
+    }
+    .mc-preset-btn.inactive {
+      background: var(--c-surface);
+      color: var(--c-label);
+      border: 1px solid var(--c-border);
+    }
+    .mc-cfg-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 3px 0;
+    }
+    .mc-cfg-input {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border-str);
+      color: var(--c-accent);
+      font-size: 12px;
+      padding: 2px 6px;
+      width: 52px;
+    }
+    .mc-cfg-check-label {
+      font-size: 12px;
+      color: var(--c-label);
+    }
+    .mc-cfg-select {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border-str);
+      color: var(--c-accent);
+      font-size: 12px;
+      padding: 2px 6px;
+    }
+    /* Q-panel borders */
+    .mc-q1 {
+      border-right: 1px solid var(--c-border);
+      border-bottom: 1px solid var(--c-border);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+    .mc-q2 {
+      grid-row: span 2;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .mc-q3 {
+      border-right: 1px solid var(--c-border);
+      border-bottom: 1px solid var(--c-border);
+      display: grid;
+      grid-template-rows: 0.3fr 0.7fr;
+      overflow: hidden;
+    }
+    .mc-q3-top {
+      border-bottom: 1px solid var(--c-border);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+    }
+    .mc-q3-top-left {
+      border-right: 1px solid var(--c-border);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .mc-q3-top-right {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .mc-bottom-bar {
+      grid-column: span 2;
+      border-top: 1px solid var(--c-border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      background: var(--c-panel);
+    }
+    .mc-panel-label {
+      font-size: 10px;
+      color: var(--c-label);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+    .mc-big-val {
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .mc-small-label {
+      font-size: 10px;
+      color: var(--c-label-dim);
+    }
+  </style>
+</head>
+<body data-page="optimizer">
+  <div class="lc-nav"></div>
+
+  <div class="lc-page lc-page-pad">
+    <div class="lc-section-title">Mission Control — Optimizer</div>
+
+    <!-- Controls bar -->
+    <div style="display:flex;gap:8px;padding:0 20px 12px;align-items:center;">
+      <button class="lc-btn lc-btn-primary" id="mc-start-btn" onclick="mcStartRun()">&#9654; Run</button>
+      <button class="lc-btn lc-btn-danger" id="mc-abort-btn" onclick="mcAbort()" style="display:none;">&#9632; Abort</button>
+      <button class="lc-btn" id="mc-apply-btn" onclick="mcApplyBest()" disabled style="opacity:0.35;cursor:not-allowed;">&#8595; Apply Best</button>
+      <span id="mc-run-label" style="font-size:11px;color:var(--c-label);">IDLE</span>
+      <span id="mc-eta" style="font-size:11px;color:var(--c-warn);margin-left:auto;">—</span>
+    </div>
+
+    <!-- Q1-Q4 grid -->
+    <div class="mc-grid" style="margin:0 20px;">
+      <!-- Q1: Telemetry -->
+      <div class="mc-q1">
+        <div class="mc-panel-label">Telemetry (Q1)</div>
+        <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="mc-hist-container">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="mc-gauge-label">CPU</div>
+              <div id="mc-val-cpu" style="font-weight:bold;font-size:10px;color:var(--c-accent);">--&deg;C</div>
+            </div>
+            <canvas id="mc-hist-cpu"></canvas>
+          </div>
+          <div class="mc-hist-container">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="mc-gauge-label">RAM</div>
+              <div id="mc-val-ram" style="font-weight:bold;font-size:10px;color:var(--c-proc);">--%</div>
+            </div>
+            <canvas id="mc-hist-ram"></canvas>
+          </div>
+          <div class="mc-hist-container">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="mc-gauge-label">GPU TEMP</div>
+              <div id="mc-val-gpu-temp" style="font-weight:bold;font-size:10px;color:var(--c-warn);">--&deg;C</div>
+            </div>
+            <canvas id="mc-hist-gpu-temp"></canvas>
+          </div>
+          <div class="mc-hist-container">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="mc-gauge-label">GPU UTIL</div>
+              <div id="mc-val-gpu-util" style="font-weight:bold;font-size:10px;color:var(--c-accent);">--%</div>
+            </div>
+            <canvas id="mc-hist-gpu-util"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Q2/Q4: System Log -->
+      <div class="mc-q2">
+        <div class="mc-panel-label" style="margin-bottom:8px;">System Log (Q2/Q4)</div>
+        <div id="mc-log" style="flex:1;overflow-y:auto;font-size:11px;padding-right:10px;">
+          <div style="color:var(--c-label-dim);">Awaiting start...</div>
+        </div>
+      </div>
+
+      <!-- Q3: Throughput + Thermal + Params -->
+      <div class="mc-q3">
+        <div class="mc-q3-top">
+          <div class="mc-q3-top-left">
+            <div class="mc-panel-label">Throughput</div>
+            <div id="mc-throughput-val" class="mc-big-val" style="color:var(--c-ok);">—</div>
+            <div class="mc-meter-bg">
+              <div id="mc-meter-tp-fill" class="mc-meter-fill" style="background:var(--c-ok);"></div>
+              <div id="mc-meter-tp-peak" class="mc-meter-peak"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;">
+              <span class="mc-small-label">0</span>
+              <span id="mc-meter-tp-peak-lbl" class="mc-small-label">PEAK: 0</span>
+            </div>
+          </div>
+          <div class="mc-q3-top-right">
+            <div class="mc-panel-label">Thermal Headroom</div>
+            <div id="mc-headroom-val" class="mc-big-val" style="color:var(--c-warn);">--&deg;C</div>
+            <div class="mc-meter-bg">
+              <div id="mc-meter-hr-fill" class="mc-meter-fill" style="background:linear-gradient(90deg, var(--c-error), var(--c-warn), var(--c-ok));"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;">
+              <span class="mc-small-label">LIMIT: 90&deg;C</span>
+              <span id="mc-headroom-status" class="mc-small-label">STABLE</span>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px;display:flex;flex-direction:column;overflow-y:auto;" id="mc-params-pane">
+          <div class="mc-panel-label" style="margin-bottom:8px;">Parameters (Q3 Bottom)</div>
+          <div id="mc-params-rows" style="font-size:12px;color:var(--c-label);">Waiting for optimizer start...</div>
+          <div id="mc-profile-cards" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+        </div>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="mc-bottom-bar">
+        <span id="mc-eta-bar" style="font-size:11px;color:var(--c-label);">—</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+  <script src="/static/lcars.js"></script>
+  <script>
+    // --- Performance Optimizer (Mission Control) Logic ---
+    let _mcPollInterval = null;
+    let _mcSelectedProfile = 'balanced';
+    let _mcRunCount = 0;
+    let _mcLastRunIndex = 0;
+    let _mcStartTime = null;
+    let _mcHasLastConfig = false;
+    let _mcLastCompletedProfiles = null;
+    let _mcHistLimit = 60;
+    let _mcHist = { cpu: [], ram: [], gpu_temp: [], gpu_util: [], throughput: [] };
+    let _mcMaxThroughput = 0;
+    let _mcVaults = [];
+    let _mcLastState = null;
+    let _mcLastParams = null;
+
+    async function mcLoadVaults() {
+      try { const data = await api('/vaults'); _mcVaults = (data || []).filter(v => v.state === 'active'); } catch(_) {}
+    }
+
+    async function mcCheckLastConfig() {
+      try { const cfg = await api('/utils/optimizer/last_config'); _mcHasLastConfig = cfg && Object.keys(cfg).length > 0; } catch(_) {}
+    }
+
+    function mcBuildConfigPanel() {
+      const rows = document.getElementById('mc-params-rows'); rows.style.display = '';
+      document.getElementById('mc-profile-cards').classList.add('hidden');
+      const vOpts = ['<option value="">All Vaults</option>'].concat(_mcVaults.map(v => `<option value="${v.vault_id}">${v.name || v.vault_id}</option>`)).join('');
+      rows.innerHTML = `
+        <div class="mc-cfg-section">Preset</div><button class="mc-preset-btn active" onclick="mcSetPreset(5)">Standard</button>
+        <div class="mc-cfg-section">Samples</div><input class="mc-cfg-input" type="number" id="mc-samples" value="5">
+        <div class="mc-cfg-section">File Types</div><div style="display:flex;gap:8px;font-size:11px;color:var(--c-label);">${['text','pdf','image','audio','video'].map(t => `<label><input type="checkbox" id="mc-type-${t}" checked> ${t}</label>`).join('')}</div>
+        <div class="mc-cfg-section">Vault</div><select class="mc-cfg-select" id="mc-vault-select">${vOpts}</select>`;
+    }
+
+    function mcSetPreset(n) { document.getElementById('mc-samples').value = n; }
+
+    async function mcStartRun() {
+      const samples = parseInt(document.getElementById('mc-samples')?.value || '5');
+      const types = ['text','pdf','image','audio','video'].filter(t => document.getElementById('mc-type-' + t)?.checked);
+      try {
+        await api('/utils/optimizer/start', { method: 'POST', body: JSON.stringify({ samples, types }) });
+        mcLog('info', `[SYS] INITIALIZING SWEEP (SAMPLES=${samples}, TYPES=${types.join(',')})`);
+        _mcStartTime = Date.now(); _mcLastRunIndex = 0; _mcRunCount = 0; _mcLastParams = null;
+        document.getElementById('mc-start-btn').style.display = 'none';
+        document.getElementById('mc-abort-btn').style.display = '';
+        _mcPollInterval = setInterval(mcPoll, 1000);
+      } catch(e) { mcLog('error', '[SYS] FAILED TO START: ' + e.message); }
+    }
+
+    async function mcAbort() {
+      try { await api('/utils/optimizer/abort', { method: 'POST' }); mcLog('warn', '[SYS] ABORT SIGNAL SENT'); } catch(e) {}
+    }
+
+    async function mcPoll() {
+      try {
+        const s = await api('/utils/optimizer/status');
+        mcRender(s);
+        if (['complete', 'aborted', 'error'].includes(s.state)) {
+          clearInterval(_mcPollInterval);
+          document.getElementById('mc-start-btn').style.display = '';
+          document.getElementById('mc-abort-btn').style.display = 'none';
+          if (s.state === 'complete') {
+            document.getElementById('mc-apply-btn').disabled = false;
+            document.getElementById('mc-apply-btn').style.opacity = '1';
+            document.getElementById('mc-apply-btn').style.cursor = 'pointer';
+            _mcLastCompletedProfiles = s.profiles;
+            mcRenderProfiles(s.profiles);
+          }
+        }
+      } catch(e) {}
+    }
+
+    function mcRender(s) {
+      const hw = s.hardware || {};
+
+      // 1. Telemetry Processing
+      _mcHist.cpu.push(hw.cpu_temp || 0); _mcHist.ram.push(hw.ram_pct || 0);
+      _mcHist.gpu_temp.push(hw.gpu_temp || 0); _mcHist.gpu_util.push(hw.gpu_util || 0);
+      _mcHist.throughput.push(s.current_throughput || 0);
+      if (s.current_throughput > _mcMaxThroughput) _mcMaxThroughput = s.current_throughput;
+      Object.keys(_mcHist).forEach(k => { if(_mcHist[k].length > _mcHistLimit) _mcHist[k].shift(); });
+
+      // 2. Q1 Display
+      document.getElementById('mc-val-cpu').textContent = Math.round(hw.cpu_temp || 0) + '\u00B0C';
+      document.getElementById('mc-val-ram').textContent = Math.round(hw.ram_pct || 0) + '%';
+      document.getElementById('mc-val-gpu-temp').textContent = Math.round(hw.gpu_temp || 0) + '\u00B0C';
+      document.getElementById('mc-val-gpu-util').textContent = Math.round(hw.gpu_util || 0) + '%';
+      mcDrawHist('mc-hist-cpu', _mcHist.cpu, 100, '#ff9900');
+      mcDrawHist('mc-hist-ram', _mcHist.ram, 100, '#9966ff');
+      mcDrawHist('mc-hist-gpu-temp', _mcHist.gpu_temp, 100, (hw.gpu_temp || 0) > 80 ? '#ff4444' : '#ffcc66');
+      mcDrawHist('mc-hist-gpu-util', _mcHist.gpu_util, 100, '#ffcc66');
+
+      // 3. Q3 Meters
+      const tp = s.current_throughput; const tpEl = document.getElementById('mc-throughput-val');
+      if (tp) {
+        tpEl.textContent = tp.toLocaleString(); tpEl.style.fontSize = '20px';
+        document.getElementById('mc-meter-tp-fill').style.width = (_mcMaxThroughput > 0 ? (tp / _mcMaxThroughput * 100) : 0) + '%';
+      } else { tpEl.textContent = 'working...'; tpEl.style.fontSize = '12px'; document.getElementById('mc-meter-tp-fill').style.width = '0%'; }
+      if (_mcMaxThroughput > 0) { document.getElementById('mc-meter-tp-peak-lbl').textContent = 'PEAK: ' + Math.round(_mcMaxThroughput).toLocaleString(); document.getElementById('mc-meter-tp-peak').style.left = '99%'; }
+
+      if (hw.gpu_temp != null) {
+        const headroom = Math.max(0, 90 - hw.gpu_temp);
+        document.getElementById('mc-headroom-val').textContent = Math.round(headroom) + '\u00B0C';
+        document.getElementById('mc-meter-hr-fill').style.width = Math.min(100, (headroom / 90) * 100) + '%';
+        document.getElementById('mc-headroom-status').textContent = headroom < 5 ? 'THROTTLING' : headroom < 15 ? 'WARM' : 'STABLE';
+        if (headroom < 10 && _mcPollInterval) mcLog('warn', `[HW] THERMAL WARNING: Headroom low (${Math.round(headroom)}\u00B0C remaining)`);
+      }
+
+      // 4. Detailed Intelligent Logging
+      if (s.state !== _mcLastState) {
+        mcLog('info', `[SYS] STATE TRANSITION: ${(_mcLastState || 'IDLE').toUpperCase()} -> ${(s.state || 'IDLE').toUpperCase()}`);
+        _mcLastState = s.state;
+        if (s.state === 'running') mcLog('info', '[SYS] WORKERS PAUSED. ENTERING BENCHMARK LOOP.');
+        if (s.state === 'complete') mcLog('ok', '[SYS] SWEEP COMPLETE. PRODUCTION WORKERS RESUMED.');
+      }
+
+      if (s.state === 'running' && s.run_index > _mcLastRunIndex) {
+        _mcLastRunIndex = s.run_index;
+        const p = s.current_params || {};
+        let changeDesc = 'Baseline Configuration';
+        if (_mcLastParams) {
+          const diffs = [];
+          for (const k in p) {
+            if (p[k] !== _mcLastParams[k]) {
+              const keyName = k.split(':').pop();
+              diffs.push(`${keyName} ${p[k]}`);
+            }
+          }
+          if (diffs.length) changeDesc = `Adjusting: ${diffs.join(', ')}`;
+        }
+        _mcLastParams = {...p};
+        mcLog('info', `[SWEEP] STARTING RUN ${s.run_index}/${s.total_runs} \u00B7 ${changeDesc}`);
+      }
+
+      if (s.runs && s.runs.length > _mcRunCount) {
+        for (let i = _mcRunCount; i < s.runs.length; i++) {
+          const r = s.runs[i];
+          const baseline = s.baseline_throughput || r.throughput;
+          const delta = Math.round((r.throughput - baseline) / (baseline || 1) * 100);
+          const sign = delta > 0 ? '+' : '';
+          const deltaStr = r.index === 1 ? '(BASELINE)' : `(${sign}${delta}% vs baseline)`;
+          mcLog('ok', `[DATA] RUN ${r.index} COMPLETED: ${r.throughput.toLocaleString()} f/hr ${deltaStr}`);
+        }
+        _mcRunCount = s.runs.length;
+      }
+
+      // 5. Global Progress
+      document.getElementById('mc-run-label').textContent = s.state === 'running' ? `RUN ${s.run_index}/${s.total_runs}` : s.state.toUpperCase();
+
+      if (['running','starting'].includes(s.state) && s.current_params) {
+        const rows = document.getElementById('mc-params-rows'); rows.innerHTML = '';
+        for (const [k, v] of Object.entries(s.current_params)) {
+          const row = document.createElement('div'); row.style.cssText = 'display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--c-border)';
+          row.innerHTML = `<span style="color:var(--c-label);">${k.split(':').pop()}</span><span style="color:var(--c-accent);">${v}</span>`;
+          rows.appendChild(row);
+        }
+      }
+    }
+
+    function mcDrawHist(id, vals, max, col) {
+      const c = document.getElementById(id); if (!c) return; const ctx = c.getContext('2d'); const w = c.width = c.clientWidth; const h = c.height = c.clientHeight;
+      ctx.clearRect(0, 0, w, h); if (vals.length < 2) return; const step = w / (_mcHistLimit - 1); ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      for (let i = 0; i < vals.length; i++) { const x = i * step; const y = h - (Math.min(vals[i] / max, 1) * h); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+      ctx.stroke(); ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath(); ctx.fillStyle = col + '15'; ctx.fill();
+    }
+
+    function mcLog(lvl, msg) {
+      const cols = { info: '#ff9900', ok: '#33ee77', warn: '#ffcc66', error: '#ff4444' };
+      const log = document.getElementById('mc-log'); if (!log) return;
+      const line = document.createElement('div'); line.className = 'mc-log-line';
+      line.innerHTML = `<span style="color:var(--c-label-dim);">${new Date().toLocaleTimeString()} </span><span style="color:${cols[lvl] || 'var(--c-label)'};">${msg}</span>`;
+      log.appendChild(line); log.scrollTop = log.scrollHeight;
+    }
+
+    function mcRenderProfiles(profs) {
+      if (!profs) return; document.getElementById('mc-params-rows').style.display = 'none';
+      const cards = document.getElementById('mc-profile-cards'); cards.classList.remove('hidden'); cards.style.display = 'flex';
+      cards.innerHTML = Object.entries(profs).map(([key, p]) => `<div class="mc-profile-card"><div class="mc-profile-name">${key.replace('_',' ')}</div><div class="mc-profile-val">${p.throughput?.toLocaleString()}</div><button class="mc-apply-btn" onclick="mcApplyProfile('${key}')">&#8595; Apply</button></div>`).join('');
+    }
+
+    async function mcApplyProfile(key) {
+      try { await api('/utils/optimizer/apply', { method: 'POST', body: JSON.stringify({ profile: key }) }); mcLog('ok', `Applied ${key}. Settings are live.`); } catch(e) {}
+    }
+
+    async function mcApplyBest() { await mcApplyProfile(_mcSelectedProfile); }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      _mcHist = { cpu: [], ram: [], gpu_temp: [], gpu_util: [], throughput: [] };
+      _mcMaxThroughput = 0;
+      _mcLastState = null;
+      _mcLastParams = null;
+      _mcRunCount = 0;
+      _mcLastRunIndex = 0;
+      document.getElementById('mc-log').innerHTML = '<div style="color:var(--c-label-dim);">--- SESSION START ---</div>';
+      await Promise.all([mcLoadVaults(), mcCheckLastConfig()]);
+      mcBuildConfigPanel();
+    });
+  </script>
+</body>
+</html>
