@@ -328,9 +328,14 @@
       const vOpts = ['<option value="">All Vaults</option>'].concat(_mcVaults.map(v => `<option value="${v.vault_id}">${v.name || v.vault_id}</option>`)).join('');
       rows.innerHTML = `
         <div class="mc-cfg-section">Preset</div>
-        <div class="mc-cfg-row"><button class="mc-preset-btn active" onclick="mcSetPreset(5)">Standard</button></div>
+        <div class="mc-cfg-row" style="flex-wrap:wrap;gap:4px;">
+          <button class="mc-preset-btn inactive" id="mc-preset-quick"     onclick="mcSetPreset(3,  this)">Quick</button>
+          <button class="mc-preset-btn active"   id="mc-preset-standard"  onclick="mcSetPreset(5,  this)">Standard</button>
+          <button class="mc-preset-btn inactive" id="mc-preset-thorough"  onclick="mcSetPreset(10, this)">Thorough</button>
+          <button class="mc-preset-btn inactive" id="mc-preset-exhaustive"onclick="mcSetPreset(20, this)">Exhaustive</button>
+        </div>
         <div class="mc-cfg-section">Samples</div>
-        <div class="mc-cfg-row"><input class="mc-cfg-input" type="number" id="mc-samples" value="5" min="1" max="20"> <span style="font-size:11px;color:var(--c-label-dim);">benchmark runs</span></div>
+        <div class="mc-cfg-row"><input class="mc-cfg-input" type="number" id="mc-samples" value="5" min="1" max="50"> <span style="font-size:11px;color:var(--c-label-dim);">benchmark runs</span></div>
         <div class="mc-cfg-section">File Types</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--c-label);margin:4px 0 2px;">
           ${['text','pdf','image','audio','video'].map(t => `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="mc-type-${t}" checked> ${t}</label>`).join('')}
@@ -339,7 +344,13 @@
         <div class="mc-cfg-row"><select class="mc-cfg-select" id="mc-vault-select" style="width:100%;">${vOpts}</select></div>`;
     }
 
-    function mcSetPreset(n) { document.getElementById('mc-samples').value = n; }
+    function mcSetPreset(n, btn) {
+      document.getElementById('mc-samples').value = n;
+      document.querySelectorAll('.mc-preset-btn').forEach(b => {
+        b.classList.remove('active'); b.classList.add('inactive');
+      });
+      if (btn) { btn.classList.remove('inactive'); btn.classList.add('active'); }
+    }
 
     async function mcStartRun() {
       const samples = parseInt(document.getElementById('mc-samples')?.value || '5');
