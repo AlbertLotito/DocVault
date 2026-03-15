@@ -2,908 +2,211 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DocVault — Utilities</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/static/app.js"></script>
+  <link rel="stylesheet" href="/static/lcars.css">
 </head>
-<body class="bg-gray-50 min-h-screen">
-  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
-    <span class="font-bold text-lg">DocVault</span>
-    <a href="/search" class="hover:underline">Search</a>
-    <a href="/" class="hover:underline">Vault Status</a>
-    <a href="/catalog" class="hover:underline">Vault Log</a>
-    <a href="/identity" class="hover:underline">Identity Hub</a>
-    <a href="/lab" class="hover:underline">Lab</a>
-    <a href="/utils" class="hover:underline font-semibold">Utilities</a>
-    <a href="/settings" class="hover:underline">Settings</a>
-  </nav>
+<body data-page="utilities">
+  <div class="lc-nav"></div>
+  <div class="lc-page lc-page-pad">
+    <div class="lc-section-title">Utilities</div>
+    <div style="padding:0 20px;">
+      <div class="lc-bar-badges">
 
-  <main class="max-w-4xl mx-auto p-6">
-    <h1 class="text-2xl font-bold text-gray-800 mb-6">System Utilities</h1>
+        <!-- Full-page nav badges -->
+        <a href="/lab" class="lc-bar-badge">
+          <div class="lc-bar-tab" style="background:#cc6600;">&#9879;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Extractor Lab</div>
+            <div class="lc-bar-desc">Test kernels, certify extractors, simulate pipelines</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </a>
 
-    <!-- System Telemetry Dashboard -->
-    <div class="bg-gray-900 rounded shadow-xl p-6 mb-6 border border-emerald-500/20">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold text-emerald-400 tracking-wider uppercase text-sm">System Telemetry</h2>
-        <span class="text-[10px] font-mono text-emerald-500/50">LIVE // HUD_v1.4</span>
-      </div>
-      <p class="text-sm text-gray-400 mb-6">
-        Real-time resource monitor, hardware telemetry, and active worker progress. 
-        Designed for full-screen secondary monitor deployment.
-      </p>
-      <div class="flex items-center gap-4">
-        <button onclick="location.href='telemetry.html'"
-          class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded text-sm font-bold tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-          Initialize Dashboard
-        </button>
-      </div>
-    </div>
+        <a href="/telemetry" class="lc-bar-badge">
+          <div class="lc-bar-tab" style="background:#886600;">&#128225;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Telemetry</div>
+            <div class="lc-bar-desc">Live hardware gauges, worker timings, system health</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </a>
 
-    <!-- Extractor Lab -->
-    <div class="bg-gray-900 rounded shadow-xl p-6 mb-6 border border-indigo-500/20">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold text-indigo-400 tracking-wider uppercase text-sm">Extractor Lab</h2>
-        <span class="text-[10px] font-mono text-indigo-500/50">STABLE // KERNEL_TOOL_v1.0</span>
-      </div>
-      <p class="text-sm text-gray-400 mb-6">
-        Inspect registered extraction kernels, view current configuration environment, and execute 
-        isolated tests against specific file targets.
-      </p>
-      <div class="flex items-center gap-4">
-        <button onclick="location.href='lab.html'"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded text-sm font-bold tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)]">
-          Enter Lab
-        </button>
-      </div>
-    </div>
+        <a href="/optimizer" class="lc-bar-badge">
+          <div class="lc-bar-tab" style="background:#664400;">&#9881;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Optimizer</div>
+            <div class="lc-bar-desc">Tune extraction parameters for maximum throughput</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </a>
 
-    <!-- System Health -->
-    <div class="bg-white rounded shadow p-6 mb-6">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="font-semibold text-gray-700">System Health</h2>
-        <button onclick="runHealthCheck()" id="health-btn"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">
-          Check Now
-        </button>
-      </div>
-      <div id="health-summary" class="hidden mb-4 flex flex-wrap gap-3 text-xs font-mono"></div>
-      <div id="health-issues">
-        <p class="text-sm text-gray-400">Click "Check Now" to run a diagnostic.</p>
-      </div>
-    </div>
+        <!-- Inline accordion badges -->
+        <div class="lc-bar-badge" onclick="lcAccordion(this)">
+          <div class="lc-bar-tab" style="background:#443300;">&#129657;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Health Check</div>
+            <div class="lc-bar-desc">Verify Ollama, Tesseract, Poppler connectivity</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-expand" id="health-expand">
+          <button class="lc-btn lc-btn-sm" onclick="runHealthCheck()">Run Check</button>
+          <div id="health-results" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
+        </div>
 
-    <!-- Google Drive Authorisation -->
-    <div class="bg-white rounded shadow p-6 mb-6">
-      <h2 class="font-semibold text-gray-700 mb-1">Google Drive Authorisation</h2>
-      <p class="text-sm text-gray-500 mb-4">
-        Required once before DocVault can extract <code class="font-mono text-xs bg-gray-100 px-1 rounded">.gdoc</code>,
-        <code class="font-mono text-xs bg-gray-100 px-1 rounded">.gsheet</code>,
-        <code class="font-mono text-xs bg-gray-100 px-1 rounded">.gslides</code>, and other Google Drive stub files.
-        A browser window will open so you can sign in and grant read-only access to your Drive.
-        The token is saved locally and reused automatically — you only need to do this once.
-      </p>
-      <div class="flex items-center gap-4">
-        <button id="gdrive-auth-btn" onclick="authoriseGDrive()"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded text-sm font-medium">
-          Authorise Google Drive
-        </button>
-        <span id="gdrive-status" class="text-sm font-medium"></span>
-      </div>
-      <div id="gdrive-result" class="hidden mt-4 p-4 rounded text-sm"></div>
-    </div>
+        <div class="lc-bar-badge" onclick="lcAccordion(this)">
+          <div class="lc-bar-tab" style="background:#334400;">&#9729;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Google Drive</div>
+            <div class="lc-bar-desc" id="gdrive-status-desc">Loading...</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-expand" id="gdrive-expand">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="lc-btn lc-btn-sm" id="gdrive-auth-btn" onclick="authoriseGDrive()">Authorise</button>
+            <span id="gdrive-auth-status" style="font-size:11px;color:var(--c-label);"></span>
+          </div>
+          <div id="gdrive-content" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
+        </div>
 
-    <!-- Qdrant Health Check -->
-    <div class="bg-white rounded shadow p-6">
-      <h2 class="font-semibold text-gray-700 mb-3">Qdrant Health Check</h2>
-      <p class="text-sm text-gray-500 mb-4">
-        This tool will attempt to connect to your Qdrant database, write a temporary data point,
-        read it back, and then delete it. This verifies connectivity and basic operations.
-      </p>
-      <button id="run-check-btn" onclick="runCheck()"
-        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-sm font-medium">
-        Run Health Check
-      </button>
-      <div id="result-container" class="hidden mt-4 p-4 rounded text-sm"></div>
-    </div>
+        <div class="lc-bar-badge" onclick="lcAccordion(this)">
+          <div class="lc-bar-tab" style="background:#2a3300;">&#11041;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Qdrant</div>
+            <div class="lc-bar-desc">Vector store health and collection info</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-expand" id="qdrant-expand">
+          <button class="lc-btn lc-btn-sm" onclick="runQdrantCheck()">Check Qdrant</button>
+          <div id="qdrant-results" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
+        </div>
 
-    <!-- Diagnostics -->
-    <div class="bg-white rounded shadow p-6 mt-6">
-      <h2 class="font-semibold text-gray-700 mb-1">Diagnostics</h2>
-      <p class="text-sm text-gray-500 mb-4">
-        Clear the logs database (task timings, worker errors, system stats).
-        This does not affect your documents or settings — only observability data.
-      </p>
-      <button id="clear-logs-btn" onclick="clearLogs()"
-        class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded text-sm font-medium">
-        Clear Logs Database
-      </button>
-      <div id="clear-logs-result" class="hidden mt-4 p-4 rounded text-sm"></div>
-    </div>
-    <!-- Performance Tuning -->
-    <div class="bg-white rounded shadow p-4 mb-4">
-      <h2 class="font-semibold text-gray-700 mb-1">Performance Tuning</h2>
-      <p class="text-xs text-gray-400 mb-3">Pause workers and run an automated parameter sweep to find optimal throughput settings for your hardware.</p>
-      <div class="flex gap-3">
-        <button onclick="openOptimizer()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">⚡ Run Optimizer</button>
-        <a href="/telemetry" onclick="event.preventDefault(); window.location.href='/telemetry#perf'" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm">📊 Analytics Dashboard</a>
+        <div class="lc-bar-badge" onclick="lcAccordion(this)">
+          <div class="lc-bar-tab" style="background:#332200;">&#128465;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Diagnostics</div>
+            <div class="lc-bar-desc">Clear logs database (task timings, worker errors, system stats)</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-expand" id="diag-expand">
+          <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="clearLogs()">Clear Logs Database</button>
+          <div id="clear-logs-result" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
+        </div>
+
       </div>
     </div>
-  </main>
+  </div>
 
+  <script src="/static/app.js"></script>
+  <script src="/static/lcars.js"></script>
   <script>
     async function loadGDriveStatus() {
       try {
         const data = await api('/utils/gdrive_status');
-        const el = document.getElementById('gdrive-status');
+        const desc = document.getElementById('gdrive-status-desc');
         if (data.authorized) {
-          el.textContent = 'Authorised';
-          el.className = 'text-sm font-medium text-green-700';
+          desc.textContent = 'Authorised — ready for Google Drive extraction';
+          desc.style.color = 'var(--c-ok)';
         } else {
-          el.textContent = 'Not authorised';
-          el.className = 'text-sm font-medium text-gray-400';
+          desc.textContent = 'Not authorised — click to set up';
+          desc.style.color = 'var(--c-label)';
         }
-      } catch (_) {}
+      } catch (_) {
+        document.getElementById('gdrive-status-desc').textContent = 'Status unavailable';
+      }
     }
 
     async function authoriseGDrive() {
       const btn = document.getElementById('gdrive-auth-btn');
-      const resultEl = document.getElementById('gdrive-result');
-      const statusEl = document.getElementById('gdrive-status');
-
-      btn.disabled = true;
-      btn.textContent = 'Opening browser…';
-      resultEl.classList.add('hidden');
-
+      const status = document.getElementById('gdrive-auth-status');
+      btn.disabled = true; btn.textContent = 'Opening...';
       try {
         const data = await api('/utils/gdrive_authorize', { method: 'POST' });
         if (data.ok) {
-          resultEl.textContent = 'Authorisation successful. DocVault can now extract Google Drive files.';
-          resultEl.className = 'mt-4 p-4 rounded text-sm bg-green-100 text-green-800';
-          statusEl.textContent = 'Authorised';
-          statusEl.className = 'text-sm font-medium text-green-700';
+          status.textContent = 'Success';
+          status.style.color = 'var(--c-ok)';
         } else {
-          resultEl.textContent = `Error: ${data.detail || 'Unknown error'}`;
-          resultEl.className = 'mt-4 p-4 rounded text-sm bg-red-100 text-red-800';
+          status.textContent = 'Error: ' + data.detail;
+          status.style.color = 'var(--c-error)';
         }
       } catch (err) {
-        resultEl.textContent = `Error: ${err.message}`;
-        resultEl.className = 'mt-4 p-4 rounded text-sm bg-red-100 text-red-800';
+        status.textContent = err.message;
+        status.style.color = 'var(--c-error)';
       }
-
-      resultEl.classList.remove('hidden');
-      btn.disabled = false;
-      btn.textContent = 'Authorise Google Drive';
+      btn.disabled = false; btn.textContent = 'Authorise';
+      loadGDriveStatus();
     }
-
-    async function runCheck() {
-      const btn = document.getElementById('run-check-btn');
-      const resultEl = document.getElementById('result-container');
-
-      btn.disabled = true;
-      btn.textContent = 'Running...';
-      resultEl.classList.add('hidden');
-
-      const result = await api('/utils/qdrant_check');
-
-      resultEl.textContent = result.message;
-      if (result.status === 'ok') {
-        resultEl.classList.remove('bg-red-100', 'text-red-700');
-        resultEl.classList.add('bg-green-100', 'text-green-700');
-      } else {
-        resultEl.classList.remove('bg-green-100', 'text-green-700');
-        resultEl.classList.add('bg-red-100', 'text-red-700');
-      }
-      
-      resultEl.classList.remove('hidden');
-      btn.disabled = false;
-      btn.textContent = 'Run Health Check';
-    }
-
-    async function clearLogs() {
-      const btn = document.getElementById('clear-logs-btn');
-      const resultEl = document.getElementById('clear-logs-result');
-      if (!confirm('Clear all logs data? This cannot be undone.')) return;
-      btn.disabled = true;
-      btn.textContent = 'Clearing...';
-      resultEl.classList.add('hidden');
-      try {
-        await api('/utils/clear_logs', { method: 'POST' });
-        resultEl.textContent = 'Logs database cleared.';
-        resultEl.className = 'mt-4 p-4 rounded text-sm bg-green-100 text-green-800';
-      } catch(err) {
-        resultEl.textContent = `Error: ${err.message}`;
-        resultEl.className = 'mt-4 p-4 rounded text-sm bg-red-100 text-red-800';
-      }
-      resultEl.classList.remove('hidden');
-      btn.disabled = false;
-      btn.textContent = 'Clear Logs Database';
-    }
-
-    // ── System Health ─────────────────────────────────────────────────────────
-
-    const SEVERITY_STYLE = {
-      error:   'border-red-400 bg-red-50',
-      warning: 'border-yellow-400 bg-yellow-50',
-      info:    'border-blue-300 bg-blue-50',
-      ok:      'border-green-400 bg-green-50',
-    };
-    const SEVERITY_BADGE = {
-      error:   'bg-red-100 text-red-700',
-      warning: 'bg-yellow-100 text-yellow-800',
-      info:    'bg-blue-100 text-blue-700',
-      ok:      'bg-green-100 text-green-700',
-    };
 
     async function runHealthCheck() {
-      const btn = document.getElementById('health-btn');
-      const issuesEl = document.getElementById('health-issues');
-      const summaryEl = document.getElementById('health-summary');
-      btn.disabled = true;
-      btn.textContent = 'Checking...';
-      issuesEl.innerHTML = '<p class="text-sm text-gray-400">Running diagnostic...</p>';
-      summaryEl.classList.add('hidden');
-
+      const res = document.getElementById('health-results');
+      res.innerHTML = '<span style="color:var(--c-warn);">Checking...</span>';
       try {
         const data = await api('/utils/health');
-        renderHealthSummary(summaryEl, data.counts, data.qdrant);
-        renderHealthIssues(issuesEl, data.issues);
+        let html = '';
+        if (data.counts) {
+          html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">';
+          for (const [s, c] of Object.entries(data.counts)) {
+            html += `<span style="background:var(--c-surface);border:1px solid var(--c-border);padding:2px 8px;border-radius:8px;font-size:10px;color:var(--c-accent);">${s}: ${c}</span>`;
+          }
+          html += '</div>';
+        }
+        if (!data.issues || !data.issues.length) {
+          html += '<div style="color:var(--c-ok);">Healthy — all checks passed.</div>';
+        } else {
+          for (const issue of data.issues) {
+            html += `<div style="border-left:3px solid var(--c-warn);padding:6px 10px;margin-bottom:6px;background:var(--c-surface);">
+              <div style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">${issue.severity}</div>
+              <div style="font-size:12px;color:var(--c-accent);font-weight:bold;">${issue.title}</div>
+              <div style="font-size:11px;color:var(--c-label);">${issue.detail}</div>
+              ${issue.action ? `<button class="lc-btn lc-btn-sm" style="margin-top:4px;" onclick="doHealthFix('${issue.action}', '${issue.action_label}', this)">FIX</button>` : ''}
+            </div>`;
+          }
+        }
+        res.innerHTML = html;
       } catch (err) {
-        issuesEl.innerHTML = `<p class="text-sm text-red-600">Failed to load health data: ${err.message}</p>`;
+        res.innerHTML = '<span style="color:var(--c-error);">Error running health check.</span>';
       }
-      btn.disabled = false;
-      btn.textContent = 'Check Now';
-    }
-
-    function renderHealthSummary(el, counts, qdrant) {
-      const statuses = ['PENDING','PROCESSING','EXTRACTED','COMPLETED','ERROR','UNKNOWN'];
-      const colours = {
-        PENDING:'bg-gray-100 text-gray-700', PROCESSING:'bg-blue-100 text-blue-700',
-        EXTRACTED:'bg-purple-100 text-purple-700', COMPLETED:'bg-green-100 text-green-700',
-        ERROR:'bg-red-100 text-red-700', UNKNOWN:'bg-gray-100 text-gray-500',
-      };
-      let html = statuses
-        .filter(s => counts[s])
-        .map(s => `<span class="px-2 py-0.5 rounded ${colours[s]}">${s} ${counts[s].toLocaleString()}</span>`)
-        .join('');
-      const qColour = qdrant.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-      html += `<span class="px-2 py-0.5 rounded ${qColour}">Qdrant ${qdrant.ok ? qdrant.points.toLocaleString() + ' pts' : 'DOWN'}</span>`;
-      el.innerHTML = html;
-      el.classList.remove('hidden');
-    }
-
-    function renderHealthIssues(el, issues) {
-      if (!issues.length) {
-        el.innerHTML = '<p class="text-sm text-green-700 font-medium">No issues found. Queue looks healthy.</p>';
-        return;
-      }
-      el.innerHTML = issues.map(issue => `
-        <div class="border-l-4 rounded p-3 ${SEVERITY_STYLE[issue.severity] || SEVERITY_STYLE.info}">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <span class="inline-block text-xs font-semibold px-1.5 py-0.5 rounded mr-2 ${SEVERITY_BADGE[issue.severity] || SEVERITY_BADGE.info}">
-                ${issue.severity.toUpperCase()}
-              </span>
-              <span class="font-medium text-gray-800 text-sm">${issue.title}</span>
-              <p class="text-xs text-gray-600 mt-1">${issue.detail}</p>
-            </div>
-            ${issue.action ? `
-              <button
-                onclick="doHealthFix('${issue.action}', '${issue.action_label}', this)"
-                class="shrink-0 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded text-xs font-medium whitespace-nowrap">
-                ${issue.action_label}
-              </button>` : ''}
-          </div>
-        </div>`).join('');
     }
 
     async function doHealthFix(action, label, btn) {
-      if (!confirm(`${label}?\n\nThis will update task statuses in the database.`)) return;
+      if (!confirm(label + '?')) return;
       btn.disabled = true;
-      btn.textContent = 'Working...';
+      try { await api(`/utils/${action}`, { method: 'POST' }); runHealthCheck(); } catch(e) { btn.disabled = false; }
+    }
+
+    async function runQdrantCheck() {
+      const res = document.getElementById('qdrant-results');
+      res.innerHTML = '<span style="color:var(--c-warn);">Running...</span>';
       try {
-        const data = await api(`/utils/${action}`, { method: 'POST' });
-        btn.textContent = `Done (${data.reset} tasks)`;
-        btn.className = btn.className.replace('border-gray-300', 'border-green-400')
-                                     .replace('text-gray-700', 'text-green-700');
-        // Refresh the health panel after a short delay
-        setTimeout(runHealthCheck, 1200);
+        const result = await api('/utils/qdrant_check');
+        if (result.status === 'ok') {
+          res.innerHTML = `<span style="color:var(--c-ok);">${result.message}</span>`;
+        } else {
+          res.innerHTML = `<span style="color:var(--c-error);">${result.message}</span>`;
+        }
       } catch (err) {
-        btn.textContent = 'Error — retry?';
-        btn.disabled = false;
+        res.innerHTML = '<span style="color:var(--c-error);">Failed to reach Qdrant.</span>';
       }
     }
 
-    loadGDriveStatus();
-    runHealthCheck();
-  </script>
-
-  <!-- ═══ MISSION CONTROL OPTIMIZER OVERLAY ═══ -->
-  <div id="mc-overlay" class="hidden fixed inset-0 z-50 flex flex-col" style="background:#050809;font-family:'JetBrains Mono','Fira Code',monospace;color:#94a3b8">
-
-    <!-- Title bar -->
-    <div style="border-bottom:1px solid #1e2740;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-      <div style="display:flex;align-items:center;gap:16px">
-        <span style="color:#4f6ef7;font-size:11px;font-weight:700;letter-spacing:0.15em">◈ OPTIMIZER</span>
-        <button id="mc-start-btn" onclick="mcStartRun()" style="background:#166534;color:#bbf7d0;border:1px solid #16a34a;padding:5px 18px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;border-radius:3px">▶ START SWEEP</button>
-        <button onclick="mcAbort()" id="mc-abort-btn" style="background:#7f1d1d;color:#fca5a5;border:1px solid #b91c1c;padding:5px 16px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;border-radius:3px" class="hidden">■ ABORT</button>
-        <button id="mc-apply-btn" onclick="mcApplyBest()" disabled style="background:#1e1b4b;color:#a5b4fc;border:1px solid #3730a3;padding:5px 16px;font-size:11px;font-weight:700;cursor:not-allowed;opacity:0.35;letter-spacing:0.08em;border-radius:3px">↓ APPLY BEST</button>
-        <span id="mc-run-label" style="font-size:10px;color:#475569">IDLE</span>
-      </div>
-      <button onclick="closeOptimizer()" style="background:transparent;border:1px solid #334155;color:#64748b;padding:3px 10px;font-size:10px;cursor:pointer">✕ CLOSE</button>
-    </div>
-
-    <!-- Quadrant grid -->
-    <div style="flex:1;display:grid;grid-template-columns:160px 1fr;grid-template-rows:1fr 1fr 40px;overflow:hidden">
-
-      <!-- TOP-LEFT: Hardware Gauges (spans both rows) -->
-      <div style="grid-row:span 2;border-right:1px solid #1e2740;border-bottom:1px solid #1e2740;padding:12px;display:flex;flex-direction:column;gap:8px;overflow:hidden">
-        <div style="font-size:8px;color:#334155;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Hardware</div>
-        <div id="mc-gauge-gpu-temp" class="mc-gauge-block"></div>
-        <div id="mc-gauge-gpu-util" class="mc-gauge-block"></div>
-        <div id="mc-gauge-ram" class="mc-gauge-block"></div>
-        <div id="mc-gauge-cpu-temp" class="mc-gauge-block"></div>
-      </div>
-
-      <!-- TOP-RIGHT: Throughput + sparkline -->
-      <div style="border-bottom:1px solid #1e2740;padding:16px 20px;display:flex;flex-direction:column;justify-content:center">
-        <div style="font-size:9px;color:#334155;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Throughput</div>
-        <div id="mc-throughput-val" style="font-size:42px;font-weight:900;color:#4ade80;letter-spacing:-2px;line-height:1">—</div>
-        <div id="mc-throughput-delta" style="font-size:11px;color:#64748b;margin-top:4px">files / hour</div>
-        <div id="mc-sparkline" style="display:flex;align-items:flex-end;gap:3px;height:40px;margin-top:12px"></div>
-      </div>
-
-      <!-- MID-RIGHT: Params / Profile cards -->
-      <div id="mc-params-pane" style="border-bottom:1px solid #1e2740;padding:12px 20px;overflow-y:auto">
-        <div style="font-size:8px;color:#334155;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Parameters</div>
-        <div id="mc-params-rows" style="font-size:10px;color:#64748b">Waiting for optimizer start...</div>
-        <div id="mc-profile-cards" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap"></div>
-      </div>
-
-      <!-- BOTTOM-RIGHT: Event log -->
-      <div style="border-bottom:1px solid #1e2740;padding:8px 20px;overflow-y:auto;font-size:9px" id="mc-log">
-        <div style="color:#334155">Awaiting optimizer start...</div>
-      </div>
-
-      <!-- BOTTOM BAR (full width) -->
-      <div style="grid-column:span 2;border-top:1px solid #1e2740;display:flex;align-items:center;padding:0 16px;background:#030507">
-        <span id="mc-eta" style="font-size:9px;color:#334155">—</span>
-      </div>
-
-    </div>
-  </div>
-
-  <style>
-    .mc-gauge-block { background:#0a0e18; border:1px solid #1e2740; border-radius:4px; padding:6px 8px; }
-    .mc-gauge-label { font-size:8px; color:#334155; text-transform:uppercase; letter-spacing:0.08em; }
-    .mc-gauge-val { font-size:16px; font-weight:700; font-family:monospace; line-height:1.2; }
-    .mc-gauge-bar { height:3px; background:#0d1117; border-radius:2px; margin-top:4px; }
-    .mc-gauge-fill { height:3px; border-radius:2px; transition:width 0.5s; }
-    .mc-log-line { padding:2px 0; border-bottom:1px solid #0d1117; }
-    .mc-profile-card { background:#0a0e18; border:1px solid #1e2740; border-radius:6px; padding:10px; min-width:140px; flex:1; }
-    .mc-profile-name { font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; }
-    .mc-profile-val { font-size:20px; font-weight:700; font-family:monospace; color:#4ade80; }
-    .mc-apply-btn { background:#1e2a4a; color:#818cf8; border:1px solid #3730a3; padding:4px 12px; font-size:9px; font-weight:700; cursor:pointer; margin-top:8px; width:100%; }
-    .mc-apply-btn:hover { background:#1e3a8a; }
-    /* Config panel styles */
-    .mc-cfg-section { font-size:8px; color:#334155; text-transform:uppercase; letter-spacing:0.1em; margin:8px 0 4px; }
-    .mc-preset-btn { padding:3px 10px; font-size:9px; font-weight:700; cursor:pointer; border-radius:2px; font-family:inherit; }
-    .mc-preset-btn.active { background:#1e3a5f; color:#60a5fa; border:1px solid #3b82f6; }
-    .mc-preset-btn.inactive { background:#0a0e18; color:#334155; border:1px solid #1e2740; }
-    .mc-cfg-row { display:flex; align-items:center; gap:6px; margin:3px 0; flex-wrap:wrap; }
-    .mc-cfg-label { font-size:10px; color:#64748b; min-width:80px; }
-    .mc-cfg-input { background:#0a0e18; border:1px solid #1e2740; color:#94a3b8; font-size:10px; font-family:inherit; padding:2px 6px; border-radius:2px; width:52px; }
-    .mc-cfg-checkbox { accent-color:#4f6ef7; width:12px; height:12px; cursor:pointer; }
-    .mc-cfg-check-label { font-size:10px; color:#64748b; cursor:pointer; }
-    .mc-cfg-select { background:#0a0e18; border:1px solid #1e2740; color:#94a3b8; font-size:10px; font-family:inherit; padding:2px 6px; border-radius:2px; }
-    .mc-save-input { background:#0a0e18; border:1px solid #1e2740; color:#94a3b8; font-size:10px; font-family:inherit; padding:2px 6px; border-radius:2px; flex:1; min-width:80px; }
-    .mc-save-btn { background:#1e3a5f; color:#60a5fa; border:1px solid #3b82f6; padding:3px 10px; font-size:9px; font-weight:700; cursor:pointer; border-radius:2px; font-family:inherit; }
-    .mc-save-btn:hover { background:#1e4a7f; }
-    .mc-repeat-btn { background:#0a0e18; color:#475569; border:1px solid #1e2740; padding:3px 10px; font-size:9px; font-weight:700; cursor:pointer; border-radius:2px; font-family:inherit; }
-    .mc-repeat-btn.enabled { color:#94a3b8; border-color:#334155; cursor:pointer; }
-    .mc-repeat-btn.enabled:hover { background:#1e2740; }
-  </style>
-
-  <script>
-    let _mcPollInterval = null;
-    let _mcSelectedProfile = 'raw_speed';
-    let _mcRunCount = 0;
-    let _mcLastRunIndex = 0;
-    let _mcStartTime = null;
-    let _mcHasLastConfig = false;
-    let _mcLastCompletedProfiles = null;  // used by save-profile UI
-
-    // ── Overlay open/close ─────────────────────────────────────────────────────
-
-    async function openOptimizer() {
-      document.getElementById('mc-overlay').classList.remove('hidden');
-      // Populate vault dropdown and check for last config
-      await Promise.all([mcLoadVaults(), mcCheckLastConfig()]);
-      mcBuildConfigPanel();
-    }
-
-    function closeOptimizer() {
-      if (_mcPollInterval) { clearInterval(_mcPollInterval); _mcPollInterval = null; }
-      document.getElementById('mc-overlay').classList.add('hidden');
-    }
-
-    // ── Vault loading ──────────────────────────────────────────────────────────
-
-    let _mcVaults = [];
-
-    async function mcLoadVaults() {
+    async function clearLogs() {
+      if (!confirm('Clear all logs?')) return;
+      const res = document.getElementById('clear-logs-result');
       try {
-        const data = await api('/vaults');
-        _mcVaults = (data || []).filter(v => v.state === 'active');
-      } catch(_) {
-        _mcVaults = [];
+        await api('/utils/clear_logs', { method: 'POST' });
+        res.innerHTML = '<span style="color:var(--c-ok);">Cleared.</span>';
+      } catch(err) {
+        res.innerHTML = `<span style="color:var(--c-error);">${err.message}</span>`;
       }
     }
 
-    async function mcCheckLastConfig() {
-      try {
-        const cfg = await api('/utils/optimizer/last_config');
-        _mcHasLastConfig = cfg && Object.keys(cfg).length > 0;
-      } catch(_) {
-        _mcHasLastConfig = false;
-      }
-    }
-
-    // ── Config panel builder ───────────────────────────────────────────────────
-
-    function mcBuildConfigPanel() {
-      const rowsEl = document.getElementById('mc-params-rows');
-      rowsEl.style.display = '';
-      rowsEl.classList.remove('hidden');
-      document.getElementById('mc-profile-cards').style.display = 'none';
-      document.getElementById('mc-profile-cards').classList.add('hidden');
-
-      const vaultOptions = ['<option value="">All Vaults</option>']
-        .concat(_mcVaults.map(v => `<option value="${v.vault_id}">${v.name || v.vault_id}</option>`))
-        .join('');
-
-      rowsEl.innerHTML = `
-        <div>
-          <div class="mc-cfg-section">Preset</div>
-          <div class="mc-cfg-row" style="gap:4px">
-            <button class="mc-preset-btn inactive" id="mc-preset-quick"   onclick="mcSetPreset(2)"  >Quick</button>
-            <button class="mc-preset-btn active"   id="mc-preset-std"     onclick="mcSetPreset(5)"  >Standard</button>
-            <button class="mc-preset-btn inactive" id="mc-preset-thorough" onclick="mcSetPreset(10)">Thorough</button>
-          </div>
-
-          <div class="mc-cfg-section">Samples</div>
-          <div class="mc-cfg-row">
-            <input class="mc-cfg-input" type="number" id="mc-samples" min="1" max="20" value="5"
-                   oninput="mcSyncPresetButtons()" style="width:60px">
-            <span style="font-size:10px;color:#475569">per type</span>
-          </div>
-
-          <div class="mc-cfg-section">File Types</div>
-          <div class="mc-cfg-row">
-            ${['text','pdf','image','audio','video'].map(t =>
-              `<label class="mc-cfg-row" style="gap:3px;margin:0">
-                <input class="mc-cfg-checkbox" type="checkbox" id="mc-type-${t}" checked>
-                <span class="mc-cfg-check-label">${t}</span>
-              </label>`
-            ).join('')}
-          </div>
-
-          <div class="mc-cfg-section">Sweep Axes</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">
-            ${[['chunk_size','chunk_size'],['chunk_overlap','chunk_overlap'],
-               ['max_parallel','max_parallel'],['gpu_throttle','gpu_throttle']].map(([id,label]) =>
-              `<label class="mc-cfg-row" style="gap:3px;margin:2px 0">
-                <input class="mc-cfg-checkbox" type="checkbox" id="mc-axis-${id}" checked
-                       ${id==='max_parallel'?'onchange="mcSyncForceParallel()"':''}>
-                <span class="mc-cfg-check-label">${label}</span>
-              </label>`
-            ).join('')}
-          </div>
-          <div class="mc-cfg-row" style="margin-top:4px">
-            <input class="mc-cfg-checkbox" type="checkbox" id="mc-force-parallel" disabled>
-            <label class="mc-cfg-check-label" for="mc-force-parallel" style="color:#334155" id="mc-force-parallel-lbl">Force max_parallel=2</label>
-          </div>
-
-          <div class="mc-cfg-section">Vault</div>
-          <div class="mc-cfg-row">
-            <select class="mc-cfg-select" id="mc-vault-select">${vaultOptions}</select>
-          </div>
-
-          <div class="mc-cfg-section">Schedule</div>
-          <div class="mc-cfg-row">
-            <input class="mc-cfg-checkbox" type="checkbox" id="mc-delay-check" onchange="mcSyncDelayInput()">
-            <span class="mc-cfg-check-label">Delay start</span>
-            <input class="mc-cfg-input" type="number" id="mc-delay-hours" min="1" max="24" value="1" disabled style="width:44px">
-            <span style="font-size:10px;color:#475569">hours</span>
-          </div>
-
-          <div class="mc-cfg-row" style="margin-top:8px">
-            <button id="mc-repeat-btn"
-                    class="mc-repeat-btn ${_mcHasLastConfig ? 'enabled' : ''}"
-                    onclick="mcRepeatLast()"
-                    ${_mcHasLastConfig ? '' : 'disabled'}>↺ Repeat Last Sweep</button>
-          </div>
-        </div>`;
-    }
-
-    function mcSetPreset(n) {
-      document.getElementById('mc-samples').value = n;
-      mcSyncPresetButtons();
-    }
-
-    function mcSyncPresetButtons() {
-      const n = parseInt(document.getElementById('mc-samples').value);
-      const map = { 2:'mc-preset-quick', 5:'mc-preset-std', 10:'mc-preset-thorough' };
-      for (const [val, id] of Object.entries(map)) {
-        const btn = document.getElementById(id);
-        if (btn) {
-          btn.className = 'mc-preset-btn ' + (parseInt(val) === n ? 'active' : 'inactive');
-        }
-      }
-    }
-
-    function mcSyncForceParallel() {
-      const axisChecked = document.getElementById('mc-axis-max_parallel').checked;
-      const forceEl = document.getElementById('mc-force-parallel');
-      const lblEl   = document.getElementById('mc-force-parallel-lbl');
-      forceEl.disabled = !axisChecked;
-      if (lblEl) lblEl.style.color = axisChecked ? '#64748b' : '#334155';
-      if (!axisChecked) forceEl.checked = false;
-    }
-
-    function mcSyncDelayInput() {
-      const checked = document.getElementById('mc-delay-check').checked;
-      document.getElementById('mc-delay-hours').disabled = !checked;
-    }
-
-    // ── Read current UI state → config dict ───────────────────────────────────
-
-    function mcGetConfig() {
-      const samples = parseInt(document.getElementById('mc-samples')?.value || '5');
-
-      const allTypes = ['text','pdf','image','audio','video'];
-      const types = allTypes.filter(t => {
-        const el = document.getElementById('mc-type-' + t);
-        return el ? el.checked : true;
-      });
-
-      const allAxes = ['chunk_size','chunk_overlap','max_parallel','gpu_throttle'];
-      const locked_axes = allAxes.filter(a => {
-        const el = document.getElementById('mc-axis-' + a);
-        return el ? !el.checked : false;
-      });
-
-      const forceEl = document.getElementById('mc-force-parallel');
-      const force_parallel = forceEl ? (forceEl.checked && !forceEl.disabled) : false;
-
-      const vaultEl = document.getElementById('mc-vault-select');
-      const vault_id = vaultEl ? (vaultEl.value || null) : null;
-
-      const delayCheck = document.getElementById('mc-delay-check');
-      const delayHours = document.getElementById('mc-delay-hours');
-      const delay_hours = (delayCheck && delayCheck.checked)
-        ? parseFloat(delayHours?.value || '1') : 0;
-
-      return { samples, types, locked_axes, force_parallel, vault_id, delay_hours };
-    }
-
-    // ── Start sweep ────────────────────────────────────────────────────────────
-
-    async function mcStartRun() {
-      const config = mcGetConfig();
-      try {
-        const r = await api('/utils/optimizer/start', {
-          method: 'POST',
-          body: JSON.stringify(config)
-        });
-        const isScheduled = r.state === 'scheduled';
-        if (isScheduled) {
-          mcLog('info', `Optimizer scheduled — starts in ${config.delay_hours}h`);
-          document.getElementById('mc-run-label').textContent = 'SCHEDULED';
-        } else {
-          mcLog('info', 'Optimizer started — pausing workers...');
-        }
-        _mcStartTime = Date.now();
-        _mcLastRunIndex = 0;
-        document.getElementById('mc-start-btn').classList.add('hidden');
-        document.getElementById('mc-abort-btn').classList.remove('hidden');
-        document.getElementById('mc-apply-btn').disabled = true;
-        document.getElementById('mc-apply-btn').style.opacity = '0.4';
-        document.getElementById('mc-apply-btn').style.cursor = 'not-allowed';
-        _mcPollInterval = setInterval(mcPoll, 1000);
-      } catch(e) {
-        if (e.status === 409) {
-          mcLog('warn', 'Optimizer already running — connecting to existing run.');
-          _mcPollInterval = setInterval(mcPoll, 1000);
-        } else {
-          mcLog('error', 'Failed to start optimizer: ' + e.message);
-        }
-      }
-    }
-
-    // ── Repeat last sweep ──────────────────────────────────────────────────────
-
-    async function mcRepeatLast() {
-      try {
-        const cfg = await api('/utils/optimizer/last_config');
-        if (!cfg || !Object.keys(cfg).length) {
-          mcLog('warn', 'No previous config found.');
-          return;
-        }
-        // Populate UI controls from last config
-        if (cfg.samples) document.getElementById('mc-samples').value = cfg.samples;
-        mcSyncPresetButtons();
-        const allTypes = ['text','pdf','image','audio','video'];
-        allTypes.forEach(t => {
-          const el = document.getElementById('mc-type-' + t);
-          if (el) el.checked = !cfg.types || cfg.types.includes(t);
-        });
-        const allAxes = ['chunk_size','chunk_overlap','max_parallel','gpu_throttle'];
-        allAxes.forEach(a => {
-          const el = document.getElementById('mc-axis-' + a);
-          if (el) el.checked = !(cfg.locked_axes || []).includes(a);
-        });
-        mcSyncForceParallel();
-        const forceEl = document.getElementById('mc-force-parallel');
-        if (forceEl) forceEl.checked = !!cfg.force_parallel;
-        const vaultEl = document.getElementById('mc-vault-select');
-        if (vaultEl) vaultEl.value = cfg.vault_id || '';
-        // Force delay=0 for re-runs
-        const delayCheck = document.getElementById('mc-delay-check');
-        if (delayCheck) delayCheck.checked = false;
-        mcSyncDelayInput();
-
-        mcLog('info', 'Re-loading last config and starting sweep...');
-        await mcStartRun();
-      } catch(e) {
-        mcLog('error', 'Failed to load last config: ' + e.message);
-      }
-    }
-
-    async function mcAbort() {
-      try {
-        await api('/utils/optimizer/abort', { method: 'POST' });
-        mcLog('warn', 'Abort signal sent — restoring settings...');
-      } catch(e) {
-        mcLog('error', 'Abort failed: ' + e.message);
-      }
-    }
-
-    // ── Polling ────────────────────────────────────────────────────────────────
-
-    async function mcPoll() {
-      try {
-        const s = await api('/utils/optimizer/status');
-        mcRender(s);
-        const terminal = ['complete', 'aborted', 'error'];
-        if (terminal.includes(s.state)) {
-          clearInterval(_mcPollInterval); _mcPollInterval = null;
-          document.getElementById('mc-start-btn').classList.remove('hidden');
-          document.getElementById('mc-abort-btn').classList.add('hidden');
-          // Enable repeat-last button after any terminal state
-          _mcHasLastConfig = true;
-          if (s.state === 'complete') {
-            document.getElementById('mc-apply-btn').disabled = false;
-            document.getElementById('mc-apply-btn').style.opacity = '1';
-            document.getElementById('mc-apply-btn').style.cursor = 'pointer';
-            _mcLastCompletedProfiles = s.profiles;
-            mcRenderProfiles(s.profiles);
-          } else if (s.state === 'error') {
-            mcLog('error', 'Optimizer error: ' + (s.error || 'unknown — check server logs'));
-            mcBuildConfigPanel();
-          } else {
-            // aborted
-            mcBuildConfigPanel();
-          }
-        }
-      } catch(e) { /* poll errors are non-fatal */ }
-    }
-
-    // ── Render ─────────────────────────────────────────────────────────────────
-
-    function mcRender(s) {
-      // Title bar
-      if (s.state === 'running') {
-        const elapsed = _mcStartTime ? Math.round((Date.now() - _mcStartTime) / 1000) : 0;
-        const perRun = s.run_index > 0 ? elapsed / s.run_index : 0;
-        const remaining = s.total_runs - s.run_index;
-        const eta = Math.round(perRun * remaining / 60);
-        document.getElementById('mc-run-label').textContent = `RUN ${s.run_index} / ${s.total_runs}  ·  ETA ~${eta}m`;
-        document.getElementById('mc-eta').textContent = `RUN ${s.run_index} / ${s.total_runs} · ETA ~${eta} min`;
-      } else if (s.state === 'scheduled') {
-        document.getElementById('mc-run-label').textContent = 'SCHEDULED';
-        document.getElementById('mc-eta').textContent = 'waiting for scheduled start...';
-      } else {
-        document.getElementById('mc-run-label').textContent = (s.state || 'idle').toUpperCase();
-        document.getElementById('mc-eta').textContent = s.state || '—';
-      }
-
-      // Throughput
-      const tp = s.current_throughput;
-      document.getElementById('mc-throughput-val').textContent = tp ? tp.toLocaleString() : '—';
-      if (tp && s.baseline_throughput) {
-        const delta = Math.round((tp - s.baseline_throughput) / s.baseline_throughput * 100);
-        const sign = delta >= 0 ? '+' : '';
-        document.getElementById('mc-throughput-delta').innerHTML =
-          `files / hour &nbsp;·&nbsp; <span style="color:${delta>=0?'#4ade80':'#f87171'}">${sign}${delta}% vs baseline</span>`;
-      }
-
-      // Sparkline
-      const spark = document.getElementById('mc-sparkline');
-      if (s.runs && s.runs.length) {
-        const maxTp = Math.max(...s.runs.map(r => r.throughput));
-        spark.innerHTML = s.runs.map(r => {
-          const h = maxTp > 0 ? Math.max(r.throughput / maxTp * 100, 5) : 5;
-          const isLast = r.index === s.run_index;
-          const color = isLast ? '#4ade80' : '#1e3a5f';
-          return `<div style="flex:1;height:${h}%;background:${color};border-radius:2px 2px 0 0;min-width:6px;transition:height 0.3s" title="Run ${r.index}: ${r.throughput?.toLocaleString()} f/hr"></div>`;
-        }).join('');
-      }
-
-      // Hardware gauges
-      const hw = s.hardware || {};
-      mcSetGauge('mc-gauge-gpu-temp', 'GPU Temp', hw.gpu_temp != null ? `${Math.round(hw.gpu_temp)}°C` : '—', hw.gpu_temp, 100, hw.gpu_temp > 80 ? '#ef4444' : hw.gpu_temp > 70 ? '#f59e0b' : '#4ade80');
-      mcSetGauge('mc-gauge-gpu-util', 'GPU Util', hw.gpu_util != null ? `${Math.round(hw.gpu_util)}%` : '—', hw.gpu_util, 100, '#60a5fa');
-      mcSetGauge('mc-gauge-ram', 'RAM', hw.ram_pct != null ? `${Math.round(hw.ram_pct)}%` : '—', hw.ram_pct, 100, hw.ram_pct > 85 ? '#ef4444' : '#a78bfa');
-      mcSetGauge('mc-gauge-cpu-temp', 'CPU Temp', hw.cpu_temp != null ? `${Math.round(hw.cpu_temp)}°C` : '—', hw.cpu_temp, 100, '#4ade80');
-
-      // Params pane — show live params while running/starting; show config panel otherwise
-      const isActive = ['running','starting','scheduled'].includes(s.state);
-      if (isActive && s.current_params && Object.keys(s.current_params).length) {
-        const paramMap = { 'embeddings:chunk_size': 'chunk_size', 'embeddings:chunk_overlap': 'chunk_overlap', 'ollama:max_parallel': 'max_parallel', 'monitor:gpu_temp_throttle': 'gpu_throttle' };
-        const rowsEl = document.getElementById('mc-params-rows');
-        rowsEl.innerHTML = '';
-        rowsEl.style.display = '';
-        for (const [k, v] of Object.entries(s.current_params)) {
-          const row = document.createElement('div');
-          row.style.cssText = 'display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #0d1117';
-          const kSpan = document.createElement('span');
-          kSpan.style.color = '#475569';
-          kSpan.textContent = paramMap[k] || k;
-          const vSpan = document.createElement('span');
-          vSpan.style.color = '#e2e8f0';
-          vSpan.textContent = v;
-          row.append(kSpan, vSpan);
-          rowsEl.appendChild(row);
-        }
-      }
-
-      // Log when a new run begins (before benchmark finishes)
-      if (s.state === 'running' && s.run_index > _mcLastRunIndex) {
-        _mcLastRunIndex = s.run_index;
-        mcLog('info', `[RUN ${s.run_index}/${s.total_runs}] Benchmarking... (this may take a minute)`);
-      }
-
-      // Log new run completions
-      if (s.runs && s.runs.length > _mcRunCount) {
-        for (let i = _mcRunCount; i < s.runs.length; i++) {
-          const r = s.runs[i];
-          const baseline = s.baseline_throughput || 0;
-          const delta = baseline > 0 ? Math.round((r.throughput - baseline) / baseline * 100) : 0;
-          const sign = delta >= 0 ? '+' : '';
-          const color = delta > 0 ? 'ok' : (delta < 0 ? 'warn' : 'info');
-          mcLog(color, `[RUN ${r.index}] → ${r.throughput?.toLocaleString()} f/hr  ${sign}${delta}%${r.max_gpu_temp ? '  GPU:' + Math.round(r.max_gpu_temp) + '°' : ''}`);
-        }
-        _mcRunCount = s.runs.length;
-      }
-    }
-
-    function mcSetGauge(id, label, valText, val, max, color) {
-      const pct = (val && max) ? Math.min(val / max * 100, 100) : 0;
-      document.getElementById(id).innerHTML = `
-        <div class="mc-gauge-label">${label}</div>
-        <div class="mc-gauge-val" style="color:${color}">${valText}</div>
-        <div class="mc-gauge-bar"><div class="mc-gauge-fill" style="width:${pct}%;background:${color}"></div></div>`;
-    }
-
-    function mcLog(level, msg) {
-      const colors = { info: '#60a5fa', ok: '#4ade80', warn: '#f59e0b', error: '#f87171' };
-      const log = document.getElementById('mc-log');
-      const line = document.createElement('div');
-      line.className = 'mc-log-line';
-      const tsSpan = document.createElement('span');
-      tsSpan.style.color = '#334155';
-      tsSpan.textContent = new Date().toLocaleTimeString() + ' ';
-      const msgSpan = document.createElement('span');
-      msgSpan.style.color = colors[level] || '#94a3b8';
-      msgSpan.textContent = msg;
-      line.append(tsSpan, msgSpan);
-      log.appendChild(line);
-      log.scrollTop = log.scrollHeight;
-    }
-
-    // ── Profile cards + save-profile UI ───────────────────────────────────────
-
-    function mcRenderProfiles(profiles) {
-      if (!profiles) return;
-      const rowsEl = document.getElementById('mc-params-rows');
-      rowsEl.classList.add('hidden');
-      rowsEl.style.display = 'none';
-      const cards = document.getElementById('mc-profile-cards');
-      cards.classList.remove('hidden');
-      cards.style.display = 'flex';
-      cards.style.flexWrap = 'wrap';
-      cards.style.gap = '10px';
-      const labels = { raw_speed: 'Raw Speed', sustainable: 'Sustainable', balanced: 'Balanced' };
-      const shown = new Set();
-      cards.innerHTML = '';
-      for (const [key, p] of Object.entries(profiles)) {
-        const sig = JSON.stringify(p.params);
-        if (shown.has(sig)) continue;
-        shown.add(sig);
-        const card = document.createElement('div');
-        card.className = 'mc-profile-card';
-        const nameEl = document.createElement('div');
-        nameEl.className = 'mc-profile-name';
-        nameEl.textContent = labels[key] || key;
-        const valEl = document.createElement('div');
-        valEl.className = 'mc-profile-val';
-        valEl.textContent = p.throughput?.toLocaleString() || '—';
-        const unitEl = document.createElement('div');
-        unitEl.style.cssText = 'font-size:9px;color:#475569;margin-top:2px';
-        unitEl.textContent = 'f/hr';
-        const applyBtn = document.createElement('button');
-        applyBtn.className = 'mc-apply-btn';
-        applyBtn.textContent = '↓ Apply';
-        applyBtn.addEventListener('click', () => mcApplyProfile(key));
-        card.append(nameEl, valEl, unitEl, applyBtn);
-        cards.appendChild(card);
-      }
-
-      // Save profile row appended below cards
-      const saveRow = document.createElement('div');
-      saveRow.style.cssText = 'width:100%;display:flex;align-items:center;gap:6px;margin-top:8px';
-      saveRow.innerHTML = `
-        <span style="font-size:10px;color:#64748b">Save profile:</span>
-        <input class="mc-save-input" type="text" id="mc-save-name" placeholder="name…">
-        <button class="mc-save-btn" onclick="mcSaveProfile()">Save</button>
-        <span id="mc-save-status" style="font-size:9px;color:#64748b"></span>`;
-      cards.appendChild(saveRow);
-
-      mcLog('ok', 'Optimizer complete. Select a profile to apply.');
-    }
-
-    async function mcSaveProfile() {
-      const nameEl = document.getElementById('mc-save-name');
-      const statusEl = document.getElementById('mc-save-status');
-      const name = nameEl?.value.trim();
-      if (!name) { if (statusEl) statusEl.textContent = 'Enter a name.'; return; }
-      if (!_mcLastCompletedProfiles) { if (statusEl) statusEl.textContent = 'No profiles available.'; return; }
-
-      // Use the balanced profile params by default; fall back to raw_speed
-      const profileKey = _mcSelectedProfile in _mcLastCompletedProfiles
-        ? _mcSelectedProfile : 'balanced';
-      const p = _mcLastCompletedProfiles[profileKey];
-
-      try {
-        const r = await api('/utils/optimizer/save_profile', {
-          method: 'POST',
-          body: JSON.stringify({ name, params: p.params, throughput: p.throughput })
-        });
-        if (statusEl) statusEl.textContent = `Saved (id:${r.profile_id})`;
-        if (nameEl) nameEl.value = '';
-        mcLog('ok', `Profile saved: "${name}" (id:${r.profile_id})`);
-      } catch(e) {
-        if (statusEl) statusEl.textContent = 'Save failed.';
-        mcLog('error', 'Save profile failed: ' + e.message);
-      }
-    }
-
-    async function mcApplyProfile(profileKey) {
-      _mcSelectedProfile = profileKey;  // track selected for mcApplyBest()
-      try {
-        const r = await api('/utils/optimizer/apply', {
-          method: 'POST',
-          body: JSON.stringify({ profile: profileKey })
-        });
-        mcLog('ok', `✓ Applied ${profileKey} profile. Restart server to take full effect.`);
-      } catch(e) {
-        mcLog('error', 'Apply failed: ' + e.message);
-      }
-    }
-
-    async function mcApplyBest() {
-      await mcApplyProfile(_mcSelectedProfile);
-    }
+    document.addEventListener('DOMContentLoaded', () => {
+      loadGDriveStatus();
+    });
   </script>
 </body>
 </html>
