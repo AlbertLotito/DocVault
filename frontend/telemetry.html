@@ -681,7 +681,7 @@
 
             let html = statuses
                 .filter(s => data.counts[s])
-                .map(s => `<a href="/catalog?status=${s}" class="health-badge ${badgeClasses[s]}">${s} ${data.counts[s]}</a>`)
+                .map(s => `<a href="/vault?status=${s}" class="health-badge ${badgeClasses[s]}">${s} ${data.counts[s]}</a>`)
                 .join('');
             
             // Qdrant Status
@@ -848,7 +848,7 @@
                 <div class="worker-item">
                     <div class="worker-info">
                         <span class="worker-name">${t.file_path.split(/[/\\]/).pop()}</span>
-                        <a href="/catalog?status=${t.status}" class="worker-status" style="text-decoration: none; transition: opacity 0.2s" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">${t.status}</a>
+                        <a href="/vault?status=${t.status}" class="worker-status" style="text-decoration: none; transition: opacity 0.2s" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">${t.status}</a>
                     </div>
                     <div style="font-size: 0.65rem; margin-bottom: 4px; color: var(--slate); opacity: 0.7">
                         ${t.progress_text || 'Initializing...'}
