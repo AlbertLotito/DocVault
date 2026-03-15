@@ -160,9 +160,16 @@ _SWEPT_KEYS = [
 
 
 def _read_snapshot_keys() -> dict:
-    """Read current production values for swept keys via settings.get()."""
-    from core.settings import settings
-    return {k: str(settings.get(k) or '') for k in _SWEPT_KEYS}
+    """Read current production values for swept keys via direct DB query."""
+    from core.manager import get_settings_db_path, _connect
+    result = {}
+    with _connect(get_settings_db_path()) as conn:
+        for k in _SWEPT_KEYS:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key=?", (k,)
+            ).fetchone()
+            result[k] = str(row['value']) if row else ''
+    return result
 
 
 def _write_snapshot(snapshot: dict):
