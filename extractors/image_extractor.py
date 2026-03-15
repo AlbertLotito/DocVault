@@ -52,7 +52,6 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     from core.settings import settings
     from core import manager
-    from api.main import DB_PATH
 
     logger.info(f"Harvesting images: {os.path.basename(file_path)}", ext="image")
 
@@ -61,7 +60,8 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
 
     # Read ocr_pages from this task's metadata (written by text_extractor earlier)
     try:
-        task_meta  = manager.get_task_metadata(DB_PATH, ctx.file_hash)
+        db_path   = manager.get_db_path()
+        task_meta  = manager.get_task_metadata(db_path, ctx.file_hash)
         ocr_pages  = set(task_meta.get('ocr_pages', []))
     except Exception:
         ocr_pages = set()
