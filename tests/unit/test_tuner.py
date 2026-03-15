@@ -52,6 +52,15 @@ def test_sweep_matrix_no_gpu_sensor_uses_parallel_1_only():
     assert parallel_vals == {'1'}, "No GPU sensor: must not test max_parallel=2"
 
 
+def test_sweep_matrix_throttle_already_at_cap_produces_one_throttle_value():
+    """When throttle is already at 90, no relaxed variant should be added."""
+    snapshot = {'embeddings:chunk_size': '600', 'embeddings:chunk_overlap': '100',
+                'ollama:max_parallel': '1', 'monitor:gpu_temp_throttle': '90'}
+    matrix = build_sweep_matrix(snapshot, gpu_util_pct=None)
+    throttle_vals = {r['monitor:gpu_temp_throttle'] for r in matrix}
+    assert len(throttle_vals) == 1, "At cap, only one throttle value should appear"
+
+
 def _make_runs(specs):
     """Helper: list of (throughput, max_gpu_temp) dicts."""
     return [{'params': {}, 'throughput': t, 'max_gpu_temp': g, 'index': i}
