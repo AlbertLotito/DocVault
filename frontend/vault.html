@@ -229,6 +229,10 @@
       <div id="v-pane-maintenance" class="v-pane" style="display:none;">
         <div id="v-maint-new-msg" style="font-size:11px;color:var(--c-label-dim);padding:14px;border:1px dashed var(--c-border-str);">Maintenance tools become available after the vault is created.</div>
         <div id="v-maint-tools" style="display:none;">
+          <button class="v-maint-btn" onclick="retryErrors()">
+            <div class="v-maint-title" style="color:var(--c-accent);">Retry Errors</div>
+            <div class="v-maint-desc">Resets all ERROR tasks back to PENDING so they are re-extracted.</div>
+          </button>
           <button class="v-maint-btn" onclick="confirmResetAction('reindex')">
             <div class="v-maint-title" style="color:var(--c-accent);">Rebuild Vector Index</div>
             <div class="v-maint-desc">Wipes embeddings and re-vectorizes all files.</div>
@@ -807,6 +811,17 @@
     function closeVaultModal() {
       document.getElementById('vault-modal').classList.remove('open');
       activeVaultId = null;
+    }
+
+    async function retryErrors() {
+      if (!activeVaultId) return;
+      try {
+        var r = await api('/vaults/' + activeVaultId + '/retry_errors', { method: 'POST' });
+        lcToast('Reset ' + r.reset + ' error task(s) to PENDING.');
+        refreshAll();
+      } catch(err) {
+        lcToast('Retry failed: ' + err.message, true);
+      }
     }
 
     function confirmResetAction(action) {
