@@ -9,6 +9,7 @@ Usage:
 """
 import argparse
 import json
+import math
 import os
 import random
 import sys
@@ -66,7 +67,7 @@ def _sample_tasks(db_path: str, n: int, types: list[str], vault_id: str | None) 
     return {cat: random.sample(items, min(n, len(items))) for cat, items in buckets.items()}
 
 
-def _time_file(task: dict) -> tuple[str | None, float]:
+def _time_file(task: dict, resolver: SettingsResolver) -> tuple[str | None, float]:
     """
     Run extractors for one file. Returns (bottleneck_extractor, elapsed_secs).
     Does NOT write any results to docvault.db.
@@ -86,7 +87,7 @@ def _time_file(task: dict) -> tuple[str | None, float]:
         file_hash=task['file_hash'],
         cancel_token=cancel_token,
         logger=ext_logger,
-        settings=SettingsResolver(vault_id=vault_id),
+        settings=resolver,
     )
 
     slowest_name, slowest_elapsed, total = None, 0.0, 0.0
@@ -120,12 +121,20 @@ def run_benchmark(db_path: str, n: int, types: list[str], vault_id: str | None) 
                             'throughput': 0.0, 'bottleneck': None}
             continue
 
+        resolvers: dict[str, SettingsResolver] = {}
+
+        def _get_resolver(vid: str) -> SettingsResolver:
+            if vid not in resolvers:
+                resolvers[vid] = SettingsResolver(vault_id=vid)
+            return resolvers[vid]
+
         timings = []
         cat_bottleneck, cat_bottleneck_time = None, 0.0
-        for task in tasks:
+        for i, task in enumerate(tasks):
             if not os.path.exists(task['file_path']):
                 continue
-            slow_ext, elapsed = _time_file(task)
+            print(f"  [{i+1}/{len(tasks)}] {cat}: {os.path.basename(task['file_path'])}", flush=True)
+            slow_ext, elapsed = _time_file(task, _get_resolver(task.get('vault_id') or ''))
             timings.append(elapsed)
             if elapsed > cat_bottleneck_time:
                 cat_bottleneck_time = elapsed
@@ -138,7 +147,8 @@ def run_benchmark(db_path: str, n: int, types: list[str], vault_id: str | None) 
 
         timings.sort()
         avg = sum(timings) / len(timings)
-        p95 = timings[max(0, int(len(timings) * 0.95) - 1)] if timings else 0.0
+        p95_idx = min(len(timings) - 1, max(0, math.ceil(len(timings) * 0.95) - 1))
+        p95 = timings[p95_idx] if timings else 0.0
         throughput = 3600.0 / avg if avg > 0 else 0.0
 
         results[cat] = {
@@ -236,19 +246,18 @@ def _print_report(results: dict, db_path: str):
     if has_drain:
         print(f"Queue drain estimate: ~{total_drain_hours:.1f} hours at current speed")
 
-    # Bottleneck line
+    # Bottleneck line + tip
     if bottleneck_cat:
         bn = by_type[bottleneck_cat]
         print(f"\nBottleneck: {bn['bottleneck'] or bottleneck_cat} ({bn['avg_secs']}s avg)")
 
-    # Tip based on bottleneck category
-    tips = {
-        'image': "Tip: Disabling vision for non-art vaults would increase throughput significantly.",
-        'audio': "Tip: Disabling Whisper transcription would reduce audio processing time.",
-        'video': "Tip: Limiting video frame extraction would improve video throughput.",
-    }
-    tip = tips.get(bottleneck_cat, "Tip: Consider increasing max_parallel if GPU headroom is available.")
-    print(tip)
+        tips = {
+            'image': "Tip: Disabling vision for non-art vaults would increase throughput significantly.",
+            'audio': "Tip: Disabling Whisper transcription would reduce audio processing time.",
+            'video': "Tip: Limiting video frame extraction would improve video throughput.",
+        }
+        tip = tips.get(bottleneck_cat, "Tip: Consider increasing max_parallel if GPU headroom is available.")
+        print(tip)
 
 
 def save_result(results: dict, db_path: str):
