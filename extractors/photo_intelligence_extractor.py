@@ -52,7 +52,7 @@ def _get_exif_data(image: Image.Image) -> dict:
                         sub_tag = GPSTAGS.get(t, t)
                         # Standardise specialized Pillow types to string or float
                         val = value[t]
-                        if isinstance(val, (bytes, str, int, float)):
+                        if isinstance(val, (str, int, float)):
                             gps_data[sub_tag] = val
                         else:
                             gps_data[sub_tag] = str(val)
@@ -61,7 +61,7 @@ def _get_exif_data(image: Image.Image) -> dict:
                     # Filter for useful tags
                     if decoded in ('Make', 'Model', 'DateTimeOriginal', 'ExposureTime', 'FNumber', 'ISOSpeedRatings', 'FocalLength'):
                         # Standardise specialized Pillow types
-                        if isinstance(value, (bytes, str, int, float)):
+                        if isinstance(value, (str, int, float)):
                             exif_data[decoded] = value
                         else:
                             exif_data[decoded] = str(value)
