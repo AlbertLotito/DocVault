@@ -160,32 +160,6 @@
       flex-direction: column;
       overflow: hidden;
     }
-    .mc-q3 {
-      border-right: 1px solid var(--c-border);
-      border-bottom: 1px solid var(--c-border);
-      display: grid;
-      grid-template-rows: 0.3fr 0.7fr;
-      overflow: hidden;
-    }
-    .mc-q3-top {
-      border-bottom: 1px solid var(--c-border);
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      overflow: hidden;
-    }
-    .mc-q3-top-left {
-      border-right: 1px solid var(--c-border);
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .mc-q3-top-right {
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
     .mc-bottom-bar {
       grid-column: span 2;
       border-top: 1px solid var(--c-border);
@@ -230,10 +204,58 @@
 
     <!-- Q1-Q4 grid -->
     <div class="mc-grid" style="margin:0 20px;">
-      <!-- Q1: Telemetry -->
+
+      <!-- Q1 (TOP LEFT): Config + Throughput + Thermal -->
       <div class="mc-q1">
-        <div class="mc-panel-label">Telemetry (Q1)</div>
-        <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="mc-panel-label">Config &amp; Throughput</div>
+
+        <!-- Meters row (compact) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0;">
+          <div>
+            <div class="mc-panel-label">Throughput</div>
+            <div id="mc-throughput-val" class="mc-big-val" style="color:var(--c-ok);">—</div>
+            <div class="mc-meter-bg">
+              <div id="mc-meter-tp-fill" class="mc-meter-fill" style="background:var(--c-ok);"></div>
+              <div id="mc-meter-tp-peak" class="mc-meter-peak"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;">
+              <span class="mc-small-label">0</span>
+              <span id="mc-meter-tp-peak-lbl" class="mc-small-label">PEAK: 0</span>
+            </div>
+          </div>
+          <div>
+            <div class="mc-panel-label">Thermal Headroom</div>
+            <div id="mc-headroom-val" class="mc-big-val" style="color:var(--c-warn);">--&deg;C</div>
+            <div class="mc-meter-bg">
+              <div id="mc-meter-hr-fill" class="mc-meter-fill" style="background:linear-gradient(90deg, var(--c-error), var(--c-warn), var(--c-ok));"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;">
+              <span class="mc-small-label">LIMIT: 90&deg;C</span>
+              <span id="mc-headroom-status" class="mc-small-label">STABLE</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Params / config (scrollable) -->
+        <div style="flex:1;overflow-y:auto;min-height:0;" id="mc-params-pane">
+          <div class="mc-panel-label" style="margin-bottom:8px;">Parameters</div>
+          <div id="mc-params-rows" style="font-size:12px;color:var(--c-label);">Waiting for optimizer start...</div>
+          <div id="mc-profile-cards" style="display:none;flex-wrap:wrap;gap:10px;"></div>
+        </div>
+      </div>
+
+      <!-- Q2/Q4 (RIGHT, spans both rows): System Log -->
+      <div class="mc-q2">
+        <div class="mc-panel-label" style="margin-bottom:8px;">System Log</div>
+        <div id="mc-log" style="flex:1;overflow-y:auto;font-size:11px;padding-right:10px;">
+          <div style="color:var(--c-label-dim);">Awaiting start...</div>
+        </div>
+      </div>
+
+      <!-- Q3 (BOTTOM LEFT): Telemetry histograms -->
+      <div class="mc-q1" style="border-bottom:none;">
+        <div class="mc-panel-label">Telemetry</div>
+        <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:0;">
           <div class="mc-hist-container">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div class="mc-gauge-label">CPU</div>
@@ -262,48 +284,6 @@
             </div>
             <canvas id="mc-hist-gpu-util"></canvas>
           </div>
-        </div>
-      </div>
-
-      <!-- Q2/Q4: System Log -->
-      <div class="mc-q2">
-        <div class="mc-panel-label" style="margin-bottom:8px;">System Log (Q2/Q4)</div>
-        <div id="mc-log" style="flex:1;overflow-y:auto;font-size:11px;padding-right:10px;">
-          <div style="color:var(--c-label-dim);">Awaiting start...</div>
-        </div>
-      </div>
-
-      <!-- Q3: Throughput + Thermal + Params -->
-      <div class="mc-q3">
-        <div class="mc-q3-top">
-          <div class="mc-q3-top-left">
-            <div class="mc-panel-label">Throughput</div>
-            <div id="mc-throughput-val" class="mc-big-val" style="color:var(--c-ok);">—</div>
-            <div class="mc-meter-bg">
-              <div id="mc-meter-tp-fill" class="mc-meter-fill" style="background:var(--c-ok);"></div>
-              <div id="mc-meter-tp-peak" class="mc-meter-peak"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:4px;">
-              <span class="mc-small-label">0</span>
-              <span id="mc-meter-tp-peak-lbl" class="mc-small-label">PEAK: 0</span>
-            </div>
-          </div>
-          <div class="mc-q3-top-right">
-            <div class="mc-panel-label">Thermal Headroom</div>
-            <div id="mc-headroom-val" class="mc-big-val" style="color:var(--c-warn);">--&deg;C</div>
-            <div class="mc-meter-bg">
-              <div id="mc-meter-hr-fill" class="mc-meter-fill" style="background:linear-gradient(90deg, var(--c-error), var(--c-warn), var(--c-ok));"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:4px;">
-              <span class="mc-small-label">LIMIT: 90&deg;C</span>
-              <span id="mc-headroom-status" class="mc-small-label">STABLE</span>
-            </div>
-          </div>
-        </div>
-        <div style="padding:12px;display:flex;flex-direction:column;overflow-y:auto;" id="mc-params-pane">
-          <div class="mc-panel-label" style="margin-bottom:8px;">Parameters (Q3 Bottom)</div>
-          <div id="mc-params-rows" style="font-size:12px;color:var(--c-label);">Waiting for optimizer start...</div>
-          <div id="mc-profile-cards" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
         </div>
       </div>
 
@@ -341,14 +321,22 @@
     }
 
     function mcBuildConfigPanel() {
-      const rows = document.getElementById('mc-params-rows'); rows.style.display = '';
-      document.getElementById('mc-profile-cards').classList.add('hidden');
+      const rows = document.getElementById('mc-params-rows');
+      rows.style.display = '';
+      const cards = document.getElementById('mc-profile-cards');
+      cards.style.display = 'none';
       const vOpts = ['<option value="">All Vaults</option>'].concat(_mcVaults.map(v => `<option value="${v.vault_id}">${v.name || v.vault_id}</option>`)).join('');
       rows.innerHTML = `
-        <div class="mc-cfg-section">Preset</div><button class="mc-preset-btn active" onclick="mcSetPreset(5)">Standard</button>
-        <div class="mc-cfg-section">Samples</div><input class="mc-cfg-input" type="number" id="mc-samples" value="5">
-        <div class="mc-cfg-section">File Types</div><div style="display:flex;gap:8px;font-size:11px;color:var(--c-label);">${['text','pdf','image','audio','video'].map(t => `<label><input type="checkbox" id="mc-type-${t}" checked> ${t}</label>`).join('')}</div>
-        <div class="mc-cfg-section">Vault</div><select class="mc-cfg-select" id="mc-vault-select">${vOpts}</select>`;
+        <div class="mc-cfg-section">Preset</div>
+        <div class="mc-cfg-row"><button class="mc-preset-btn active" onclick="mcSetPreset(5)">Standard</button></div>
+        <div class="mc-cfg-section">Samples</div>
+        <div class="mc-cfg-row"><input class="mc-cfg-input" type="number" id="mc-samples" value="5" min="1" max="20"> <span style="font-size:11px;color:var(--c-label-dim);">benchmark runs</span></div>
+        <div class="mc-cfg-section">File Types</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--c-label);margin:4px 0 2px;">
+          ${['text','pdf','image','audio','video'].map(t => `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="mc-type-${t}" checked> ${t}</label>`).join('')}
+        </div>
+        <div class="mc-cfg-section">Vault</div>
+        <div class="mc-cfg-row"><select class="mc-cfg-select" id="mc-vault-select" style="width:100%;">${vOpts}</select></div>`;
     }
 
     function mcSetPreset(n) { document.getElementById('mc-samples').value = n; }
@@ -493,7 +481,7 @@
 
     function mcRenderProfiles(profs) {
       if (!profs) return; document.getElementById('mc-params-rows').style.display = 'none';
-      const cards = document.getElementById('mc-profile-cards'); cards.classList.remove('hidden'); cards.style.display = 'flex';
+      const cards = document.getElementById('mc-profile-cards'); cards.style.display = 'flex';
       cards.innerHTML = Object.entries(profs).map(([key, p]) => `<div class="mc-profile-card"><div class="mc-profile-name">${key.replace('_',' ')}</div><div class="mc-profile-val">${p.throughput?.toLocaleString()}</div><button class="mc-apply-btn" onclick="mcApplyProfile('${key}')">&#8595; Apply</button></div>`).join('');
     }
 
