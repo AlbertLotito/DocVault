@@ -85,10 +85,9 @@ try {
 if ($ollamaOk) {
     $requiredModels = @('nomic-embed-text', 'minicpm-v', 'deepseek-r1:14b')
     try {
-        $tags = (Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -TimeoutSec 5).models.name
+        $ollamaList = (& ollama list 2>&1) | Out-String
         foreach ($m in $requiredModels) {
-            $found = $tags | Where-Object { $_ -like "${m}*" }
-            if ($found) {
+            if ($ollamaList -like "*$m*") {
                 Write-OK "Model: $m"
             } else {
                 Write-Warn "Model not pulled: $m  -- run: ollama pull $m"
