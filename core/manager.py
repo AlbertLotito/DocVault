@@ -331,6 +331,28 @@ def insert_task(db_path, file_hash, file_path, file_type, priority=10,
         conn.commit()
 
 
+def insert_child_tasks(db_path, child_task_dicts: list, default_vault_id=None):
+    """Insert a batch of child tasks in a single transaction. Uses INSERT OR IGNORE."""
+    with _connect(db_path) as conn:
+        for ct in child_task_dicts:
+            conn.execute(
+                """INSERT OR IGNORE INTO tasks
+                   (file_hash, file_path, file_type, priority,
+                    vault_id, parent_hash, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    ct['file_hash'],
+                    ct['file_path'],
+                    ct['file_type'],
+                    ct.get('priority', 5),
+                    ct.get('vault_id') or default_vault_id,
+                    ct.get('parent_hash'),
+                    json.dumps(ct['metadata_json']) if ct.get('metadata_json') else None,
+                )
+            )
+        conn.commit()
+
+
 def get_task_metadata(db_path, file_hash) -> dict:
     """Return the metadata_json dict for a task, or {} if absent."""
     with _connect(db_path) as conn:

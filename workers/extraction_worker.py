@@ -95,24 +95,14 @@ def process_task(db_path, task):
                 pass
 
     # ── Child task dispatch (e.g. from PDF Image Harvester) ──────────────────
+    # Batch all inserts in one transaction to avoid N separate write-lock acquisitions.
     child_task_dicts = combined_metadata.pop('_child_tasks', [])
-    for ct in child_task_dicts:
-        try:
-            manager.insert_task(
-                db_path,
-                ct['file_hash'],
-                ct['file_path'],
-                ct['file_type'],
-                priority      = ct.get('priority', 5),
-                vault_id      = ct.get('vault_id') or vault_id,
-                parent_hash   = ct.get('parent_hash'),
-                metadata_json = ct.get('metadata_json'),
-            )
-        except Exception as e:
-            logger.warn(f"Failed to insert child task {ct.get('file_path')}: {e}")
-
     if child_task_dicts:
-        logger.info(f"Dispatched {len(child_task_dicts)} child task(s) from {filename}")
+        try:
+            manager.insert_child_tasks(db_path, child_task_dicts, default_vault_id=vault_id)
+            logger.info(f"Dispatched {len(child_task_dicts)} child task(s) from {filename}")
+        except Exception as e:
+            logger.warn(f"Child task dispatch failed for {filename}: {e}")
 
     final_text   = "\n\n".join(combined_text) if combined_text else None
     has_content  = bool(final_text or combined_metadata)
