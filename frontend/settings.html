@@ -2,146 +2,166 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DocVault — Settings</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/lcars.css">
   <script src="/static/app.js"></script>
+  <style>
+    .settings-field {
+      margin-bottom: 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--c-border);
+    }
+    .settings-field:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .settings-field-row {
+      display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;
+    }
+    .settings-label {
+      font-size: 11px; color: var(--c-label); text-transform: uppercase;
+      letter-spacing: 1px; flex: 1;
+    }
+    .settings-key {
+      font-size: 10px; color: var(--c-label-dim); margin-top: 4px;
+      font-family: monospace; letter-spacing: 0;
+    }
+    .settings-desc {
+      font-size: 10px; color: var(--c-label-dim); margin-top: 5px; line-height: 1.5;
+    }
+    .danger-zone {
+      margin: 20px 20px 0;
+      border: 1px solid #330000;
+      border-top: 3px solid var(--c-error);
+      background: #110000;
+      padding: 14px 18px;
+    }
+    .danger-zone-title {
+      color: var(--c-error); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 2px; margin-bottom: 8px;
+    }
+    .danger-zone-desc {
+      font-size: 11px; color: #aa5555; margin-bottom: 12px; line-height: 1.5;
+    }
+    .danger-row {
+      display: flex; align-items: flex-start; gap: 16px;
+      border: 1px solid #330000; padding: 10px 14px;
+      background: #0a0000;
+    }
+    .danger-row-text { flex: 1; }
+    .danger-row-name { font-size: 12px; color: #cc4444; font-weight: bold; margin-bottom: 4px; }
+    .danger-row-desc { font-size: 11px; color: #884444; line-height: 1.5; }
+    /* Description popup */
+    #desc-popup {
+      position: fixed; z-index: 5000;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border-str);
+      border-top: 2px solid var(--c-accent-dim);
+      padding: 12px 14px;
+      max-width: 300px; width: 300px;
+      display: none;
+    }
+    #desc-popup.open { display: block; }
+    .desc-popup-label { font-size: 11px; color: var(--c-accent); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .desc-popup-text { font-size: 11px; color: var(--c-label); line-height: 1.6; }
+    .desc-popup-key { font-size: 10px; color: var(--c-label-dim); font-family: monospace; margin-top: 8px; }
+    .desc-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 7px;
+      background: #2a1400; border: 1px solid var(--c-border-str);
+      color: var(--c-label-dim); font-size: 9px; font-weight: bold;
+      cursor: pointer; flex-shrink: 0; vertical-align: middle;
+    }
+    .desc-btn:hover { background: var(--c-accent-dim); color: #000; }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
-    <span class="font-bold text-lg">DocVault</span>
-    <a href="/search" class="hover:underline">Search</a>
-    <a href="/" class="hover:underline">Vault Status</a>
-    <a href="/catalog" class="hover:underline">Vault Log</a>
-    <a href="/identity" class="hover:underline">Identity Hub</a>
-    <a href="/lab" class="hover:underline">Lab</a>
-    <a href="/utils" class="hover:underline">Utilities</a>
-    <a href="/settings" class="hover:underline font-semibold">Settings</a>
-  </nav>
+<body data-page="settings">
+  <div class="lc-nav"></div>
 
-  <div class="flex" style="height: calc(100vh - 52px)">
+  <div class="lc-page lc-page-pad">
+    <div class="lc-section-title">Settings</div>
 
-    <!-- Sidebar -->
-    <aside class="w-48 shrink-0 bg-white border-r border-gray-200 overflow-y-auto">
-      <div class="p-4 border-b border-gray-100">
-        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Settings</div>
+    <div style="padding:0 20px;">
+      <div class="lc-bar-badges" id="settings-badges">
+        <!-- populated by buildBadges() -->
       </div>
-      <nav class="p-2 flex flex-col gap-0.5" id="sidebar-nav">
-        <!-- populated by JS -->
-      </nav>
-    </aside>
+    </div>
 
-    <!-- Content -->
-    <main class="flex-1 overflow-y-auto p-8">
-      <div class="max-w-2xl">
-
-        <div id="empty-msg" class="text-gray-400 text-sm">Loading…</div>
-
-        <div id="pane-general"      class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-ollama"       class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-qdrant"       class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-pdf"          class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-embeddings"   class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-search"       class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-vision"       class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-video"        class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-google"       class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-monitor"      class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-art"          class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-bing"         class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-huggingface"  class="tab-pane space-y-4 hidden"></div>
-        <div id="pane-lab"          class="tab-pane space-y-4 hidden"></div>
-
-        <!-- Danger Zone (always visible at bottom of content) -->
-        <div id="danger-zone" class="hidden mt-10 border border-red-200 rounded-lg p-5 bg-red-50">
-          <h2 class="text-base font-bold text-red-700 mb-1">Danger Zone</h2>
-          <p class="text-sm text-gray-600 mb-4">
-            These actions are destructive and cannot be undone.
-          </p>
-          <div class="bg-white border border-red-200 rounded p-4 flex flex-col gap-2">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <div class="font-semibold text-sm text-gray-800">Rebuild Vector Index</div>
-                <div class="text-xs text-gray-500 mt-0.5">
-                  Wipes the Qdrant vector store and re-queues all documents for embedding.
-                  Extracted text, FTS search, file metadata, and settings are preserved.
-                  Semantic search and the Ask chat will be unavailable until re-embedding completes.
-                </div>
-              </div>
-              <button onclick="startReindex()"
-                class="shrink-0 bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded font-medium">
-                Rebuild Index
-              </button>
-            </div>
+    <!-- Danger Zone -->
+    <div class="danger-zone" id="danger-zone">
+      <div class="danger-zone-title">Danger Zone</div>
+      <div class="danger-zone-desc">These actions are destructive and cannot be undone.</div>
+      <div class="danger-row">
+        <div class="danger-row-text">
+          <div class="danger-row-name">Rebuild Vector Index</div>
+          <div class="danger-row-desc">
+            Wipes the Qdrant vector store and re-queues all documents for embedding.
+            Extracted text, FTS search, file metadata, and settings are preserved.
+            Semantic search and Ask chat will be unavailable until re-embedding completes.
           </div>
         </div>
-
+        <button onclick="startReindex()" class="lc-btn lc-btn-danger lc-btn-sm" style="white-space:nowrap;">
+          Rebuild Index
+        </button>
       </div>
-    </main>
+    </div>
   </div>
 
   <!-- Reindex confirmation modal -->
-  <div id="reindex-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+  <div id="reindex-modal" class="lc-modal-backdrop">
+    <div class="lc-modal">
       <div id="reindex-step-1">
-        <h3 class="text-lg font-bold text-gray-800 mb-2">Rebuild Vector Index?</h3>
-        <p class="text-sm text-gray-600 mb-4">
+        <div class="lc-modal-title">Rebuild Vector Index?</div>
+        <p style="font-size:12px;color:var(--c-label);margin-bottom:10px;line-height:1.6;">
           This will permanently delete all vectors from the Qdrant store and re-queue
           every document for re-embedding. The process runs in the background —
           semantic search and the Ask chat will return no results until it completes.
         </p>
-        <p class="text-sm text-gray-600 mb-5">
-          <strong>What is preserved:</strong> extracted text, full-text search, file metadata, settings.<br>
-          <strong>What is lost:</strong> all current vectors (rebuilt automatically).
+        <p style="font-size:12px;color:var(--c-label);margin-bottom:18px;line-height:1.6;">
+          <strong style="color:var(--c-ok);">Preserved:</strong> extracted text, full-text search, file metadata, settings.<br>
+          <strong style="color:var(--c-error);">Lost:</strong> all current vectors (rebuilt automatically).
         </p>
-        <div class="flex gap-3 justify-end">
-          <button onclick="closeReindex()" class="px-4 py-2 rounded text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
-          <button onclick="reindexStep2()" class="px-4 py-2 rounded text-sm bg-red-100 hover:bg-red-200 text-red-700 font-medium">I understand, continue</button>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="closeReindex()" class="lc-btn lc-btn-sm">Cancel</button>
+          <button onclick="reindexStep2()" class="lc-btn lc-btn-sm" style="border-color:#661111;color:#ff7766;">I understand, continue</button>
         </div>
       </div>
-      <div id="reindex-step-2" class="hidden">
-        <h3 class="text-lg font-bold text-red-700 mb-3">Final Confirmation</h3>
-        <p class="text-sm text-gray-700 mb-4">
-          You are about to <strong>wipe the entire vector index</strong>. This cannot be undone.
-          All semantic search results and Ask chat answers will be unavailable until
-          re-embedding finishes, which may take several minutes to hours depending on
-          the number of documents.
+      <div id="reindex-step-2" style="display:none;">
+        <div class="lc-modal-title" style="color:var(--c-error);">Final Confirmation</div>
+        <p style="font-size:12px;color:var(--c-label);margin-bottom:10px;line-height:1.6;">
+          You are about to <strong style="color:var(--c-error);">wipe the entire vector index</strong>.
+          This cannot be undone. All semantic search results and Ask chat answers will be
+          unavailable until re-embedding finishes.
         </p>
-        <p class="text-base font-bold text-red-600 mb-5">
-          Pressing "Yes, Wipe and Rebuild" will immediately delete all vectors.
-          There is no undo.
+        <p style="font-size:13px;font-weight:bold;color:var(--c-error);margin-bottom:18px;">
+          Pressing "Yes, Wipe and Rebuild" will immediately delete all vectors. There is no undo.
         </p>
-        <div class="flex gap-3 justify-end">
-          <button onclick="closeReindex()" class="px-4 py-2 rounded text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
-          <button onclick="confirmReindex()"
-            class="px-4 py-2 rounded text-sm bg-red-600 hover:bg-red-700 text-white font-bold">
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="closeReindex()" class="lc-btn lc-btn-sm">Cancel</button>
+          <button onclick="confirmReindex()" class="lc-btn lc-btn-sm lc-btn-danger" style="background:#330000;font-weight:bold;">
             Yes, Wipe and Rebuild
           </button>
         </div>
       </div>
-      <div id="reindex-done" class="hidden text-center">
-        <div class="text-green-600 text-3xl mb-3">&#10003;</div>
-        <h3 class="text-lg font-bold text-gray-800 mb-2">Reindex Started</h3>
-        <p id="reindex-done-msg" class="text-sm text-gray-600 mb-5"></p>
-        <button onclick="closeReindex()" class="px-5 py-2 rounded text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium">Close</button>
+      <div id="reindex-done" style="display:none;text-align:center;">
+        <div style="font-size:28px;color:var(--c-ok);margin-bottom:10px;">✓</div>
+        <div class="lc-modal-title">Reindex Started</div>
+        <p id="reindex-done-msg" style="font-size:12px;color:var(--c-label);margin-bottom:18px;line-height:1.6;"></p>
+        <button onclick="closeReindex()" class="lc-btn lc-btn-sm lc-btn-primary">Close</button>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="hidden fixed bottom-6 right-6 px-4 py-2 rounded shadow text-sm font-medium"></div>
-
   <!-- Description popup -->
-  <div id="desc-overlay" class="hidden fixed inset-0 z-40" onclick="closeDesc()"></div>
-  <div id="desc-popup"
-    class="hidden fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm text-sm text-gray-700 leading-relaxed"
-    style="width:320px">
-    <div class="flex justify-between items-start gap-2 mb-1">
-      <span id="desc-label" class="font-semibold text-gray-800"></span>
-      <button onclick="closeDesc()" class="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+  <div id="desc-overlay" style="display:none;position:fixed;inset:0;z-index:4999;" onclick="closeDesc()"></div>
+  <div id="desc-popup">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
+      <div class="desc-popup-label" id="desc-label"></div>
+      <button onclick="closeDesc()" style="background:none;border:none;color:var(--c-label-dim);font-size:16px;cursor:pointer;line-height:1;">&times;</button>
     </div>
-    <p id="desc-text" class="text-gray-600"></p>
-    <p id="desc-key" class="mt-2 font-mono text-xs text-gray-400"></p>
+    <div class="desc-popup-text" id="desc-text"></div>
+    <div class="desc-popup-key" id="desc-key"></div>
   </div>
 
+  <script src="/static/lcars.js"></script>
   <script>
     const GROUPS = [
       { id: 'general',      label: 'General' },
@@ -160,87 +180,107 @@
       { id: 'lab',          label: 'Lab' },
     ];
 
-    let activeGroup = 'general';
+    const GROUP_COLORS = {
+      general:'#cc6600', ollama:'#aa5500', qdrant:'#994400', pdf:'#885500',
+      embeddings:'#776600', search:'#665500', vision:'#664400', video:'#554400',
+      google:'#443300', bing:'#332200', huggingface:'#442200', art:'#553300',
+      monitor:'#333300', lab:'#334400'
+    };
 
-    function buildSidebar() {
-      const nav = document.getElementById('sidebar-nav');
-      nav.innerHTML = '';
+    // Group icon/emoji
+    const GROUP_ICONS = {
+      general:'⚙', ollama:'🤖', qdrant:'⬡', pdf:'📄',
+      embeddings:'🔢', search:'🔍', vision:'👁', video:'🎬',
+      google:'☁', bing:'🌐', huggingface:'🤗', art:'🎨',
+      monitor:'📊', lab:'⚗'
+    };
+
+    function buildBadges() {
+      const container = document.getElementById('settings-badges');
+      container.innerHTML = '';
       for (const g of GROUPS) {
-        const btn = document.createElement('button');
-        btn.id = `tab-${g.id}`;
-        btn.textContent = g.label;
-        btn.onclick = () => showTab(g.id);
-        btn.className = 'tab-btn w-full text-left px-3 py-2 rounded text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900';
-        nav.appendChild(btn);
-      }
-    }
+        const color = GROUP_COLORS[g.id] || '#664400';
+        const icon  = GROUP_ICONS[g.id]  || '⚙';
 
-    function showTab(name) {
-      activeGroup = name;
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-      document.getElementById(`pane-${name}`).classList.remove('hidden');
-      document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.remove('bg-indigo-50', 'text-indigo-700', 'font-semibold');
-        b.classList.add('text-gray-600');
-      });
-      const btn = document.getElementById(`tab-${name}`);
-      if (btn) {
-        btn.classList.add('bg-indigo-50', 'text-indigo-700', 'font-semibold');
-        btn.classList.remove('text-gray-600');
+        const badge = document.createElement('div');
+        badge.className = 'lc-bar-badge';
+        badge.id = `badge-${g.id}`;
+        badge.onclick = () => lcAccordion(badge);
+        badge.innerHTML = `
+          <div class="lc-bar-tab" style="background:${color};">${icon}</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">${escapeHtml(g.label)}</div>
+            <div class="lc-bar-desc" id="desc-count-${g.id}">Loading…</div>
+            <div class="lc-bar-arrow">▶</div>
+          </div>`;
+
+        const expand = document.createElement('div');
+        expand.className = 'lc-bar-expand';
+        expand.id = `expand-${g.id}`;
+
+        container.appendChild(badge);
+        container.appendChild(expand);
       }
-      document.getElementById('empty-msg').classList.add('hidden');
-      document.getElementById('danger-zone').classList.remove('hidden');
     }
 
     async function loadSettings() {
-      buildSidebar();
+      buildBadges();
       const data = await api('/settings');
 
       const groupMap = {};
       for (const g of GROUPS) groupMap[g.id] = [];
-
       for (const s of data.settings) {
         const g = s.group || 'general';
         if (groupMap[g]) groupMap[g].push(s);
       }
 
       for (const [group, items] of Object.entries(groupMap)) {
-        const pane = document.getElementById(`pane-${group}`);
-        if (!pane) continue;
-        pane.innerHTML = '';
-        for (const s of items) {
-          const row = document.createElement('div');
-          row.className = 'bg-white rounded shadow p-4 flex flex-col gap-1';
-          const hasDesc = s.description && s.description.trim();
-          row.innerHTML = `
-            <div class="flex items-center gap-1.5">
-              <label class="text-sm font-medium text-gray-700">${escapeHtml(s.label)}</label>
-              ${hasDesc ? `<button
-                onclick="showDesc(event, '${escapeAttr(s.label)}', '${escapeAttr(s.description)}', '${escapeAttr(s.key)}')"
-                class="w-4 h-4 rounded-full bg-gray-200 hover:bg-indigo-200 text-gray-500 hover:text-indigo-700 text-xs font-bold leading-none flex items-center justify-center shrink-0"
-                title="What is this?">?</button>` : ''}
-            </div>
-            <div class="flex gap-2">
-              <input
-                type="text"
-                value="${escapeAttr(String(s.value ?? ''))}"
-                data-key="${escapeAttr(s.key)}"
-                class="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-              <button
-                onclick="saveSetting('${escapeAttr(s.key)}')"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">
-                Save
-              </button>
-            </div>
-            <span class="text-xs text-gray-400 font-mono">${escapeHtml(s.key)}</span>
-          `;
-          pane.appendChild(row);
-        }
-      }
+        const expand = document.getElementById(`expand-${group}`);
+        const countEl = document.getElementById(`desc-count-${group}`);
+        if (!expand) continue;
 
-      // Show first group
-      showTab('general');
+        const n = items.length;
+        if (countEl) countEl.textContent = `${n} setting${n !== 1 ? 's' : ''}`;
+
+        if (n === 0) {
+          expand.innerHTML = '<div style="font-size:11px;color:var(--c-label-dim);">No settings in this group.</div>';
+          continue;
+        }
+
+        expand.innerHTML = '';
+        items.forEach((s, idx) => {
+          const isLast = idx === items.length - 1;
+          const hasDesc = s.description && s.description.trim();
+          const isToggle = s.type === 'bool' || s.value === 'true' || s.value === 'false';
+
+          const field = document.createElement('div');
+          field.className = 'settings-field';
+          if (isLast) field.style.borderBottom = 'none';
+
+          const inputHtml = isToggle
+            ? `<select class="lc-select" data-key="${escapeAttr(s.key)}" style="width:auto;">
+                <option value="true" ${s.value==='true'?'selected':''}>True</option>
+                <option value="false" ${s.value!=='true'?'selected':''}>False</option>
+               </select>`
+            : `<input class="lc-input" type="text"
+                value="${escapeAttr(String(s.value ?? ''))}"
+                data-key="${escapeAttr(s.key)}">`;
+
+          field.innerHTML = `
+            <div class="settings-field-row">
+              <label class="settings-label">
+                ${escapeHtml(s.label)}
+                ${hasDesc ? `<span class="desc-btn" onclick="showDesc(event,'${escapeAttr(s.label)}','${escapeAttr(s.description)}','${escapeAttr(s.key)}')">?</span>` : ''}
+              </label>
+              <button class="lc-btn lc-btn-sm" onclick="saveSetting('${escapeAttr(s.key)}')">Save</button>
+            </div>
+            ${inputHtml}
+            <div class="settings-key">${escapeHtml(s.key)}</div>
+            ${hasDesc ? `<div class="settings-desc">${escapeHtml(s.description)}</div>` : ''}
+          `;
+          expand.appendChild(field);
+        });
+      }
     }
 
     async function saveSetting(key) {
@@ -253,40 +293,31 @@
           body: JSON.stringify({ key, value }),
         });
         if (result.ok) {
-          showToast('Saved.', true);
+          lcToast('Saved.');
         } else {
           let detail = `HTTP ${result.status}`;
           try { detail = (await result.json()).detail; } catch (_) {}
-          showToast(`Error: ${detail}`, false);
+          lcToast(`Error: ${detail}`, true);
         }
       } catch (err) {
-        showToast(`Error: ${err.message}`, false);
+        lcToast(`Error: ${err.message}`, true);
       }
     }
 
-    function showToast(msg, ok) {
-      const toast = document.getElementById('toast');
-      toast.textContent = msg;
-      toast.className = `fixed bottom-6 right-6 px-4 py-2 rounded shadow text-sm font-medium ${
-        ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-      }`;
-      setTimeout(() => toast.classList.add('hidden'), 2500);
-    }
-
     function startReindex() {
-      document.getElementById('reindex-step-1').classList.remove('hidden');
-      document.getElementById('reindex-step-2').classList.add('hidden');
-      document.getElementById('reindex-done').classList.add('hidden');
-      document.getElementById('reindex-modal').classList.remove('hidden');
+      document.getElementById('reindex-step-1').style.display = '';
+      document.getElementById('reindex-step-2').style.display = 'none';
+      document.getElementById('reindex-done').style.display = 'none';
+      document.getElementById('reindex-modal').classList.add('open');
     }
 
     function reindexStep2() {
-      document.getElementById('reindex-step-1').classList.add('hidden');
-      document.getElementById('reindex-step-2').classList.remove('hidden');
+      document.getElementById('reindex-step-1').style.display = 'none';
+      document.getElementById('reindex-step-2').style.display = '';
     }
 
     async function confirmReindex() {
-      document.getElementById('reindex-step-2').classList.add('hidden');
+      document.getElementById('reindex-step-2').style.display = 'none';
       try {
         const result = await api('/utils/reindex', { method: 'POST' });
         document.getElementById('reindex-done-msg').textContent =
@@ -294,11 +325,11 @@
       } catch (err) {
         document.getElementById('reindex-done-msg').textContent = `Error: ${err.message}`;
       }
-      document.getElementById('reindex-done').classList.remove('hidden');
+      document.getElementById('reindex-done').style.display = '';
     }
 
     function closeReindex() {
-      document.getElementById('reindex-modal').classList.add('hidden');
+      document.getElementById('reindex-modal').classList.remove('open');
     }
 
     function showDesc(event, label, description, key) {
@@ -307,11 +338,11 @@
       document.getElementById('desc-text').textContent = description;
       document.getElementById('desc-key').textContent = key;
       const popup = document.getElementById('desc-popup');
-      popup.classList.remove('hidden');
-      document.getElementById('desc-overlay').classList.remove('hidden');
+      document.getElementById('desc-overlay').style.display = '';
+      popup.classList.add('open');
       const btn = event.currentTarget;
       const rect = btn.getBoundingClientRect();
-      const popupW = 320;
+      const popupW = 300;
       let left = rect.right + 8;
       if (left + popupW > window.innerWidth - 12) left = rect.left - popupW - 8;
       popup.style.left = `${left}px`;
@@ -319,8 +350,8 @@
     }
 
     function closeDesc() {
-      document.getElementById('desc-popup').classList.add('hidden');
-      document.getElementById('desc-overlay').classList.add('hidden');
+      document.getElementById('desc-popup').classList.remove('open');
+      document.getElementById('desc-overlay').style.display = 'none';
     }
 
     function escapeHtml(s) {
