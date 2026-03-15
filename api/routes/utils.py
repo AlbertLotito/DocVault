@@ -11,6 +11,146 @@ from qdrant_client.http import models as qdrant_models
 router = APIRouter()
 
 
+# ── Performance Stats ─────────────────────────────────────────────────────────
+
+@router.get("/utils/performance_stats")
+def performance_stats():
+    """
+    Returns extractor timing stats, throughput trends, bottleneck callout,
+    and last 5 benchmark runs for the Analytics dashboard.
+    """
+    from core.manager import get_logs_db_path, _connect
+    import sqlite3
+
+    logs_db = get_logs_db_path()
+
+    with _connect(logs_db) as conn:
+        # Extractor stats
+        rows = conn.execute(
+            """SELECT extractor,
+                      AVG(elapsed_secs) AS avg_secs,
+                      COUNT(*) AS cnt
+               FROM task_timings
+               WHERE elapsed_secs IS NOT NULL
+               GROUP BY extractor
+               ORDER BY avg_secs DESC"""
+        ).fetchall()
+
+        extractor_stats = []
+        for r in rows:
+            avg = r['avg_secs']
+            category = 'fast' if avg < 1 else ('moderate' if avg < 10 else 'slow')
+            # p95: fetch all elapsed for this extractor, sort, take 95th pct
+            elapseds = [row[0] for row in conn.execute(
+                "SELECT elapsed_secs FROM task_timings WHERE extractor=? AND elapsed_secs IS NOT NULL ORDER BY elapsed_secs",
+                (r['extractor'],)
+            ).fetchall()]
+            p95 = elapseds[max(0, int(len(elapseds) * 0.95) - 1)] if elapseds else 0.0
+            extractor_stats.append({
+                'extractor': r['extractor'], 'avg_secs': round(avg, 2),
+                'p95_secs': round(p95, 2), 'count': r['cnt'], 'category': category,
+            })
+
+        # Throughput 24h (hourly bins)
+        rows_24h = conn.execute(
+            """SELECT strftime('%H:00', completed_at) AS hour, COUNT(*) AS cnt
+               FROM task_timings
+               WHERE completed_at >= datetime('now', '-24 hours')
+               GROUP BY hour ORDER BY hour"""
+        ).fetchall()
+        throughput_24h = [{'hour': r['hour'], 'files_per_hour': r['cnt']} for r in rows_24h]
+
+        # Throughput 7d (daily bins)
+        rows_7d = conn.execute(
+            """SELECT date(completed_at) AS day, COUNT(*) AS cnt
+               FROM task_timings
+               WHERE completed_at >= datetime('now', '-7 days')
+               GROUP BY day ORDER BY day"""
+        ).fetchall()
+        throughput_7d = [{'day': r['day'], 'files_per_hour': r['cnt']} for r in rows_7d]
+
+        # Bottleneck (slowest extractor)
+        bottleneck = None
+        if extractor_stats:
+            b = extractor_stats[0]
+            tip = (f"Your slowest extractor is {b['extractor']} ({b['avg_secs']}s avg, "
+                   f"{b['count']} files processed). Consider disabling it for vaults that don't need it.")
+            bottleneck = {'extractor': b['extractor'], 'avg_secs': b['avg_secs'], 'tip': tip}
+
+        # Last 5 benchmark runs
+        bench_rows = conn.execute(
+            """SELECT run_id, run_at, overall_files_per_hour, bottleneck_extractor
+               FROM benchmark_runs ORDER BY run_id DESC LIMIT 5"""
+        ).fetchall()
+        benchmark_runs = [dict(r) for r in bench_rows]
+
+    return {
+        'extractor_stats': extractor_stats,
+        'throughput_24h':  throughput_24h,
+        'throughput_7d':   throughput_7d,
+        'bottleneck':      bottleneck,
+        'benchmark_runs':  benchmark_runs,
+    }
+
+
+# ── Optimizer Endpoints ───────────────────────────────────────────────────────
+
+class OptimizerApplyRequest(BaseModel):
+    profile: str  # "raw_speed" | "sustainable" | "balanced"
+
+
+@router.post("/utils/optimizer/start")
+def optimizer_start():
+    """Launch the optimizer. 409 if already running."""
+    from api.main import DB_PATH
+    from core.tuner import start_optimizer
+    if not start_optimizer(DB_PATH):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=409, detail="optimizer already running")
+    return {"state": "starting"}
+
+
+@router.get("/utils/optimizer/status")
+def optimizer_status():
+    """Live poll — frontend calls every 1000ms."""
+    from core.tuner import get_state
+    return get_state()
+
+
+@router.post("/utils/optimizer/apply")
+def optimizer_apply(req: OptimizerApplyRequest):
+    """Apply a completed optimizer profile to settings.db."""
+    from core.tuner import get_state
+    from fastapi import HTTPException
+    state = get_state()
+    if state['state'] != 'complete':
+        raise HTTPException(status_code=400, detail="no complete run to apply")
+    profiles = state.get('profiles') or {}
+    profile = profiles.get(req.profile)
+    if not profile:
+        raise HTTPException(status_code=400, detail=f"unknown profile: {req.profile}")
+    from core.settings import settings
+    params = profile['params']
+    for k, v in params.items():
+        try:
+            settings.set(k, v)
+        except Exception:
+            pass
+    return {"applied": True, "params": params}
+
+
+@router.post("/utils/optimizer/abort")
+def optimizer_abort():
+    """Abort the running optimizer. 400 if not running."""
+    from core.tuner import abort_optimizer, get_state
+    from fastapi import HTTPException
+    s = get_state()['state']
+    if s in ('idle', 'complete', 'aborted', 'error'):
+        raise HTTPException(status_code=400, detail="no active run")
+    abort_optimizer()
+    return {"state": "aborting"}
+
+
 @router.get("/utils/qdrant_check")
 async def run_qdrant_check():
     """Runs a health check on the Qdrant database."""
