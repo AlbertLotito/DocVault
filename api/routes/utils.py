@@ -116,15 +116,93 @@ class OptimizerApplyRequest(BaseModel):
     profile: str  # "raw_speed" | "sustainable" | "balanced"
 
 
+class OptimizerStartRequest(BaseModel):
+    samples:       int | None       = None
+    types:         list[str] | None = None
+    locked_axes:   list[str] | None = None
+    force_parallel: bool            = False
+    vault_id:      str | None       = None
+    delay_hours:   float            = 0
+
+
+class SaveProfileRequest(BaseModel):
+    name:       str
+    params:     dict
+    throughput: float | None = None
+    source_run: dict | None  = None
+
+
 @router.post("/utils/optimizer/start")
-def optimizer_start():
-    """Launch the optimizer. 409 if already running."""
+def optimizer_start(req: OptimizerStartRequest | None = None):
+    """Launch the optimizer. 409 if already running. Accepts optional config body."""
     from api.main import DB_PATH
     from core.tuner import start_optimizer
-    if not start_optimizer(DB_PATH):
+    config = req.model_dump() if req else {}
+    if not start_optimizer(DB_PATH, config=config):
         from fastapi import HTTPException
         raise HTTPException(status_code=409, detail="optimizer already running")
-    return {"state": "starting"}
+    state = config.get('delay_hours', 0) and config['delay_hours'] > 0
+    return {"state": "scheduled" if state else "starting"}
+
+
+@router.get("/utils/optimizer/last_config")
+def optimizer_last_config():
+    """Return the config dict from the last sweep, or {} if none."""
+    from core.tuner import get_last_config
+    cfg = get_last_config()
+    return cfg if cfg is not None else {}
+
+
+@router.post("/utils/optimizer/save_profile")
+def optimizer_save_profile(req: SaveProfileRequest):
+    """Save an optimizer profile to logs.db optimizer_profiles table."""
+    import json
+    from datetime import datetime, timezone
+    from core.manager import get_logs_db_path, _connect, init_logs_db
+    init_logs_db()
+    saved_at = datetime.now(timezone.utc).isoformat()
+    with _connect(get_logs_db_path()) as conn:
+        cur = conn.execute(
+            """INSERT INTO optimizer_profiles (saved_at, name, params, throughput, source_run)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                saved_at,
+                req.name,
+                json.dumps(req.params),
+                req.throughput,
+                json.dumps(req.source_run) if req.source_run else None,
+            )
+        )
+        conn.commit()
+        profile_id = cur.lastrowid
+    return {"saved": True, "profile_id": profile_id}
+
+
+@router.get("/utils/optimizer/saved_profiles")
+def optimizer_saved_profiles():
+    """Return last 10 saved optimizer profiles ordered by saved_at DESC."""
+    import json
+    from core.manager import get_logs_db_path, _connect, init_logs_db
+    init_logs_db()
+    with _connect(get_logs_db_path()) as conn:
+        rows = conn.execute(
+            """SELECT profile_id, saved_at, name, params, throughput, source_run
+               FROM optimizer_profiles ORDER BY saved_at DESC LIMIT 10"""
+        ).fetchall()
+    result = []
+    for r in rows:
+        row = dict(r)
+        try:
+            row['params'] = json.loads(row['params'])
+        except Exception:
+            pass
+        try:
+            if row['source_run']:
+                row['source_run'] = json.loads(row['source_run'])
+        except Exception:
+            pass
+        result.append(row)
+    return result
 
 
 @router.get("/utils/optimizer/status")
