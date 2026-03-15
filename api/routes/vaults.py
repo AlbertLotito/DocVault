@@ -88,7 +88,7 @@ def retry_errors(vault_id: str):
     db_path = get_db_path()
     with _connect(db_path) as conn:
         cur = conn.execute(
-            "UPDATE tasks SET status='PENDING', error=NULL WHERE vault_id=? AND status='ERROR'",
+            "UPDATE tasks SET status='PENDING', error_log=NULL WHERE vault_id=? AND status='ERROR'",
             (vault_id,)
         )
         reset_count = cur.rowcount
