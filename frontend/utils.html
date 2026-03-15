@@ -384,6 +384,23 @@
     .mc-profile-val { font-size:20px; font-weight:700; font-family:monospace; color:#4ade80; }
     .mc-apply-btn { background:#1e2a4a; color:#818cf8; border:1px solid #3730a3; padding:4px 12px; font-size:9px; font-weight:700; cursor:pointer; margin-top:8px; width:100%; }
     .mc-apply-btn:hover { background:#1e3a8a; }
+    /* Config panel styles */
+    .mc-cfg-section { font-size:8px; color:#334155; text-transform:uppercase; letter-spacing:0.1em; margin:8px 0 4px; }
+    .mc-preset-btn { padding:3px 10px; font-size:9px; font-weight:700; cursor:pointer; border-radius:2px; font-family:inherit; }
+    .mc-preset-btn.active { background:#1e3a5f; color:#60a5fa; border:1px solid #3b82f6; }
+    .mc-preset-btn.inactive { background:#0a0e18; color:#334155; border:1px solid #1e2740; }
+    .mc-cfg-row { display:flex; align-items:center; gap:6px; margin:3px 0; flex-wrap:wrap; }
+    .mc-cfg-label { font-size:10px; color:#64748b; min-width:80px; }
+    .mc-cfg-input { background:#0a0e18; border:1px solid #1e2740; color:#94a3b8; font-size:10px; font-family:inherit; padding:2px 6px; border-radius:2px; width:52px; }
+    .mc-cfg-checkbox { accent-color:#4f6ef7; width:12px; height:12px; cursor:pointer; }
+    .mc-cfg-check-label { font-size:10px; color:#64748b; cursor:pointer; }
+    .mc-cfg-select { background:#0a0e18; border:1px solid #1e2740; color:#94a3b8; font-size:10px; font-family:inherit; padding:2px 6px; border-radius:2px; }
+    .mc-save-input { background:#0a0e18; border:1px solid #1e2740; color:#94a3b8; font-size:10px; font-family:inherit; padding:2px 6px; border-radius:2px; flex:1; min-width:80px; }
+    .mc-save-btn { background:#1e3a5f; color:#60a5fa; border:1px solid #3b82f6; padding:3px 10px; font-size:9px; font-weight:700; cursor:pointer; border-radius:2px; font-family:inherit; }
+    .mc-save-btn:hover { background:#1e4a7f; }
+    .mc-repeat-btn { background:#0a0e18; color:#475569; border:1px solid #1e2740; padding:3px 10px; font-size:9px; font-weight:700; cursor:pointer; border-radius:2px; font-family:inherit; }
+    .mc-repeat-btn.enabled { color:#94a3b8; border-color:#334155; cursor:pointer; }
+    .mc-repeat-btn.enabled:hover { background:#1e2740; }
   </style>
 
   <script>
@@ -392,9 +409,16 @@
     let _mcRunCount = 0;
     let _mcLastRunIndex = 0;
     let _mcStartTime = null;
+    let _mcHasLastConfig = false;
+    let _mcLastCompletedProfiles = null;  // used by save-profile UI
 
-    function openOptimizer() {
+    // ── Overlay open/close ─────────────────────────────────────────────────────
+
+    async function openOptimizer() {
       document.getElementById('mc-overlay').classList.remove('hidden');
+      // Populate vault dropdown and check for last config
+      await Promise.all([mcLoadVaults(), mcCheckLastConfig()]);
+      mcBuildConfigPanel();
     }
 
     function closeOptimizer() {
@@ -402,10 +426,182 @@
       document.getElementById('mc-overlay').classList.add('hidden');
     }
 
-    async function mcStartRun() {
+    // ── Vault loading ──────────────────────────────────────────────────────────
+
+    let _mcVaults = [];
+
+    async function mcLoadVaults() {
       try {
-        const r = await api('/utils/optimizer/start', { method: 'POST' });
-        mcLog('info', 'Optimizer started — pausing workers...');
+        const data = await api('/vaults');
+        _mcVaults = (data || []).filter(v => v.state === 'active');
+      } catch(_) {
+        _mcVaults = [];
+      }
+    }
+
+    async function mcCheckLastConfig() {
+      try {
+        const cfg = await api('/utils/optimizer/last_config');
+        _mcHasLastConfig = cfg && Object.keys(cfg).length > 0;
+      } catch(_) {
+        _mcHasLastConfig = false;
+      }
+    }
+
+    // ── Config panel builder ───────────────────────────────────────────────────
+
+    function mcBuildConfigPanel() {
+      const rowsEl = document.getElementById('mc-params-rows');
+      rowsEl.style.display = '';
+      rowsEl.classList.remove('hidden');
+      document.getElementById('mc-profile-cards').style.display = 'none';
+      document.getElementById('mc-profile-cards').classList.add('hidden');
+
+      const vaultOptions = ['<option value="">All Vaults</option>']
+        .concat(_mcVaults.map(v => `<option value="${v.vault_id}">${v.name || v.vault_id}</option>`))
+        .join('');
+
+      rowsEl.innerHTML = `
+        <div>
+          <div class="mc-cfg-section">Preset</div>
+          <div class="mc-cfg-row" style="gap:4px">
+            <button class="mc-preset-btn inactive" id="mc-preset-quick"   onclick="mcSetPreset(2)"  >Quick</button>
+            <button class="mc-preset-btn active"   id="mc-preset-std"     onclick="mcSetPreset(5)"  >Standard</button>
+            <button class="mc-preset-btn inactive" id="mc-preset-thorough" onclick="mcSetPreset(10)">Thorough</button>
+          </div>
+
+          <div class="mc-cfg-section">Samples</div>
+          <div class="mc-cfg-row">
+            <input class="mc-cfg-input" type="number" id="mc-samples" min="1" max="20" value="5"
+                   oninput="mcSyncPresetButtons()" style="width:60px">
+            <span style="font-size:10px;color:#475569">per type</span>
+          </div>
+
+          <div class="mc-cfg-section">File Types</div>
+          <div class="mc-cfg-row">
+            ${['text','pdf','image','audio','video'].map(t =>
+              `<label class="mc-cfg-row" style="gap:3px;margin:0">
+                <input class="mc-cfg-checkbox" type="checkbox" id="mc-type-${t}" checked>
+                <span class="mc-cfg-check-label">${t}</span>
+              </label>`
+            ).join('')}
+          </div>
+
+          <div class="mc-cfg-section">Sweep Axes</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">
+            ${[['chunk_size','chunk_size'],['chunk_overlap','chunk_overlap'],
+               ['max_parallel','max_parallel'],['gpu_throttle','gpu_throttle']].map(([id,label]) =>
+              `<label class="mc-cfg-row" style="gap:3px;margin:2px 0">
+                <input class="mc-cfg-checkbox" type="checkbox" id="mc-axis-${id}" checked
+                       ${id==='max_parallel'?'onchange="mcSyncForceParallel()"':''}>
+                <span class="mc-cfg-check-label">${label}</span>
+              </label>`
+            ).join('')}
+          </div>
+          <div class="mc-cfg-row" style="margin-top:4px">
+            <input class="mc-cfg-checkbox" type="checkbox" id="mc-force-parallel" disabled>
+            <label class="mc-cfg-check-label" for="mc-force-parallel" style="color:#334155" id="mc-force-parallel-lbl">Force max_parallel=2</label>
+          </div>
+
+          <div class="mc-cfg-section">Vault</div>
+          <div class="mc-cfg-row">
+            <select class="mc-cfg-select" id="mc-vault-select">${vaultOptions}</select>
+          </div>
+
+          <div class="mc-cfg-section">Schedule</div>
+          <div class="mc-cfg-row">
+            <input class="mc-cfg-checkbox" type="checkbox" id="mc-delay-check" onchange="mcSyncDelayInput()">
+            <span class="mc-cfg-check-label">Delay start</span>
+            <input class="mc-cfg-input" type="number" id="mc-delay-hours" min="1" max="24" value="1" disabled style="width:44px">
+            <span style="font-size:10px;color:#475569">hours</span>
+          </div>
+
+          <div class="mc-cfg-row" style="margin-top:8px">
+            <button id="mc-repeat-btn"
+                    class="mc-repeat-btn ${_mcHasLastConfig ? 'enabled' : ''}"
+                    onclick="mcRepeatLast()"
+                    ${_mcHasLastConfig ? '' : 'disabled'}>↺ Repeat Last Sweep</button>
+          </div>
+        </div>`;
+    }
+
+    function mcSetPreset(n) {
+      document.getElementById('mc-samples').value = n;
+      mcSyncPresetButtons();
+    }
+
+    function mcSyncPresetButtons() {
+      const n = parseInt(document.getElementById('mc-samples').value);
+      const map = { 2:'mc-preset-quick', 5:'mc-preset-std', 10:'mc-preset-thorough' };
+      for (const [val, id] of Object.entries(map)) {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.className = 'mc-preset-btn ' + (parseInt(val) === n ? 'active' : 'inactive');
+        }
+      }
+    }
+
+    function mcSyncForceParallel() {
+      const axisChecked = document.getElementById('mc-axis-max_parallel').checked;
+      const forceEl = document.getElementById('mc-force-parallel');
+      const lblEl   = document.getElementById('mc-force-parallel-lbl');
+      forceEl.disabled = !axisChecked;
+      if (lblEl) lblEl.style.color = axisChecked ? '#64748b' : '#334155';
+      if (!axisChecked) forceEl.checked = false;
+    }
+
+    function mcSyncDelayInput() {
+      const checked = document.getElementById('mc-delay-check').checked;
+      document.getElementById('mc-delay-hours').disabled = !checked;
+    }
+
+    // ── Read current UI state → config dict ───────────────────────────────────
+
+    function mcGetConfig() {
+      const samples = parseInt(document.getElementById('mc-samples')?.value || '5');
+
+      const allTypes = ['text','pdf','image','audio','video'];
+      const types = allTypes.filter(t => {
+        const el = document.getElementById('mc-type-' + t);
+        return el ? el.checked : true;
+      });
+
+      const allAxes = ['chunk_size','chunk_overlap','max_parallel','gpu_throttle'];
+      const locked_axes = allAxes.filter(a => {
+        const el = document.getElementById('mc-axis-' + a);
+        return el ? !el.checked : false;
+      });
+
+      const forceEl = document.getElementById('mc-force-parallel');
+      const force_parallel = forceEl ? (forceEl.checked && !forceEl.disabled) : false;
+
+      const vaultEl = document.getElementById('mc-vault-select');
+      const vault_id = vaultEl ? (vaultEl.value || null) : null;
+
+      const delayCheck = document.getElementById('mc-delay-check');
+      const delayHours = document.getElementById('mc-delay-hours');
+      const delay_hours = (delayCheck && delayCheck.checked)
+        ? parseFloat(delayHours?.value || '1') : 0;
+
+      return { samples, types, locked_axes, force_parallel, vault_id, delay_hours };
+    }
+
+    // ── Start sweep ────────────────────────────────────────────────────────────
+
+    async function mcStartRun() {
+      const config = mcGetConfig();
+      try {
+        const r = await api('/utils/optimizer/start', {
+          method: 'POST',
+          body: JSON.stringify(config)
+        });
+        const isScheduled = r.state === 'scheduled';
+        if (isScheduled) {
+          mcLog('info', `Optimizer scheduled — starts in ${config.delay_hours}h`);
+          document.getElementById('mc-run-label').textContent = 'SCHEDULED';
+        } else {
+          mcLog('info', 'Optimizer started — pausing workers...');
+        }
         _mcStartTime = Date.now();
         _mcLastRunIndex = 0;
         document.getElementById('mc-start-btn').classList.add('hidden');
@@ -424,6 +620,45 @@
       }
     }
 
+    // ── Repeat last sweep ──────────────────────────────────────────────────────
+
+    async function mcRepeatLast() {
+      try {
+        const cfg = await api('/utils/optimizer/last_config');
+        if (!cfg || !Object.keys(cfg).length) {
+          mcLog('warn', 'No previous config found.');
+          return;
+        }
+        // Populate UI controls from last config
+        if (cfg.samples) document.getElementById('mc-samples').value = cfg.samples;
+        mcSyncPresetButtons();
+        const allTypes = ['text','pdf','image','audio','video'];
+        allTypes.forEach(t => {
+          const el = document.getElementById('mc-type-' + t);
+          if (el) el.checked = !cfg.types || cfg.types.includes(t);
+        });
+        const allAxes = ['chunk_size','chunk_overlap','max_parallel','gpu_throttle'];
+        allAxes.forEach(a => {
+          const el = document.getElementById('mc-axis-' + a);
+          if (el) el.checked = !(cfg.locked_axes || []).includes(a);
+        });
+        mcSyncForceParallel();
+        const forceEl = document.getElementById('mc-force-parallel');
+        if (forceEl) forceEl.checked = !!cfg.force_parallel;
+        const vaultEl = document.getElementById('mc-vault-select');
+        if (vaultEl) vaultEl.value = cfg.vault_id || '';
+        // Force delay=0 for re-runs
+        const delayCheck = document.getElementById('mc-delay-check');
+        if (delayCheck) delayCheck.checked = false;
+        mcSyncDelayInput();
+
+        mcLog('info', 'Re-loading last config and starting sweep...');
+        await mcStartRun();
+      } catch(e) {
+        mcLog('error', 'Failed to load last config: ' + e.message);
+      }
+    }
+
     async function mcAbort() {
       try {
         await api('/utils/optimizer/abort', { method: 'POST' });
@@ -433,26 +668,37 @@
       }
     }
 
+    // ── Polling ────────────────────────────────────────────────────────────────
+
     async function mcPoll() {
       try {
         const s = await api('/utils/optimizer/status');
         mcRender(s);
-        if (s.state === 'complete' || s.state === 'aborted' || s.state === 'error') {
+        const terminal = ['complete', 'aborted', 'error'];
+        if (terminal.includes(s.state)) {
           clearInterval(_mcPollInterval); _mcPollInterval = null;
           document.getElementById('mc-start-btn').classList.remove('hidden');
           document.getElementById('mc-abort-btn').classList.add('hidden');
-          document.getElementById('mc-abort-btn-bar').classList.add('hidden');
+          // Enable repeat-last button after any terminal state
+          _mcHasLastConfig = true;
           if (s.state === 'complete') {
             document.getElementById('mc-apply-btn').disabled = false;
             document.getElementById('mc-apply-btn').style.opacity = '1';
             document.getElementById('mc-apply-btn').style.cursor = 'pointer';
+            _mcLastCompletedProfiles = s.profiles;
             mcRenderProfiles(s.profiles);
           } else if (s.state === 'error') {
             mcLog('error', 'Optimizer error: ' + (s.error || 'unknown — check server logs'));
+            mcBuildConfigPanel();
+          } else {
+            // aborted
+            mcBuildConfigPanel();
           }
         }
       } catch(e) { /* poll errors are non-fatal */ }
     }
+
+    // ── Render ─────────────────────────────────────────────────────────────────
 
     function mcRender(s) {
       // Title bar
@@ -463,6 +709,9 @@
         const eta = Math.round(perRun * remaining / 60);
         document.getElementById('mc-run-label').textContent = `RUN ${s.run_index} / ${s.total_runs}  ·  ETA ~${eta}m`;
         document.getElementById('mc-eta').textContent = `RUN ${s.run_index} / ${s.total_runs} · ETA ~${eta} min`;
+      } else if (s.state === 'scheduled') {
+        document.getElementById('mc-run-label').textContent = 'SCHEDULED';
+        document.getElementById('mc-eta').textContent = 'waiting for scheduled start...';
       } else {
         document.getElementById('mc-run-label').textContent = (s.state || 'idle').toUpperCase();
         document.getElementById('mc-eta').textContent = s.state || '—';
@@ -497,11 +746,13 @@
       mcSetGauge('mc-gauge-ram', 'RAM', hw.ram_pct != null ? `${Math.round(hw.ram_pct)}%` : '—', hw.ram_pct, 100, hw.ram_pct > 85 ? '#ef4444' : '#a78bfa');
       mcSetGauge('mc-gauge-cpu-temp', 'CPU Temp', hw.cpu_temp != null ? `${Math.round(hw.cpu_temp)}°C` : '—', hw.cpu_temp, 100, '#4ade80');
 
-      // Params
-      if (s.state === 'running' && s.current_params && Object.keys(s.current_params).length) {
+      // Params pane — show live params while running/starting; show config panel otherwise
+      const isActive = ['running','starting','scheduled'].includes(s.state);
+      if (isActive && s.current_params && Object.keys(s.current_params).length) {
         const paramMap = { 'embeddings:chunk_size': 'chunk_size', 'embeddings:chunk_overlap': 'chunk_overlap', 'ollama:max_parallel': 'max_parallel', 'monitor:gpu_temp_throttle': 'gpu_throttle' };
         const rowsEl = document.getElementById('mc-params-rows');
         rowsEl.innerHTML = '';
+        rowsEl.style.display = '';
         for (const [k, v] of Object.entries(s.current_params)) {
           const row = document.createElement('div');
           row.style.cssText = 'display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #0d1117';
@@ -560,13 +811,18 @@
       log.scrollTop = log.scrollHeight;
     }
 
+    // ── Profile cards + save-profile UI ───────────────────────────────────────
+
     function mcRenderProfiles(profiles) {
       if (!profiles) return;
-      document.getElementById('mc-params-rows').classList.add('hidden');
-      document.getElementById('mc-params-rows').style.display = 'none';
+      const rowsEl = document.getElementById('mc-params-rows');
+      rowsEl.classList.add('hidden');
+      rowsEl.style.display = 'none';
       const cards = document.getElementById('mc-profile-cards');
       cards.classList.remove('hidden');
       cards.style.display = 'flex';
+      cards.style.flexWrap = 'wrap';
+      cards.style.gap = '10px';
       const labels = { raw_speed: 'Raw Speed', sustainable: 'Sustainable', balanced: 'Balanced' };
       const shown = new Set();
       cards.innerHTML = '';
@@ -585,14 +841,51 @@
         const unitEl = document.createElement('div');
         unitEl.style.cssText = 'font-size:9px;color:#475569;margin-top:2px';
         unitEl.textContent = 'f/hr';
-        const btn = document.createElement('button');
-        btn.className = 'mc-apply-btn';
-        btn.textContent = '↓ Apply';
-        btn.addEventListener('click', () => mcApplyProfile(key));
-        card.append(nameEl, valEl, unitEl, btn);
+        const applyBtn = document.createElement('button');
+        applyBtn.className = 'mc-apply-btn';
+        applyBtn.textContent = '↓ Apply';
+        applyBtn.addEventListener('click', () => mcApplyProfile(key));
+        card.append(nameEl, valEl, unitEl, applyBtn);
         cards.appendChild(card);
       }
+
+      // Save profile row appended below cards
+      const saveRow = document.createElement('div');
+      saveRow.style.cssText = 'width:100%;display:flex;align-items:center;gap:6px;margin-top:8px';
+      saveRow.innerHTML = `
+        <span style="font-size:10px;color:#64748b">Save profile:</span>
+        <input class="mc-save-input" type="text" id="mc-save-name" placeholder="name…">
+        <button class="mc-save-btn" onclick="mcSaveProfile()">Save</button>
+        <span id="mc-save-status" style="font-size:9px;color:#64748b"></span>`;
+      cards.appendChild(saveRow);
+
       mcLog('ok', 'Optimizer complete. Select a profile to apply.');
+    }
+
+    async function mcSaveProfile() {
+      const nameEl = document.getElementById('mc-save-name');
+      const statusEl = document.getElementById('mc-save-status');
+      const name = nameEl?.value.trim();
+      if (!name) { if (statusEl) statusEl.textContent = 'Enter a name.'; return; }
+      if (!_mcLastCompletedProfiles) { if (statusEl) statusEl.textContent = 'No profiles available.'; return; }
+
+      // Use the balanced profile params by default; fall back to raw_speed
+      const profileKey = _mcSelectedProfile in _mcLastCompletedProfiles
+        ? _mcSelectedProfile : 'balanced';
+      const p = _mcLastCompletedProfiles[profileKey];
+
+      try {
+        const r = await api('/utils/optimizer/save_profile', {
+          method: 'POST',
+          body: JSON.stringify({ name, params: p.params, throughput: p.throughput })
+        });
+        if (statusEl) statusEl.textContent = `Saved (id:${r.profile_id})`;
+        if (nameEl) nameEl.value = '';
+        mcLog('ok', `Profile saved: "${name}" (id:${r.profile_id})`);
+      } catch(e) {
+        if (statusEl) statusEl.textContent = 'Save failed.';
+        mcLog('error', 'Save profile failed: ' + e.message);
+      }
     }
 
     async function mcApplyProfile(profileKey) {
