@@ -7,9 +7,9 @@
     <style>
         :root {
             --bg-black: #000000;
-            --emerald: #10b981;
+            --emerald: #33ee77;
             --amber: #f59e0b;
-            --ruby: #ef4444;
+            --ruby: #ff4444;
             --slate: #94a3b8;
             --terminal-gray: #1a1a1a;
         }
@@ -31,7 +31,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(rgba(16, 185, 129, 0.1) 50%, transparent 50%);
+            background: linear-gradient(rgba(51, 238, 119, 0.1) 50%, transparent 50%);
             background-size: 100% 4px;
             pointer-events: none;
             z-index: 1000;
@@ -121,7 +121,7 @@
         .btn-toggle:hover, .btn-toggle.active {
             border-color: var(--emerald);
             color: var(--emerald);
-            background: rgba(16, 185, 129, 0.05);
+            background: rgba(51, 238, 119, 0.05);
         }
 
         /* Grid Layout */
@@ -189,7 +189,7 @@
 
         .gauge-threshold {
             fill: none;
-            stroke: rgba(239, 68, 68, 0.2);
+            stroke: rgba(255, 68, 68, 0.2);
             stroke-width: 8;
             stroke-dasharray: 314;
             stroke-dashoffset: 62.8; /* Last 20% */
@@ -283,7 +283,7 @@
         }
 
         /* Hide nav in fullscreen so the dashboard fills the screen */
-        :fullscreen .docvault-nav { display: none; }
+        :fullscreen .lc-nav { display: none; }
 
         /* Colors based on states */
         .value-emerald { color: var(--emerald); }
@@ -325,9 +325,9 @@
             transform: translateY(-1px);
         }
 
-        .badge-emerald { background: rgba(16, 185, 129, 0.1); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-emerald { background: rgba(51, 238, 119, 0.1); color: var(--emerald); border: 1px solid rgba(51, 238, 119, 0.3); }
         .badge-amber { background: rgba(245, 158, 11, 0.1); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
-        .badge-ruby { background: rgba(239, 68, 68, 0.1); color: var(--ruby); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-ruby { background: rgba(255, 68, 68, 0.1); color: var(--ruby); border: 1px solid rgba(239, 68, 68, 0.3); }
         .badge-slate { background: rgba(148, 163, 184, 0.1); color: var(--slate); border: 1px solid rgba(148, 163, 184, 0.3); }
 
         .health-alerts {
@@ -425,7 +425,7 @@
 
         .btn-action:hover { border-color: #fff; color: #fff; }
         .btn-retry { border-color: var(--emerald); color: var(--emerald); }
-        .btn-retry:hover { background: rgba(16, 185, 129, 0.1); }
+        .btn-retry:hover { background: rgba(51, 238, 119, 0.1); }
 
         .bar-row { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.6rem; font-size: 0.75rem; }
         .bar-label { width: 160px; color: var(--slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
@@ -437,27 +437,19 @@
         .hidden { display: none !important; }
 
     </style>
+    <link rel="stylesheet" href="/static/lcars.css">
 </head>
-<body>
-    <nav class="docvault-nav" style="background:#4338ca; color:#fff; padding:0.6rem 1.5rem; display:flex; gap:1.5rem; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.4); position:sticky; top:0; z-index:50; font-family:sans-serif;">
-      <span style="font-weight:700; font-size:1rem;">DocVault</span>
-      <a href="/search" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Search</a>
-      <a href="/" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Vault Status</a>
-      <a href="/catalog" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Vault Log</a>
-      <a href="/identity" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Identity Hub</a>
-      <a href="/lab" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Lab</a>
-      <a href="/utils" style="color:#fff; font-weight:700; text-decoration:none; font-size:0.875rem;">Utilities</a>
-      <a href="/settings" style="color:#c7d2fe; text-decoration:none; font-size:0.875rem;">Settings</a>
-    </nav>
+<body data-page="telemetry">
+    <div class="lc-nav"></div>
     <div class="matrix-overlay"></div>
     <div class="scanning-line" id="scanningLine"></div>
 
     <!-- Stuck Tasks Modal -->
-    <div class="modal-overlay" id="stuckModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-title">Stuck Task Recovery</div>
-                <button class="btn-toggle" onclick="closeModal()">CLOSE</button>
+    <div class="lc-modal-backdrop" id="stuckModal">
+        <div class="lc-modal" style="max-width: 800px; width: 90%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--c-border-str); padding-bottom:1rem; margin-bottom:1.5rem;">
+                <div class="lc-modal-title" style="margin-bottom:0;">Stuck Task Recovery</div>
+                <button class="lc-btn" onclick="closeModal()">CLOSE</button>
             </div>
             <div id="modalBody">
                 <!-- Content injected here -->
@@ -474,12 +466,12 @@
                 <span id="updateTimer" style="font-size: 0.7rem; opacity: 0.6">SYNCING...</span>
             </div>
             <div class="controls">
-                <button class="btn-toggle active" id="btn-hw" onclick="showTab('hardware')">HW</button>
-                <button class="btn-toggle" id="btn-perf" onclick="showTab('perf')">PERF</button>
-                <button class="btn-toggle active" onclick="setHistoryHours(1)" id="btn1h">1H</button>
-                <button class="btn-toggle" onclick="setHistoryHours(24)" id="btn24h">24H</button>
-                <button class="btn-toggle" onclick="toggleFullScreen()">FULL</button>
-                <button class="btn-toggle" onclick="location.href='/utils'">EXIT</button>
+                <button class="lc-filter-pill active" id="btn-hw" onclick="showTab('hardware')">HW</button>
+                <button class="lc-filter-pill" id="btn-perf" onclick="showTab('perf')">PERF</button>
+                <button class="lc-filter-pill active" onclick="setHistoryHours(1)" id="btn1h">1H</button>
+                <button class="lc-filter-pill" onclick="setHistoryHours(24)" id="btn24h">24H</button>
+                <button class="lc-filter-pill" onclick="toggleFullScreen()">FULL</button>
+                <button class="lc-filter-pill" onclick="location.href='/utils'">EXIT</button>
             </div>
         </header>
 
@@ -600,8 +592,8 @@
             <div class="section-header">
               <span>THROUGHPUT TREND</span>
               <div style="display:flex;gap:0.5rem">
-                <button class="btn-toggle active" id="tp-24h" onclick="setThroughputRange('24h')" style="font-size:0.65rem;padding:0.2rem 0.5rem">24H</button>
-                <button class="btn-toggle" id="tp-7d" onclick="setThroughputRange('7d')" style="font-size:0.65rem;padding:0.2rem 0.5rem">7D</button>
+                <button class="lc-filter-pill active" id="tp-24h" onclick="setThroughputRange('24h')" style="font-size:10px;padding:0.2rem 0.5rem">24H</button>
+                <button class="lc-filter-pill" id="tp-7d" onclick="setThroughputRange('7d')" style="font-size:10px;padding:0.2rem 0.5rem">7D</button>
               </div>
             </div>
             <div id="throughput-chart" style="height:60px;display:flex;align-items:flex-end;gap:2px;padding-top:8px">
@@ -709,14 +701,14 @@
                     </div>
                 `).join('');
             } else {
-                alertsEl.innerHTML = '<span style="color: var(--emerald); opacity: 0.5; font-size: 0.6rem">DIAGNOSTICS CLEAR</span>';
+                alertsEl.innerHTML = '<span style="color: var(--emerald); opacity: 0.5; font-size: 10px">DIAGNOSTICS CLEAR</span>';
             }
         }
 
         async function showStuckTasks() {
             const modal = document.getElementById('stuckModal');
             const body = document.getElementById('modalBody');
-            modal.style.display = 'flex';
+            modal.classList.add('open');
             body.innerHTML = '<div style="color:var(--slate); padding:2rem">SCANNING KERNEL FOR ZOMBIE PROCESSES...</div>';
 
             try {
@@ -758,7 +750,7 @@
         }
 
         function closeModal() {
-            document.getElementById('stuckModal').style.display = 'none';
+            document.getElementById('stuckModal').classList.remove('open');
         }
 
         async function retryTask(hash) {
@@ -906,11 +898,11 @@
             
             // Gradient fill
             const grad = ctx.createLinearGradient(0, 0, 0, h);
-            let color = '16, 185, 129'; // Emerald default
+            let color = '51, 238, 119'; // Emerald default
             
             if (type === 'gpu' && thresholds) {
                 const latest = values[values.length-1];
-                if (latest >= thresholds.gpu_temp_cooldown) color = '239, 68, 68';
+                if (latest >= thresholds.gpu_temp_cooldown) color = '255, 68, 68';
                 else if (latest >= thresholds.gpu_temp_throttle) color = '245, 158, 11';
             }
 
@@ -1057,5 +1049,6 @@
 
         window.onload = init;
     </script>
+    <script src="/static/lcars.js"></script>
 </body>
 </html>
