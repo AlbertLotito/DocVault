@@ -12,6 +12,8 @@ from typing import Optional
 
 # ── Sweep matrix ─────────────────────────────────────────────────────────────
 
+_benchmark_module = None
+
 CHUNK_SIZES    = ['400', '600', '800', '1000']
 CHUNK_OVERLAPS = ['50', '100']
 
@@ -231,19 +233,21 @@ def _read_hardware() -> dict:
 def run_mini_benchmark(db_path: str, n: int, vault_id: str | None = None) -> float:
     """
     Run in-process benchmark. Returns overall files/hour (in-process).
-    Imports from tools/benchmark.py to avoid duplicating logic.
+    Imports tools/benchmark.py once and caches the module to avoid repeated exec.
     """
-    import importlib.util, os
-    spec = importlib.util.spec_from_file_location(
-        'benchmark',
-        os.path.join(os.path.dirname(__file__), '..', 'tools', 'benchmark.py')
-    )
-    bm = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(bm)
+    global _benchmark_module
+    if _benchmark_module is None:
+        import importlib.util, os as _os
+        spec = importlib.util.spec_from_file_location(
+            'benchmark',
+            _os.path.join(_os.path.dirname(__file__), '..', 'tools', 'benchmark.py')
+        )
+        _benchmark_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_benchmark_module)
+    bm = _benchmark_module
 
     types = list(bm.TYPE_EXTENSIONS.keys())
     results = bm.run_benchmark(db_path, n, types, vault_id)
-    # Use same weighted logic as benchmark's save_result
     pending = bm._get_pending_counts(db_path, types)
     by_type = results['by_type']
     weighted_sum = 0.0
@@ -268,6 +272,9 @@ def _run_sweep(db_path: str, samples: int):
     from core import manager as _manager
 
     snapshot = _read_snapshot_keys()
+    # IMPORTANT: write snapshot BEFORE pausing workers so crash recovery
+    # (_rollback_optimizer_snapshot in run.py) can restore settings even if
+    # we never reach set_pause_state. Do not reorder these two lines.
     _write_snapshot(snapshot)
 
     # Pause workers
@@ -293,7 +300,6 @@ def _run_sweep(db_path: str, samples: int):
 
             # Measure GPU temp before + after; take max
             hw_before = _read_hardware()
-            t0 = time.monotonic()
             throughput = run_mini_benchmark(db_path, samples)
             hw_after = _read_hardware()
 
