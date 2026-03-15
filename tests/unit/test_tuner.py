@@ -1,4 +1,5 @@
 import sys, os
+import json as _json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from core.tuner import build_sweep_matrix, select_profiles
@@ -106,3 +107,19 @@ def test_select_profiles_label_field_present():
     assert profiles['raw_speed']['label'] == 'Raw Speed'
     assert profiles['sustainable']['label'] == 'Sustainable'
     assert profiles['balanced']['label'] == 'Balanced'
+
+
+def test_build_sweep_matrix_first_entry_is_snapshot():
+    """Baseline run must exactly match snapshot."""
+    snapshot = {'embeddings:chunk_size': '600', 'embeddings:chunk_overlap': '100',
+                'ollama:max_parallel': '1', 'monitor:gpu_temp_throttle': '80'}
+    matrix = build_sweep_matrix(snapshot, gpu_util_pct=None)
+    assert matrix[0] == snapshot
+
+
+def test_build_sweep_matrix_no_duplicates():
+    snapshot = {'embeddings:chunk_size': '600', 'embeddings:chunk_overlap': '100',
+                'ollama:max_parallel': '1', 'monitor:gpu_temp_throttle': '80'}
+    matrix = build_sweep_matrix(snapshot, gpu_util_pct=None)
+    keys = [_json.dumps(r, sort_keys=True) for r in matrix]
+    assert len(keys) == len(set(keys)), "Sweep matrix must not contain duplicates"
