@@ -18,27 +18,60 @@ CHUNK_SIZES    = ['400', '600', '800', '1000']
 CHUNK_OVERLAPS = ['50', '100']
 
 
-def build_sweep_matrix(snapshot: dict, gpu_util_pct: Optional[float]) -> list[dict]:
+def build_sweep_matrix(
+    snapshot: dict,
+    gpu_util_pct: Optional[float],
+    locked_axes: set | None = None,
+    force_parallel: bool = False,
+) -> list[dict]:
     """
     Build the list of parameter dicts to test.
     First entry always equals the production snapshot (baseline run).
     snapshot keys: embeddings:chunk_size, embeddings:chunk_overlap,
                    ollama:max_parallel, monitor:gpu_temp_throttle
     gpu_util_pct: current GPU utilisation (0-100) or None if no sensor.
-    Spec: if gpu_util_pct is None (no sensor), max_parallel stays at [1] only.
+    locked_axes: set of axis names to skip sweeping (locked at snapshot value).
+                 Valid names: chunk_size, chunk_overlap, max_parallel, gpu_throttle
+    force_parallel: if True always include max_parallel=2 regardless of GPU
+                    headroom check (only applies if max_parallel axis is not locked).
+    Spec: if gpu_util_pct is None (no sensor), max_parallel stays at [1] only
+          (unless force_parallel=True).
     """
+    if locked_axes is None:
+        locked_axes = set()
+
     current_throttle = float(snapshot.get('monitor:gpu_temp_throttle') or '80')
     relaxed_throttle = str(min(current_throttle + 5, 90.0))
-    throttle_vals = [snapshot['monitor:gpu_temp_throttle']]
-    if min(current_throttle + 5, 90.0) != current_throttle:
-        throttle_vals.append(relaxed_throttle)
+
+    if 'gpu_throttle' in locked_axes:
+        throttle_vals = [snapshot['monitor:gpu_temp_throttle']]
+    else:
+        throttle_vals = [snapshot['monitor:gpu_temp_throttle']]
+        if min(current_throttle + 5, 90.0) != current_throttle:
+            throttle_vals.append(relaxed_throttle)
+
+    if 'chunk_size' in locked_axes:
+        chunk_sizes = [snapshot['embeddings:chunk_size']]
+    else:
+        chunk_sizes = CHUNK_SIZES
+
+    if 'chunk_overlap' in locked_axes:
+        chunk_overlaps = [snapshot['embeddings:chunk_overlap']]
+    else:
+        chunk_overlaps = CHUNK_OVERLAPS
 
     # Only test max_parallel=2 if GPU util headroom > 20% AND sensor is available.
     # Spec: "If no GPU sensor available (gpu_util_pct is None), uses [1] only."
-    parallel_vals = [snapshot['ollama:max_parallel']]
-    if gpu_util_pct is not None and gpu_util_pct < 80.0:
-        if '2' != snapshot['ollama:max_parallel']:
-            parallel_vals.append('2')
+    if 'max_parallel' in locked_axes:
+        parallel_vals = [snapshot['ollama:max_parallel']]
+    else:
+        parallel_vals = [snapshot['ollama:max_parallel']]
+        if force_parallel:
+            if '2' != snapshot['ollama:max_parallel']:
+                parallel_vals.append('2')
+        elif gpu_util_pct is not None and gpu_util_pct < 80.0:
+            if '2' != snapshot['ollama:max_parallel']:
+                parallel_vals.append('2')
 
     runs = []
     seen = set()
@@ -53,8 +86,8 @@ def build_sweep_matrix(snapshot: dict, gpu_util_pct: Optional[float]) -> list[di
     runs.append(baseline)
     seen.add(key)
 
-    for cs in CHUNK_SIZES:
-        for co in CHUNK_OVERLAPS:
+    for cs in chunk_sizes:
+        for co in chunk_overlaps:
             for mp in parallel_vals:
                 for gt in throttle_vals:
                     combo = {
@@ -127,7 +160,7 @@ _optimizer_thread: threading.Thread | None = None
 _abort_event      = threading.Event()
 _state_lock       = threading.Lock()
 _state: dict = {
-    'state':               'idle',    # idle | starting | running | complete | aborted | error
+    'state':               'idle',    # idle | scheduled | starting | running | complete | aborted | error
     'run_index':           0,
     'total_runs':          0,
     'current_params':      {},
@@ -137,7 +170,11 @@ _state: dict = {
     'hardware':            {},
     'profiles':            None,
     'error':               None,
+    'config':              None,
 }
+
+# Persists last config across state resets — used by re-run feature
+_last_config: dict | None = None
 
 
 def get_state() -> dict:
@@ -238,10 +275,16 @@ def _read_hardware() -> dict:
 
 # ── Mini-benchmark (shared by optimizer and tools/benchmark.py) ───────────────
 
-def run_mini_benchmark(db_path: str, n: int, vault_id: str | None = None) -> float:
+def run_mini_benchmark(
+    db_path: str,
+    n: int,
+    vault_id: str | None = None,
+    types: list[str] | None = None,
+) -> float:
     """
     Run in-process benchmark. Returns overall files/hour (in-process).
     Imports tools/benchmark.py once and caches the module to avoid repeated exec.
+    types: list of category strings e.g. ['text','pdf','image']. When None, all.
     """
     global _benchmark_module
     if _benchmark_module is None:
@@ -254,7 +297,8 @@ def run_mini_benchmark(db_path: str, n: int, vault_id: str | None = None) -> flo
         spec.loader.exec_module(_benchmark_module)
     bm = _benchmark_module
 
-    types = list(bm.TYPE_EXTENSIONS.keys())
+    if types is None:
+        types = list(bm.TYPE_EXTENSIONS.keys())
     results = bm.run_benchmark(db_path, n, types, vault_id)
     pending = bm._get_pending_counts(db_path, types)
     by_type = results['by_type']
@@ -275,7 +319,14 @@ def run_mini_benchmark(db_path: str, n: int, vault_id: str | None = None) -> flo
 
 # ── Optimizer sweep thread ─────────────────────────────────────────────────────
 
-def _run_sweep(db_path: str, samples: int):
+def _run_sweep(
+    db_path: str,
+    samples: int,
+    types: list[str] | None = None,
+    locked_axes: set | None = None,
+    force_parallel: bool = False,
+    vault_id: str | None = None,
+):
     """Main optimizer body — runs in daemon thread."""
     from core import manager as _manager
 
@@ -292,7 +343,12 @@ def _run_sweep(db_path: str, samples: int):
     try:
         hw = _read_hardware()
         gpu_util = hw.get('gpu_util')
-        matrix = build_sweep_matrix(snapshot, gpu_util_pct=gpu_util)
+        matrix = build_sweep_matrix(
+            snapshot,
+            gpu_util_pct=gpu_util,
+            locked_axes=locked_axes,
+            force_parallel=force_parallel,
+        )
         original_throttle = float(snapshot.get('monitor:gpu_temp_throttle') or '80')
 
         _update_state(total_runs=len(matrix), runs=[], baseline_throughput=None)
@@ -308,7 +364,7 @@ def _run_sweep(db_path: str, samples: int):
 
             # Measure GPU temp before + after; take max
             hw_before = _read_hardware()
-            throughput = run_mini_benchmark(db_path, samples)
+            throughput = run_mini_benchmark(db_path, samples, vault_id=vault_id, types=types)
             hw_after = _read_hardware()
 
             max_gpu_temp = None
@@ -364,27 +420,82 @@ def _run_sweep(db_path: str, samples: int):
         _update_state(state='error', error=str(e))
 
 
-def start_optimizer(db_path: str) -> bool:
+def start_optimizer(db_path: str, config: dict | None = None) -> bool:
     """
     Start the optimizer. Returns False if already running (caller should 409).
+    config keys (all optional):
+        samples      int  — files per type (default: setting or 5)
+        types        list — categories to benchmark (default: all)
+        locked_axes  list — axis names to skip sweeping
+        force_parallel bool — always include max_parallel=2
+        vault_id     str|None — filter benchmark to this vault
+        delay_hours  float — if >0, delay start by this many hours
     """
-    global _optimizer_thread, _abort_event
+    global _optimizer_thread, _abort_event, _last_config
     if _optimizer_thread is not None and _optimizer_thread.is_alive():
         return False
 
     _abort_event = threading.Event()
+    cfg = config or {}
+
     from core.settings import settings
-    samples = int(settings.get('tuning:benchmark_samples_per_type') or 5)
+    samples      = int(cfg.get('samples') or settings.get('tuning:benchmark_samples_per_type') or 5)
+    types        = cfg.get('types') or None
+    locked_axes  = set(cfg.get('locked_axes') or [])
+    force_parallel = bool(cfg.get('force_parallel', False))
+    vault_id     = cfg.get('vault_id') or None
+    delay_hours  = float(cfg.get('delay_hours') or 0)
 
-    _update_state(state='starting', run_index=0, total_runs=0,
-                  current_params={}, current_throughput=None,
-                  baseline_throughput=None, runs=[], profiles=None, error=None)
+    # Persist resolved config for re-run
+    resolved_config = {
+        'samples':       samples,
+        'types':         types,
+        'locked_axes':   list(locked_axes),
+        'force_parallel': force_parallel,
+        'vault_id':      vault_id,
+        'delay_hours':   0,  # re-run never delays again
+    }
+    _last_config = resolved_config
 
-    _optimizer_thread = threading.Thread(
-        target=_run_sweep, args=(db_path, samples), daemon=True, name='optimizer'
+    _update_state(
+        state='starting', run_index=0, total_runs=0,
+        current_params={}, current_throughput=None,
+        baseline_throughput=None, runs=[], profiles=None, error=None,
+        config=resolved_config,
     )
-    _optimizer_thread.start()
+
+    sweep_kwargs = dict(
+        db_path=db_path,
+        samples=samples,
+        types=types,
+        locked_axes=locked_axes,
+        force_parallel=force_parallel,
+        vault_id=vault_id,
+    )
+
+    if delay_hours > 0:
+        _update_state(state='scheduled')
+
+        def _delayed():
+            _update_state(state='starting')
+            _run_sweep(**sweep_kwargs)
+
+        t = threading.Timer(delay_hours * 3600, _delayed)
+        t.daemon = True
+        t.start()
+        _optimizer_thread = t  # Timer is not a Thread but has is_alive()
+    else:
+        _optimizer_thread = threading.Thread(
+            target=_run_sweep, kwargs=sweep_kwargs, daemon=True, name='optimizer'
+        )
+        _optimizer_thread.start()
+
     return True
+
+
+def get_last_config() -> dict | None:
+    """Return the config dict from the last sweep (None if none has ever run)."""
+    return _last_config
 
 
 def abort_optimizer() -> bool:
