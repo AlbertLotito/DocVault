@@ -46,7 +46,13 @@ def _rollback_optimizer_snapshot():
             ).fetchone()
             if not row:
                 return
-            snapshot = json.loads(row['value'])
+            try:
+                snapshot = json.loads(row['value'])
+            except json.JSONDecodeError as exc:
+                conn.execute("DELETE FROM settings WHERE key='tuning:_optimizer_snapshot'")
+                conn.commit()
+                logger.warning(f"Startup: corrupt optimizer snapshot cleared (parse error: {exc}). Settings were NOT restored.")
+                return
             from core.settings import settings as _settings
             for k, v in snapshot.items():
                 try:
