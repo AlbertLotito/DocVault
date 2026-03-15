@@ -3,152 +3,307 @@
 <head>
   <meta charset="UTF-8">
   <title>DocVault — Search</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/lcars.css">
   <link href="/static/styles.css" rel="stylesheet">
   <script src="/static/app.js"></script>
+  <style>
+    .search-result {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-left: 3px solid var(--c-accent-dim);
+      padding: 10px 14px;
+      margin-bottom: 6px;
+    }
+    .search-result-file { color: var(--c-accent); font-size: 13px; font-weight: bold; }
+    .search-result-meta { color: var(--c-label); font-size: 11px; margin-top: 3px; }
+    .search-result-snippet { color: #cc9966; font-size: 11px; margin-top: 6px; line-height: 1.5; }
+    .chat-msg-user { background: var(--c-panel); border-left: 3px solid var(--c-accent-dim); padding: 8px 12px; margin-bottom: 6px; color: var(--c-accent); font-size: 12px; }
+    .chat-msg-ai { background: var(--c-surface); padding: 8px 12px; margin-bottom: 6px; color: #cc9966; font-size: 12px; }
+
+    .search-action-btn {
+      background: #1a0d00;
+      color: var(--c-label);
+      border: 1px solid var(--c-border);
+      border-radius: 3px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--font);
+    }
+    .search-action-btn:hover { background: #2a1500; color: var(--c-accent); }
+
+    .search-filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .search-filter-label { font-size: 11px; color: var(--c-label-dim); text-transform: uppercase; letter-spacing: 1px; }
+    .search-filter-input {
+      background: var(--c-panel);
+      color: var(--c-accent);
+      border: 1px solid var(--c-border-str);
+      border-radius: 3px;
+      padding: 4px 8px;
+      font-family: var(--font);
+      font-size: 11px;
+    }
+    .search-filter-input:focus { outline: none; border-color: var(--c-accent-dim); }
+    .search-filter-input::placeholder { color: var(--c-label-dim); }
+    .search-filter-clear {
+      background: none;
+      border: none;
+      color: var(--c-label-dim);
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--font);
+    }
+    .search-filter-clear:hover { color: var(--c-error); }
+
+    .vault-selector {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .vault-selector label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      color: var(--c-label);
+    }
+
+    .search-input-row { display: flex; gap: 8px; align-items: center; }
+    .search-input-row .lc-input { flex: 1; }
+
+    .no-results { color: var(--c-label-dim); font-size: 11px; padding: 14px 0; }
+
+    .degraded-banner {
+      background: #221100;
+      border: 1px solid var(--c-warn);
+      color: var(--c-warn);
+      padding: 8px 14px;
+      font-size: 11px;
+      margin-bottom: 8px;
+      display: none;
+    }
+    .degraded-banner.visible { display: block; }
+
+    .score-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-family: monospace;
+      padding: 1px 6px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .score-high { background: #002211; color: var(--c-ok); border: 1px solid #005533; }
+    .score-mid  { background: #111100; color: var(--c-pend); border: 1px solid #333300; }
+    .score-low  { background: #111; color: var(--c-unk); border: 1px solid #333; }
+
+    /* Chat pane */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 540px;
+    }
+    .chat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--c-border);
+      margin-bottom: 8px;
+    }
+    .chat-header-title { font-size: 12px; color: var(--c-accent-dim); text-transform: uppercase; letter-spacing: 1px; }
+    .chat-thread {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    .chat-thread > div + div { margin-top: 8px; }
+    .chat-input-area {
+      border-top: 1px solid var(--c-border);
+      padding-top: 8px;
+    }
+
+    /* Think block */
+    .think-toggle {
+      background: none;
+      border: none;
+      color: var(--c-warn);
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--font);
+      padding: 0;
+    }
+    .think-toggle:hover { color: var(--c-accent); }
+    .think-body {
+      background: #110a00;
+      border: 1px solid var(--c-border);
+      padding: 8px;
+      font-size: 11px;
+      color: #cc9966;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 4px;
+    }
+
+    /* Sources in chat */
+    .chat-sources { border-top: 1px solid var(--c-border); margin-top: 8px; padding-top: 6px; }
+    .chat-sources-title { font-size: 10px; color: var(--c-label-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .chat-source-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 2px 0;
+    }
+    .chat-source-path { font-size: 11px; color: var(--c-label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
-    <span class="font-bold text-lg">DocVault</span>
-    <a href="/search" class="hover:underline font-semibold">Search</a>
-    <a href="/" class="hover:underline">Vault Status</a>
-    <a href="/catalog" class="hover:underline">Vault Log</a>
-    <a href="/identity" class="hover:underline">Identity Hub</a>
-    <a href="/lab" class="hover:underline">Lab</a>
-    <a href="/utils" class="hover:underline">Utilities</a>
-    <a href="/settings" class="hover:underline">Settings</a>
-  </nav>
+<body data-page="search">
+  <div class="lc-nav"></div>
 
-  <main class="max-w-4xl mx-auto p-6">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">Search & Ask</h1>
+  <div class="lc-page lc-page-pad">
+    <div class="lc-section-title">Search & Ask</div>
 
-    <div id="vault-selector" class="flex items-center gap-2 mb-4 flex-wrap">
-      <span class="text-sm font-medium text-gray-600">Vaults:</span>
-      <!-- populated by loadVaultSelector() -->
+    <!-- Vault selector -->
+    <div style="padding:0 20px 6px;">
+      <div class="vault-selector" id="vault-selector">
+        <span class="search-filter-label">Vaults:</span>
+        <!-- populated by loadVaultSelector() -->
+      </div>
     </div>
 
-    <!-- Tab bar -->
-    <div class="flex gap-1 border-b border-gray-200 mb-0">
-      <button id="tab-search" onclick="showTab('search')"
-        class="tab-btn px-5 py-2 text-sm font-medium rounded-t border-b-2 border-indigo-600 text-indigo-700 bg-white -mb-px">
-        Search
-      </button>
-      <button id="tab-filename" onclick="showTab('filename')"
-        class="tab-btn px-5 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Filename
-      </button>
-      <button id="tab-ask" onclick="showTab('ask')"
-        class="tab-btn px-5 py-2 text-sm font-medium rounded-t border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-        Ask
-      </button>
+    <!-- Mode tabs as bar badges -->
+    <div style="padding:14px 20px 0;">
+      <div class="lc-bar-badges" id="search-mode-badges">
+        <div class="lc-bar-badge active" id="tab-content"
+             onclick="switchMode('content')" data-mode="content">
+          <div class="lc-bar-tab" style="background:#cc6600;">&#128269;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Content Search</div>
+            <div class="lc-bar-desc">Hybrid FTS + semantic search across extracted text</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-badge" id="tab-filename"
+             onclick="switchMode('filename')" data-mode="filename">
+          <div class="lc-bar-tab" style="background:#886600;">&#128193;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Filename Search</div>
+            <div class="lc-bar-desc">Find files by name pattern across all vaults</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-badge" id="tab-ask"
+             onclick="switchMode('ask')" data-mode="ask">
+          <div class="lc-bar-tab" style="background:#664400;">&#128172;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Ask</div>
+            <div class="lc-bar-desc">RAG — ask questions answered from your documents</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- ── Search pane ─────────────────────────────────────────────────────── -->
-    <div id="pane-search" class="tab-pane bg-white rounded-b rounded-tr shadow p-4">
-      <div class="flex gap-3 mb-2">
-        <input id="search-input" type="text" placeholder="Search document content…"
-          class="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+    <!-- ── Content Search panel ─────────────────────────────────────────────── -->
+    <div id="panel-content" style="padding:14px 20px;">
+      <div class="search-input-row">
+        <input id="search-input" type="text" placeholder="Search document content..."
+          class="lc-input"
           onkeydown="if(event.key==='Enter') doSearch()">
-        <select id="search-mode" class="border rounded px-3 py-2 text-sm">
+        <select id="search-mode" class="lc-select" style="width:auto;min-width:110px;">
           <option value="hybrid">Hybrid</option>
           <option value="fts">Full-text</option>
           <option value="semantic">Semantic</option>
         </select>
-        <button onclick="doSearch()"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded text-sm font-medium">
-          Search
-        </button>
+        <button onclick="doSearch()" class="lc-btn lc-btn-primary">Search</button>
       </div>
-      <div class="flex gap-2 items-center flex-wrap">
-        <span class="text-xs text-gray-400 font-medium">Filters:</span>
-        <input id="search-filter-type" type="text" placeholder="File type (pdf, docx…)"
-          class="border rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-        <input id="search-filter-from" type="date"
-          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
-        <span class="text-xs text-gray-400">→</span>
-        <input id="search-filter-to" type="date"
-          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
-        <button onclick="clearFilters('search')" class="text-xs text-gray-400 hover:text-red-400">✕ Clear</button>
+      <div class="search-filter-row">
+        <span class="search-filter-label">Filters:</span>
+        <input id="search-filter-type" type="text" placeholder="File type (pdf, docx...)"
+          class="search-filter-input" style="width:130px;">
+        <input id="search-filter-from" type="date" class="search-filter-input">
+        <span style="color:var(--c-label-dim);font-size:11px;">&#8594;</span>
+        <input id="search-filter-to" type="date" class="search-filter-input">
+        <button onclick="clearFilters('search')" class="search-filter-clear">&#10005; Clear</button>
       </div>
-      <div id="search-degraded-banner" class="hidden mb-2 rounded px-3 py-2 text-xs text-amber-800 bg-amber-50 border border-amber-200"></div>
-      <div id="search-results" class="divide-y divide-gray-100 mt-3"></div>
+      <div id="search-degraded-banner" class="degraded-banner"></div>
+      <div id="search-results" style="margin-top:10px;"></div>
     </div>
 
-    <!-- ── Filename pane ───────────────────────────────────────────────────── -->
-    <div id="pane-filename" class="tab-pane hidden bg-white rounded-b rounded-tr shadow p-4">
-      <div class="flex gap-3 mb-2">
-        <input id="filename-input" type="text" placeholder="File or folder name… (space-separated tokens all match)"
-          class="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+    <!-- ── Filename Search panel ────────────────────────────────────────────── -->
+    <div id="panel-filename" style="display:none;padding:14px 20px;">
+      <div class="search-input-row">
+        <input id="filename-input" type="text" placeholder="File or folder name... (space-separated tokens all match)"
+          class="lc-input"
           onkeydown="if(event.key==='Enter') doFilenameSearch()">
-        <button onclick="doFilenameSearch()"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded text-sm font-medium">
-          Search
-        </button>
+        <button onclick="doFilenameSearch()" class="lc-btn lc-btn-primary">Search</button>
       </div>
-      <div class="flex gap-2 items-center flex-wrap">
-        <span class="text-xs text-gray-400 font-medium">Filters:</span>
-        <input id="filename-filter-type" type="text" placeholder="File type (pdf, docx…)"
-          class="border rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-        <input id="filename-filter-from" type="date"
-          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
-        <span class="text-xs text-gray-400">→</span>
-        <input id="filename-filter-to" type="date"
-          class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
-        <button onclick="clearFilters('filename')" class="text-xs text-gray-400 hover:text-red-400">✕ Clear</button>
+      <div class="search-filter-row">
+        <span class="search-filter-label">Filters:</span>
+        <input id="filename-filter-type" type="text" placeholder="File type (pdf, docx...)"
+          class="search-filter-input" style="width:130px;">
+        <input id="filename-filter-from" type="date" class="search-filter-input">
+        <span style="color:var(--c-label-dim);font-size:11px;">&#8594;</span>
+        <input id="filename-filter-to" type="date" class="search-filter-input">
+        <button onclick="clearFilters('filename')" class="search-filter-clear">&#10005; Clear</button>
       </div>
-      <div id="filename-results" class="divide-y divide-gray-100 mt-3"></div>
+      <div id="filename-results" style="margin-top:10px;"></div>
     </div>
 
-    <!-- ── Ask pane ────────────────────────────────────────────────────────── -->
-    <div id="pane-ask" class="tab-pane hidden bg-white rounded-b rounded-tr shadow flex flex-col" style="height:540px">
-      <div class="flex justify-between items-center px-4 pt-3 pb-2 border-b border-gray-100">
-        <span class="text-sm font-semibold text-gray-700">Ask a question about your documents</span>
-        <button onclick="clearChat()" class="text-xs text-gray-400 hover:text-red-500 font-medium">Clear chat</button>
-      </div>
-      <div id="chat-thread" class="flex-1 overflow-y-auto px-4 py-3 space-y-4"></div>
-      <div class="border-t border-gray-100 px-4 py-2">
-        <div class="flex gap-2 items-center flex-wrap mb-2">
-          <span class="text-xs text-gray-400 font-medium">Filters:</span>
-          <input id="chat-filter-type" type="text" placeholder="File type (pdf, docx…)"
-            class="border rounded px-2 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-          <input id="chat-filter-from" type="date"
-            class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
-          <span class="text-xs text-gray-400">→</span>
-          <input id="chat-filter-to" type="date"
-            class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300">
-          <button onclick="clearFilters('chat')" class="text-xs text-gray-400 hover:text-red-400">✕ Clear</button>
+    <!-- ── Ask / RAG panel ──────────────────────────────────────────────────── -->
+    <div id="panel-ask" style="display:none;padding:14px 20px;">
+      <div class="chat-container">
+        <div class="chat-header">
+          <span class="chat-header-title">Ask a question about your documents</span>
+          <button onclick="clearChat()" class="lc-btn lc-btn-sm lc-btn-danger">Clear chat</button>
         </div>
-        <div class="flex gap-2">
-          <input id="query-input" type="text" placeholder="Ask anything about your documents…"
-            class="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); doQuery(); }">
-          <button onclick="doQuery()"
-            class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded text-sm font-medium">
-            Ask
-          </button>
+        <div id="chat-thread" class="chat-thread"></div>
+        <div class="chat-input-area">
+          <div class="search-filter-row" style="margin-top:0;margin-bottom:8px;">
+            <span class="search-filter-label">Filters:</span>
+            <input id="chat-filter-type" type="text" placeholder="File type (pdf, docx...)"
+              class="search-filter-input" style="width:130px;">
+            <input id="chat-filter-from" type="date" class="search-filter-input">
+            <span style="color:var(--c-label-dim);font-size:11px;">&#8594;</span>
+            <input id="chat-filter-to" type="date" class="search-filter-input">
+            <button onclick="clearFilters('chat')" class="search-filter-clear">&#10005; Clear</button>
+          </div>
+          <div class="search-input-row">
+            <input id="query-input" type="text" placeholder="Ask anything about your documents..."
+              class="lc-input"
+              onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); doQuery(); }">
+            <button onclick="doQuery()" class="lc-btn lc-btn-primary">Ask</button>
+          </div>
         </div>
       </div>
     </div>
-  </main>
+  </div>
 
   <script>
     let chatHistory = [];
 
-    // ── Tab switching ──────────────────────────────────────────────────────────
+    // ── Mode switching ──────────────────────────────────────────────────────────
 
-    function showTab(name) {
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-      document.getElementById(`pane-${name}`).classList.remove('hidden');
-
-      document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.remove('border-indigo-600', 'text-indigo-700', 'bg-white', '-mb-px');
-        b.classList.add('border-transparent', 'text-gray-500');
+    function switchMode(mode) {
+      ['content','filename','ask'].forEach(m => {
+        document.getElementById('tab-'+m).classList.toggle('active', m===mode);
+        document.getElementById('panel-'+m).style.display = m===mode ? 'block' : 'none';
       });
-      const btn = document.getElementById(`tab-${name}`);
-      btn.classList.add('border-indigo-600', 'text-indigo-700', 'bg-white', '-mb-px');
-      btn.classList.remove('border-transparent', 'text-gray-500');
-
-      window.location.hash = name === 'search' ? '' : name;
+      window.location.hash = mode === 'content' ? '' : mode;
     }
 
     // ── Content search ─────────────────────────────────────────────────────────
@@ -156,35 +311,26 @@
     function renderResults(results) {
       const el = document.getElementById('search-results');
       if (!results || !results.length) {
-        el.innerHTML = '<p class="text-gray-400 text-sm py-3">No results found.</p>';
+        el.innerHTML = '<p class="no-results">No results found.</p>';
         return;
       }
       el.innerHTML = results.map(r => {
         const safePath = (r.file_path || '').replace(/"/g, '&quot;');
         const scoreBadge = scoreBadgeHtml(r.score);
         return `
-        <div class="py-3">
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 min-w-0">
+        <div class="search-result">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0;">
               ${scoreBadge}
-              <div class="font-medium text-sm text-indigo-700 truncate" title="${escapeHtml(r.file_path || '')}">${escapeHtml(formatPath(r.file_path))}</div>
+              <span class="search-result-file" title="${escapeHtml(r.file_path || '')}">${escapeHtml(formatPath(r.file_path))}</span>
             </div>
-            <div class="flex gap-1 shrink-0">
-              <button data-path="${safePath}" onclick="openFile(this.dataset.path)"
-                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
-                📄 Open
-              </button>
-              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)"
-                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
-                📁 Folder
-              </button>
-              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)"
-                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
-                🔍 Inspect
-              </button>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">Open</button>
+              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">Folder</button>
+              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">Inspect</button>
             </div>
           </div>
-          <div class="text-xs text-gray-500 mt-1">${escapeHtml(r.snippet || r.chunk_text || '')}</div>
+          <div class="search-result-snippet">${escapeHtml(r.snippet || r.chunk_text || '')}</div>
         </div>`;
       }).join('');
     }
@@ -193,7 +339,7 @@
       const q = document.getElementById('search-input').value.trim();
       const mode = document.getElementById('search-mode').value;
       if (!q) return;
-      document.getElementById('search-results').innerHTML = '<p class="text-gray-400 text-sm py-3">Searching…</p>';
+      document.getElementById('search-results').innerHTML = '<p class="no-results">Searching...</p>';
       const f = getFilters('search');
       let url = `/search?q=${encodeURIComponent(q)}&mode=${mode}`;
       if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
@@ -204,10 +350,10 @@
       const data = await api(url);
       const banner = document.getElementById('search-degraded-banner');
       if (data.degraded) {
-        banner.textContent = '⚠ ' + (data.degraded_reason || 'Qdrant unavailable — showing full-text results only');
-        banner.classList.remove('hidden');
+        banner.textContent = '\u26A0 ' + (data.degraded_reason || 'Qdrant unavailable \u2014 showing full-text results only');
+        banner.classList.add('visible');
       } else {
-        banner.classList.add('hidden');
+        banner.classList.remove('visible');
       }
       renderResults(data.results || data);
     }
@@ -229,7 +375,7 @@
     function renderFilenameResults(results) {
       const el = document.getElementById('filename-results');
       if (!results || !results.length) {
-        el.innerHTML = '<p class="text-gray-400 text-sm py-3">No files found.</p>';
+        el.innerHTML = '<p class="no-results">No files found.</p>';
         return;
       }
       el.innerHTML = results.map(r => {
@@ -240,35 +386,26 @@
         const date = formatDate(r.file_modified || r.file_created);
         const notDone = r.status && r.status !== 'COMPLETED';
         const statusHtml = notDone
-          ? `<span class="inline-block text-xs font-medium px-1.5 py-0.5 rounded ${
-              r.status === 'ERROR' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+          ? `<span class="lc-badge ${
+              r.status === 'ERROR' ? 'lc-badge-err' : 'lc-badge-pend'
             }">${r.status}</span>`
           : '';
-        const meta = [ext, size, date].filter(Boolean).join(' · ');
+        const meta = [ext, size, date].filter(Boolean).join(' \u00b7 ');
         return `
-        <div class="py-3">
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-medium text-sm text-indigo-700">${escapeHtml(fname)}</span>
+        <div class="search-result">
+          <div style="display:flex;align-items:start;justify-content:space-between;gap:8px;">
+            <div style="min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span class="search-result-file">${escapeHtml(fname)}</span>
                 ${statusHtml}
               </div>
-              <div class="text-xs text-gray-400 truncate mt-0.5" title="${escapeHtml(r.file_path || '')}">${escapeHtml(r.file_path || '')}</div>
-              <div class="text-xs text-gray-400 mt-0.5">${escapeHtml(meta)}</div>
+              <div class="search-result-meta" title="${escapeHtml(r.file_path || '')}">${escapeHtml(r.file_path || '')}</div>
+              <div class="search-result-meta">${escapeHtml(meta)}</div>
             </div>
-            <div class="flex gap-1 shrink-0 mt-0.5">
-              <button data-path="${safePath}" onclick="openFile(this.dataset.path)"
-                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
-                📄 Open
-              </button>
-              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)"
-                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
-                📁 Folder
-              </button>
-              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)"
-                class="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700">
-                🔍 Inspect
-              </button>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+              <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">Open</button>
+              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">Folder</button>
+              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">Inspect</button>
             </div>
           </div>
         </div>`;
@@ -278,7 +415,7 @@
     async function doFilenameSearch() {
       const q = document.getElementById('filename-input').value.trim();
       if (!q) return;
-      document.getElementById('filename-results').innerHTML = '<p class="text-gray-400 text-sm py-3">Searching…</p>';
+      document.getElementById('filename-results').innerHTML = '<p class="no-results">Searching...</p>';
       const f = getFilters('filename');
       let url = `/search/filename?q=${encodeURIComponent(q)}`;
       if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
@@ -352,11 +489,7 @@
     function appendUserBubble(text) {
       const thread = document.getElementById('chat-thread');
       const div = document.createElement('div');
-      div.className = 'flex justify-end';
-      div.innerHTML = `
-        <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-lg text-sm whitespace-pre-wrap">
-          ${escapeHtml(text)}
-        </div>`;
+      div.innerHTML = `<div class="chat-msg-user">${escapeHtml(text)}</div>`;
       thread.appendChild(div);
       scrollChat();
     }
@@ -366,11 +499,7 @@
       const id = 'loading-' + Date.now();
       const div = document.createElement('div');
       div.id = id;
-      div.className = 'flex justify-start';
-      div.innerHTML = `
-        <div class="bg-gray-100 text-gray-400 rounded-2xl rounded-tl-sm px-4 py-2 text-sm animate-pulse">
-          Thinking…
-        </div>`;
+      div.innerHTML = `<div class="chat-msg-ai" style="color:var(--c-label-dim);">Thinking...</div>`;
       thread.appendChild(div);
       scrollChat();
       return id;
@@ -384,7 +513,6 @@
     function appendAssistantBubble(answer, thinking, sources) {
       const thread = document.getElementById('chat-thread');
       const div = document.createElement('div');
-      div.className = 'flex justify-start';
 
       const seenPaths = new Set();
       const uniqueSources = sources.filter(s => {
@@ -395,46 +523,36 @@
 
       const tid = `think-${++thinkCounter}`;
       const thinkHtml = thinking ? `
-        <div class="mt-1">
-          <button onclick="toggleThink('${tid}')"
-            class="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium">
-            <span id="${tid}-chevron">▶</span> Model Thinking
+        <div style="margin-top:6px;">
+          <button onclick="toggleThink('${tid}')" class="think-toggle">
+            <span id="${tid}-chevron">&#9654;</span> Model Thinking
           </button>
-          <div id="${tid}" class="hidden mt-1 bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-900 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
+          <div id="${tid}" class="think-body" style="display:none;">
             ${escapeHtml(thinking)}
           </div>
         </div>` : '';
 
       const sourcesHtml = uniqueSources.length ? `
-        <div class="mt-2 pt-2 border-t border-gray-200">
-          <div class="text-xs font-medium text-gray-400 mb-1">Sources</div>
+        <div class="chat-sources">
+          <div class="chat-sources-title">Sources</div>
           ${uniqueSources.map(s => {
             const safePath = (s.file_path || '').replace(/"/g, '&quot;');
             return `
-            <div class="flex items-center justify-between gap-2 py-0.5">
-              <span class="text-xs text-gray-500 truncate" title="${escapeHtml(s.file_path)}">${escapeHtml(formatPath(s.file_path))}</span>
-              <div class="flex gap-1 shrink-0">
-                <button data-path="${safePath}" onclick="openFile(this.dataset.path)"
-                  class="text-xs px-1.5 py-0.5 rounded bg-gray-200 hover:bg-indigo-100 text-gray-500 hover:text-indigo-700">
-                  📄
-                </button>
-                <button data-path="${safePath}" onclick="openFolder(this.dataset.path)"
-                  class="text-xs px-1.5 py-0.5 rounded bg-gray-200 hover:bg-indigo-100 text-gray-500 hover:text-indigo-700">
-                  📁
-                </button>
-                <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)"
-                  class="text-xs px-1.5 py-0.5 rounded bg-gray-200 hover:bg-indigo-100 text-gray-500 hover:text-indigo-700">
-                  🔍
-                </button>
+            <div class="chat-source-row">
+              <span class="chat-source-path" title="${escapeHtml(s.file_path)}">${escapeHtml(formatPath(s.file_path))}</span>
+              <div style="display:flex;gap:4px;flex-shrink:0;">
+                <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">Open</button>
+                <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">Folder</button>
+                <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">Inspect</button>
               </div>
             </div>`;
           }).join('')}
         </div>` : '';
 
       div.innerHTML = `
-        <div class="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 max-w-lg text-sm space-y-1">
+        <div class="chat-msg-ai">
           ${thinkHtml}
-          <div class="text-gray-800 whitespace-pre-wrap">${escapeHtml(answer)}</div>
+          <div style="white-space:pre-wrap;">${escapeHtml(answer)}</div>
           ${sourcesHtml}
         </div>`;
       thread.appendChild(div);
@@ -444,8 +562,9 @@
     function toggleThink(id) {
       const body = document.getElementById(id);
       const chevron = document.getElementById(`${id}-chevron`);
-      const hidden = body.classList.toggle('hidden');
-      chevron.textContent = hidden ? '▶' : '▼';
+      const isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? 'block' : 'none';
+      chevron.innerHTML = isHidden ? '&#9660;' : '&#9654;';
     }
 
     function scrollChat() {
@@ -460,10 +579,10 @@
     function scoreBadgeHtml(score) {
       if (score == null) return '';
       const pct = Math.round(score * 100);
-      const color = pct >= 80 ? 'bg-green-100 text-green-700'
-                  : pct >= 65 ? 'bg-yellow-100 text-yellow-700'
-                  :             'bg-gray-100 text-gray-500';
-      return `<span class="shrink-0 text-xs font-mono px-1.5 py-0.5 rounded ${color}">${pct}%</span>`;
+      const cls = pct >= 80 ? 'score-high'
+                : pct >= 65 ? 'score-mid'
+                :             'score-low';
+      return `<span class="score-badge ${cls}">${pct}%</span>`;
     }
 
     // ── Vault selector ─────────────────────────────────────────────────────────
@@ -474,9 +593,8 @@
       if (!vaults.length) return;
       vaults.forEach(v => {
         const label = document.createElement('label');
-        label.className = 'inline-flex items-center gap-1 text-sm cursor-pointer';
         label.innerHTML = `<input type="checkbox" class="vault-cb" value="${v.vault_id}" checked>
-          <span style="color:${v.color||'#6366f1'}" class="font-medium">${v.name}</span>`;
+          <span style="color:${v.color||'var(--c-accent)'};font-weight:bold;">${v.name}</span>`;
         container.appendChild(label);
       });
     }
@@ -487,9 +605,11 @@
 
     // ── Init ───────────────────────────────────────────────────────────────────
 
-    const _initialTab = ['search','filename','ask'].find(t => window.location.hash === '#' + t) || 'search';
-    showTab(_initialTab);
+    const _modeMap = { search: 'content', content: 'content', filename: 'filename', ask: 'ask' };
+    const _initialMode = _modeMap[window.location.hash.replace('#','')] || 'content';
+    switchMode(_initialMode);
     loadVaultSelector();
   </script>
+  <script src="/static/lcars.js"></script>
 </body>
 </html>
