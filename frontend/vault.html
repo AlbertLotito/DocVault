@@ -2,610 +2,899 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DocVault — Vault Status</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="/static/styles.css" rel="stylesheet">
-  <script src="/static/app.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocVault — Vault</title>
+  <link rel="stylesheet" href="/static/lcars.css">
+  <style>
+    /* page-specific overrides only */
+    .vault-worker-controls { display:flex; gap:6px; margin-left:auto; padding-right:20px; }
+    .unknown-row { display:flex; flex-wrap:wrap; gap:6px; padding:0 20px 12px; }
+    .unknown-chip {
+      background:#0d0800; border:1px solid var(--c-border-str);
+      border-left:3px solid var(--c-unk);
+      padding:4px 10px; font-size:11px; color:var(--c-unk);
+      cursor:pointer;
+    }
+    .unknown-chip:hover { color:var(--c-warn); }
+
+    /* vault modal tabs */
+    .v-tab {
+      padding:6px 14px; font-size:11px; font-weight:bold;
+      text-transform:uppercase; letter-spacing:1px;
+      color:var(--c-label); border-bottom:2px solid transparent;
+      cursor:pointer; background:none; border-top:none; border-left:none; border-right:none;
+      font-family:var(--font);
+    }
+    .v-tab:hover { color:var(--c-accent); }
+    .v-tab.active { color:var(--c-accent); border-bottom-color:var(--c-accent); }
+
+    /* vault modal field rows */
+    .v-field { margin-bottom:12px; }
+    .v-field-row { display:flex; gap:12px; }
+    .v-field-row > div { flex:1; }
+
+    /* confirm pane */
+    .v-confirm {
+      background:#1a0000; border:1px solid #440000; padding:14px; margin-top:14px; display:none;
+    }
+    .v-confirm.open { display:block; }
+
+    /* maint buttons */
+    .v-maint-btn {
+      display:block; width:100%; text-align:left; padding:10px 14px; margin-bottom:6px;
+      background:var(--c-panel); border:1px solid var(--c-border-str); cursor:pointer;
+      font-family:var(--font);
+    }
+    .v-maint-btn:hover { background:#110a00; }
+    .v-maint-title { font-size:12px; font-weight:bold; margin-bottom:2px; }
+    .v-maint-desc { font-size:11px; color:var(--c-label-dim); }
+
+    /* extractor list */
+    .v-kernel-row {
+      display:flex; align-items:center; gap:10px; padding:8px 10px;
+      border:1px solid var(--c-border); margin-bottom:4px;
+    }
+    .v-kernel-row:hover { background:#0d0800; }
+    .v-kernel-name { font-size:12px; font-weight:bold; color:var(--c-accent); flex:1; }
+    .v-kernel-meta { font-size:10px; color:var(--c-label-dim); }
+    .v-kernel-pri { width:48px; text-align:center; }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
-    <span class="font-bold text-lg">DocVault</span>
-    <a href="/search" class="hover:underline">Search</a>
-    <a href="/" class="hover:underline font-semibold">Vault Status</a>
-    <a href="/catalog" class="hover:underline">Vault Log</a>
-    <a href="/identity" class="hover:underline">Identity Hub</a>
-    <a href="/lab" class="hover:underline">Lab</a>
-    <a href="/utils" class="hover:underline">Utilities</a>
-    <a href="/settings" class="hover:underline">Settings</a>
-  </nav>
+<body data-page="vault">
+  <div class="lc-nav"></div>
 
-  <!-- Resource strip -->
-  <div id="resource-strip" class="bg-gray-800 text-gray-200 text-xs px-6 py-2 font-mono">
-    Loading hardware stats...
-  </div>
+  <div class="lc-page lc-page-pad">
 
-  <main class="max-w-6xl mx-auto p-6">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Vault Status</h1>
-      <div class="flex gap-2">
-        <button onclick="openAddVaultWizard()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm transition-all">+ Add Vault</button>
-        <div class="w-px h-6 bg-gray-200 mx-1"></div>
-        <button id="btn-pause" onclick="pauseWorkers()" class="bg-yellow-400 hover:bg-yellow-500 text-white px-4 py-1.5 rounded text-sm">Pause</button>
-        <button id="btn-resume" onclick="resumeWorkers()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded text-sm">Resume</button>
-        <button onclick="resetStuck()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-1.5 rounded text-sm">Reset Stuck</button>
-        <span id="pause-status" class="text-sm text-gray-600 self-center">—</span>
+    <!-- == TOP: Vault Status ============================== -->
+    <div class="lc-section-title" style="padding-top:14px;">
+      Vault Status
+      <div class="vault-worker-controls">
+        <button class="lc-btn lc-btn-sm" onclick="openAddVaultWizard()">+ Add Vault</button>
+        <button class="lc-btn lc-btn-sm" onclick="pauseWorkers()">Pause</button>
+        <button class="lc-btn lc-btn-sm" onclick="resumeWorkers()">Resume</button>
+        <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="resetStuck()">Reset Stuck</button>
       </div>
-
     </div>
 
-    <!-- Global stats row -->
-    <div id="stats" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
-      <a href="/catalog" class="bg-white rounded shadow p-3 text-center block hover:shadow-md hover:bg-indigo-50 transition-shadow">
-        <div id="stat-total" class="text-2xl font-bold text-indigo-600">—</div>
-        <div class="text-xs text-gray-500 mt-1">Total</div>
-      </a>
-      <a href="/catalog?status=PENDING" class="bg-white rounded shadow p-3 text-center block hover:shadow-md hover:bg-gray-50 transition-shadow">
-        <div id="stat-pending" class="text-2xl font-bold text-gray-500">—</div>
-        <div class="text-xs text-gray-500 mt-1">Pending</div>
-      </a>
-      <a href="/catalog?status=PROCESSING" class="bg-white rounded shadow p-3 text-center block hover:shadow-md hover:bg-purple-50 transition-shadow">
-        <div id="stat-processing" class="text-2xl font-bold text-purple-500">—</div>
-        <div class="text-xs text-gray-500 mt-1">Processing</div>
-      </a>
-      <a href="/catalog?status=EXTRACTED" class="bg-white rounded shadow p-3 text-center block hover:shadow-md hover:bg-blue-50 transition-shadow">
-        <div id="stat-extracted" class="text-2xl font-bold text-blue-500">—</div>
-        <div class="text-xs text-gray-500 mt-1">Extracted</div>
-      </a>
-      <a href="/catalog?status=EMBEDDING" class="bg-white rounded shadow p-3 text-center block hover:shadow-md hover:bg-purple-50 transition-shadow">
-        <div id="stat-embedding" class="text-2xl font-bold text-purple-500">—</div>
-        <div class="text-xs text-gray-500 mt-1">Embedding</div>
-      </a>
-      <a href="/catalog?status=COMPLETED" class="bg-white rounded shadow p-3 text-center block hover:shadow-md hover:bg-green-50 transition-shadow">
-        <div id="stat-completed" class="text-2xl font-bold text-green-600">—</div>
-        <div class="text-xs text-gray-500 mt-1">Completed</div>
-      </a>
-      <a href="/catalog?status=ERROR" class="bg-white rounded shadow p-3 text-center block hover:shadow-md hover:bg-red-50 transition-shadow">
-        <div id="stat-error" class="text-2xl font-bold text-red-500">—</div>
-        <div class="text-xs text-gray-500 mt-1">Errors</div>
-      </a>
-    </div>
-
-    <!-- Stuck task banner (shown when health check detects stuck tasks) -->
-    <div id="stuck-banner" class="hidden mb-6 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800 overflow-hidden">
-      <!-- Header row -->
-      <div class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none" onclick="toggleStuckAccordion()">
-        <span class="text-lg">⚠</span>
-        <span id="stuck-banner-msg"></span>
-        <span id="stuck-accordion-chevron" class="ml-2 text-amber-500 transition-transform duration-200">▼</span>
-        <button onclick="event.stopPropagation(); resetStuck()" class="ml-auto shrink-0 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-xs font-medium">Reset Now</button>
-      </div>
-      <!-- Accordion body -->
-      <div id="stuck-accordion" class="hidden border-t border-amber-200 divide-y divide-amber-100">
-        <!-- rows injected by JS -->
-      </div>
+    <!-- Stat grid (6 tiles, color-coded) -->
+    <div class="lc-stat-grid" id="stat-grid">
+      <!-- populated by loadStats() -->
     </div>
 
     <!-- Vault cards -->
-    <div class="mb-8">
-      <div class="flex justify-between items-center mb-3">
-        <h2 class="text-lg font-semibold text-gray-700">Vaults</h2>
-        <a href="/settings" class="text-sm text-indigo-600 hover:underline">Manage vaults</a>
-      </div>
-      <div id="vault-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div class="text-sm text-gray-400">Loading vaults...</div>
-      </div>
+    <div class="lc-vault-cards" id="vault-cards">
+      <div style="color:var(--c-label-dim);font-size:11px;padding:10px;">Loading vaults...</div>
     </div>
 
-    <!-- Vault Control Center Modal (Add/Edit) -->
-    <div id="reset-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col" style="max-height: 90vh;">
-        
-        <!-- Header -->
-        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 id="reset-title" class="text-lg font-bold text-gray-800">Vault Configuration</h3>
-          <button onclick="closeResetModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-        </div>
+    <!-- Unknown file types strip -->
+    <div id="unknowns-section" style="display:none;">
+      <div class="lc-section-title" style="font-size:10px;">Unknown File Types</div>
+      <div class="unknown-row" id="unknowns-row"></div>
+    </div>
 
-        <!-- Tabs Navigation -->
-        <div class="flex border-b border-gray-100 bg-white">
-          <button id="v-tab-identity" onclick="showVaultTab('identity')" class="px-6 py-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-700">1. Identity</button>
-          <button id="v-tab-extractors" onclick="showVaultTab('extractors')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700">2. Kernels</button>
-          <button id="v-tab-maintenance" onclick="showVaultTab('maintenance')" class="px-6 py-3 text-sm font-bold border-b-2 border-transparent text-gray-500 hover:text-gray-700">3. Maintenance</button>
-        </div>
+    <!-- == DIVIDER ======================================== -->
+    <div class="lc-divider"><div class="lc-divider-label">Vault Log</div></div>
 
-        <!-- Content Area -->
-        <div class="flex-1 overflow-y-auto p-6 bg-white">
-          
-          <!-- Tab: Identity -->
-          <div id="v-pane-identity" class="v-pane space-y-4">
-            <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Vault Name</label>
-              <input type="text" id="v-input-name" placeholder="e.g. Legal Documents" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Scan Directory</label>
-              <div class="flex gap-2">
-                <input type="text" id="v-input-path" readonly placeholder="Select a folder..." class="flex-1 border border-gray-200 bg-gray-50 rounded px-3 py-2 text-sm outline-none">
-                <button onclick="browseVaultPath()" class="bg-gray-800 text-white px-4 py-2 rounded text-xs font-bold">Browse</button>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Processing Priority</label>
-                <select id="v-input-priority" class="w-full border border-gray-300 rounded px-3 py-2 text-sm outline-none">
-                  <option value="1">1 (Critical / Fast)</option>
-                  <option value="3">3 (High)</option>
-                  <option value="5" selected>5 (Standard)</option>
-                  <option value="7">7 (Low)</option>
-                  <option value="9">9 (Background / Slow)</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">UI Accent Color</label>
-                <input type="color" id="v-input-color" value="#6366f1" class="w-full h-9 p-1 border border-gray-300 rounded">
-              </div>
-            </div>
-          </div>
+    <!-- == BOTTOM: Vault Log ============================== -->
+    <div id="vault-log-section">
+      <div class="lc-section-title">Recent Files</div>
 
-          <!-- Tab: Extractors -->
-          <div id="v-pane-extractors" class="v-pane hidden space-y-4">
-            <p class="text-xs text-gray-500 italic mb-4">Define which extraction kernels are active for this vault and their importance.</p>
-            <div id="v-extractor-list" class="space-y-2 max-h-96 overflow-y-auto pr-2 border-b border-transparent">
-              <!-- Dynamically populated -->
-              <div class="text-gray-400 text-sm italic">Loading kernel registry...</div>
-            </div>
-          </div>
+      <div class="lc-filters" id="filter-bar">
+        <div class="lc-filter-pill active" data-filter="ALL" onclick="setFilter('ALL',this)">All</div>
+        <div class="lc-filter-pill" data-filter="COMPLETED"  onclick="setFilter('COMPLETED',this)">Completed</div>
+        <div class="lc-filter-pill" data-filter="PROCESSING" onclick="setFilter('PROCESSING',this)">Processing</div>
+        <div class="lc-filter-pill" data-filter="EXTRACTED"  onclick="setFilter('EXTRACTED',this)">Extracted</div>
+        <div class="lc-filter-pill" data-filter="EMBEDDING"  onclick="setFilter('EMBEDDING',this)">Embedding</div>
+        <div class="lc-filter-pill" data-filter="PENDING"    onclick="setFilter('PENDING',this)">Pending</div>
+        <div class="lc-filter-pill" data-filter="ERROR"      onclick="setFilter('ERROR',this)">Error</div>
+        <div class="lc-filter-pill" data-filter="UNKNOWN"    onclick="setFilter('UNKNOWN',this)">Unknown</div>
+        <!-- vault filter pills appended by loadVaultFilter() -->
+      </div>
 
-          <!-- Tab: Maintenance -->
-          <div id="v-pane-maintenance" class="v-pane hidden space-y-3">
-            <div id="v-maint-new-msg" class="text-sm text-gray-500 italic p-4 border border-dashed border-gray-200 rounded">Maintenance tools become available after the vault is created.</div>
-            <div id="v-maint-tools" class="hidden space-y-3">
-              <button onclick="confirmResetAction('reindex')" class="w-full text-left p-3 rounded border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all group">
-                <div class="font-bold text-sm text-indigo-700">Rebuild Vector Index</div>
-                <div class="text-xs text-gray-500">Wipes embeddings and re-vectorizes all files.</div>
-              </button>
-              <button onclick="confirmResetAction('gut')" class="w-full text-left p-3 rounded border border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all group">
-                <div class="font-bold text-sm text-orange-700">Gut Vault (Full Reset)</div>
-                <div class="text-xs text-gray-500">Deletes ALL extracted text and images.</div>
-              </button>
-              <button onclick="confirmResetAction('delete')" class="w-full text-left p-3 rounded border border-gray-200 hover:border-red-300 hover:bg-red-50 transition-all group">
-                <div class="font-bold text-sm text-red-700">Delete Vault</div>
-                <div class="text-xs text-gray-500">Removes this vault and all its data.</div>
-              </button>
-            </div>
-          </div>
+      <!-- Type filter input -->
+      <div style="padding:0 20px 10px;">
+        <input id="filter-type" class="lc-input" style="max-width:220px;" placeholder="Filter by type (e.g. pdf)" onchange="g_currentPage=1;loadCatalog()">
+      </div>
 
-          <!-- Sub-pane: Confirm Action -->
-          <div id="confirm-step" class="hidden mt-6 bg-red-50 p-4 border border-red-100 rounded">
-            <p id="confirm-msg" class="text-sm text-red-800 font-bold mb-4"></p>
-            <div class="flex justify-end gap-3">
-              <button onclick="cancelReset()" class="px-4 py-2 rounded text-sm text-gray-600 hover:bg-white transition-colors">Cancel</button>
-              <button id="btn-execute-reset" class="px-4 py-2 rounded text-sm bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-lg">Yes, Proceed</button>
-            </div>
-          </div>
+      <div class="lc-table-wrap">
+        <table class="lc-table" id="catalog-table">
+          <thead>
+            <tr>
+              <th onclick="sortBy('file_path')">File <span id="sort-file_path"></span></th>
+              <th onclick="sortBy('file_type')">Type <span id="sort-file_type"></span></th>
+              <th onclick="sortBy('vault_id')">Vault <span id="sort-vault_id"></span></th>
+              <th onclick="sortBy('status')">Status <span id="sort-status"></span></th>
+              <th onclick="sortBy('file_size')">Size <span id="sort-file_size"></span></th>
+              <th onclick="sortBy('last_update')">Updated <span id="sort-last_update"></span></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="catalog-body">
+            <tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-        </div>
-
-        <!-- Footer Actions -->
-        <div class="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-          <button onclick="closeResetModal()" class="text-sm text-gray-500 hover:underline">Cancel</button>
-          <button id="btn-vault-save" onclick="saveVaultConfig()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded font-bold shadow-lg transition-all">Save Vault</button>
-        </div>
+      <!-- Pagination -->
+      <div id="pagination" style="display:flex;gap:8px;padding:12px 20px;align-items:center;">
+        <button class="lc-btn lc-btn-sm" id="btn-prev" onclick="prevPage()">Prev</button>
+        <span id="page-info" style="font-size:11px;color:var(--c-label);">Page 1</span>
+        <button class="lc-btn lc-btn-sm" id="btn-next" onclick="nextPage()">Next</button>
       </div>
     </div>
 
-    <!-- Worker controls / misc -->
-    <div class="bg-white rounded shadow p-4 mb-4">
-      <h2 class="font-semibold text-gray-700 mb-3">Maintenance</h2>
-      <div class="flex gap-3 flex-wrap">
-        <button onclick="resetStuck()" class="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-1.5 rounded text-sm">Reset Stuck Tasks</button>
+  </div><!-- /lc-page -->
+
+  <!-- detail-overlay: catalog item detail -->
+  <div id="detail-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;overflow-y:auto;" onclick="closeDetail()">
+    <div id="detail" style="max-width:680px;margin:40px auto;background:var(--c-surface);border:1px solid var(--c-border-str);border-top:3px solid var(--c-accent-dim);padding:24px;" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span id="detail-title" style="color:var(--c-accent);font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;"></span>
+        <button onclick="closeDetail()" style="color:var(--c-label);font-size:18px;cursor:pointer;background:none;border:none;">&times;</button>
+      </div>
+      <pre id="detail-text" style="font-size:11px;color:var(--c-label);background:var(--c-panel);padding:14px;white-space:pre-wrap;overflow-y:auto;max-height:60vh;border:1px solid var(--c-border);"></pre>
+    </div>
+  </div>
+
+  <!-- ctx-menu -->
+  <div id="ctx-menu" class="lc-ctx-menu">
+    <div class="lc-ctx-item" onclick="ctxOpenFile()">Open File</div>
+    <div class="lc-ctx-sep"></div>
+    <div class="lc-ctx-item" onclick="ctxOpenFolder()">Open Folder</div>
+    <div class="lc-ctx-sep"></div>
+    <div class="lc-ctx-item" onclick="ctxInspect()">Inspect</div>
+    <div class="lc-ctx-sep"></div>
+    <div class="lc-ctx-item" onclick="ctxReprocess()">Reprocess</div>
+  </div>
+
+  <!-- stuck-banner -->
+  <div id="stuck-banner" style="display:none;background:#220000;border-top:2px solid var(--c-error);padding:8px 20px;font-size:11px;color:var(--c-error);">
+    <strong id="stuck-count"></strong> stuck tasks detected.
+    <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="resetStuck()" style="margin-left:10px;">Reset</button>
+  </div>
+
+  <!-- Vault Config Modal (Add / Edit / Maintenance) -->
+  <div id="vault-modal" class="lc-modal-backdrop">
+    <div class="lc-modal" style="min-width:500px;max-width:640px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div id="vault-modal-title" class="lc-modal-title" style="margin-bottom:0;">Add New Vault</div>
+        <button onclick="closeVaultModal()" style="color:var(--c-label);font-size:18px;cursor:pointer;background:none;border:none;">&times;</button>
+      </div>
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:4px;border-bottom:1px solid var(--c-border);margin-bottom:14px;">
+        <button class="v-tab active" id="v-tab-identity" onclick="showVaultTab('identity')">1. Identity</button>
+        <button class="v-tab" id="v-tab-extractors" onclick="showVaultTab('extractors')">2. Kernels</button>
+        <button class="v-tab" id="v-tab-maintenance" onclick="showVaultTab('maintenance')">3. Maintenance</button>
+      </div>
+
+      <!-- Tab: Identity -->
+      <div id="v-pane-identity" class="v-pane">
+        <div class="v-field">
+          <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Vault Name</label>
+          <input type="text" id="v-input-name" class="lc-input" placeholder="e.g. Legal Documents">
+        </div>
+        <div class="v-field">
+          <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Scan Directory</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="v-input-path" class="lc-input" readonly placeholder="Select a folder..." style="flex:1;">
+            <button class="lc-btn lc-btn-sm" onclick="browseVaultPath()">Browse</button>
+          </div>
+        </div>
+        <div class="v-field-row">
+          <div>
+            <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Priority</label>
+            <select id="v-input-priority" class="lc-input lc-select">
+              <option value="1">1 (Critical / Fast)</option>
+              <option value="3">3 (High)</option>
+              <option value="5" selected>5 (Standard)</option>
+              <option value="7">7 (Low)</option>
+              <option value="9">9 (Background / Slow)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Accent Color</label>
+            <input type="color" id="v-input-color" value="#cc6600" style="width:100%;height:32px;background:var(--c-panel);border:1px solid var(--c-border-str);cursor:pointer;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Extractors -->
+      <div id="v-pane-extractors" class="v-pane" style="display:none;">
+        <div style="font-size:11px;color:var(--c-label-dim);margin-bottom:10px;">Define which extraction kernels are active for this vault and their importance.</div>
+        <div id="v-extractor-list" style="max-height:340px;overflow-y:auto;">
+          <div style="color:var(--c-label-dim);font-size:11px;">Loading kernel registry...</div>
+        </div>
+      </div>
+
+      <!-- Tab: Maintenance -->
+      <div id="v-pane-maintenance" class="v-pane" style="display:none;">
+        <div id="v-maint-new-msg" style="font-size:11px;color:var(--c-label-dim);padding:14px;border:1px dashed var(--c-border-str);">Maintenance tools become available after the vault is created.</div>
+        <div id="v-maint-tools" style="display:none;">
+          <button class="v-maint-btn" onclick="confirmResetAction('reindex')">
+            <div class="v-maint-title" style="color:var(--c-accent);">Rebuild Vector Index</div>
+            <div class="v-maint-desc">Wipes embeddings and re-vectorizes all files.</div>
+          </button>
+          <button class="v-maint-btn" onclick="confirmResetAction('gut')">
+            <div class="v-maint-title" style="color:var(--c-warn);">Gut Vault (Full Reset)</div>
+            <div class="v-maint-desc">Deletes ALL extracted text and images.</div>
+          </button>
+          <button class="v-maint-btn" onclick="confirmResetAction('delete')">
+            <div class="v-maint-title" style="color:var(--c-error);">Delete Vault</div>
+            <div class="v-maint-desc">Removes this vault and all its data.</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Confirm sub-pane -->
+      <div id="confirm-step" class="v-confirm">
+        <p id="confirm-msg" style="font-size:12px;color:var(--c-error);font-weight:bold;margin-bottom:12px;"></p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <button class="lc-btn lc-btn-sm" onclick="cancelReset()">Cancel</button>
+          <button id="btn-execute-reset" class="lc-btn lc-btn-sm lc-btn-danger">Yes, Proceed</button>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--c-border);">
+        <button class="lc-btn lc-btn-sm" onclick="closeVaultModal()">Cancel</button>
+        <button id="btn-vault-save" class="lc-btn lc-btn-primary" onclick="saveVaultConfig()">Save Vault</button>
       </div>
     </div>
+  </div>
 
-    <!-- Unknown file types -->
-    <div class="bg-white rounded shadow p-4">
-      <h2 class="font-semibold text-gray-700 mb-3">Unknown File Types</h2>
-      <div id="unknowns" class="text-sm text-gray-500">Loading...</div>
-    </div>
-  </main>
-
+  <script src="/static/app.js"></script>
+  <script src="/static/lcars.js"></script>
   <script>
-    async function loadResourceStrip() {
-      try {
-        const data = await api('/monitor/status');
-        const stateColors = {normal: '#22c55e', throttled: '#f59e0b', cooldown: '#ef4444'};
-        const dot = `<span style="color:${stateColors[data.state] || '#9ca3af'}">&#9679;</span>`;
-        if (!data.available) {
-          document.getElementById('resource-strip').innerHTML =
-            `${dot} ${data.state} &nbsp;|&nbsp; No hardware sensors available`;
-          return;
-        }
-        document.getElementById('resource-strip').innerHTML =
-          `CPU&nbsp;${(data.cpu_temp||0).toFixed(0)}&deg;C&nbsp;&nbsp;${(data.cpu_pct||0).toFixed(0)}%` +
-          `&nbsp;&nbsp;|&nbsp;&nbsp;` +
-          `RAM&nbsp;${(data.ram_used_gb||0).toFixed(1)}&nbsp;/&nbsp;${(data.ram_total_gb||0).toFixed(0)}&nbsp;GB` +
-          `&nbsp;&nbsp;|&nbsp;&nbsp;` +
-          `GPU&nbsp;${(data.gpu_temp||0).toFixed(0)}&deg;C&nbsp;&nbsp;${(data.gpu_util_pct||0).toFixed(0)}%` +
-          `&nbsp;&nbsp;${dot}&nbsp;${data.state}`;
-      } catch(e) {
-        document.getElementById('resource-strip').textContent = 'Hardware stats unavailable';
-      }
+    /* ================================================================
+       VAULT.HTML — Merged JS from index.html + catalog.html
+       ================================================================ */
+
+    // ── Status badge helper (LCARS-styled) ──────────────────
+    const STATUS_BADGE_MAP = {
+      COMPLETED:  'ok',
+      EXTRACTED:  'ok',
+      PROCESSING: 'proc',
+      EMBEDDING:  'proc',
+      PENDING:    'pend',
+      ERROR:      'err',
+      UNKNOWN:    'unk'
+    };
+
+    function lcStatusBadge(status) {
+      const cls = STATUS_BADGE_MAP[status] || 'unk';
+      return '<span class="lc-badge lc-badge-' + cls + '">' + (status || 'N/A') + '</span>';
     }
 
-    async function loadVaultCards() {
-      const container = document.getElementById('vault-cards');
-      try {
-        const vaults = await api('/vaults');
-        if (!vaults.length) {
-          container.innerHTML = '<div class="text-sm text-gray-400">No active vaults.</div>';
-          return;
-        }
-        container.innerHTML = vaults.map(v => `
-          <div class="bg-white rounded-lg shadow-sm p-5 border-l-4 flex flex-col justify-between" style="border-color:${v.color||'#6366f1'}; min-height: 140px;">
-            <div>
-              <div class="flex justify-between items-start mb-1">
-                <div class="font-bold text-gray-900 leading-tight">${v.name}</div>
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${v.state==='active'?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${v.state}</span>
-              </div>
-              <div class="text-[11px] text-gray-400 truncate w-full mb-2" title="${v.scan_directory}">${v.scan_directory}</div>
-              <div class="text-[11px] font-medium text-gray-500">Priority ${v.priority}</div>
-            </div>
-            
-            <div class="mt-4 pt-3 border-t border-gray-50 flex items-center gap-3">
-              <a href="/catalog?vault_id=${v.vault_id}" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors">VIEW FILES</a>
-              <span class="text-gray-200">|</span>
-              <button onclick="openVaultManagement('${v.vault_id}', '${escapeAttr(v.name)}')" 
-                      class="text-xs font-bold text-rose-600 hover:text-rose-800 transition-colors uppercase">Manage</button>
-            </div>
-          </div>
-        `).join('');
-      } catch(e) {
-        container.innerHTML = '<div class="text-sm text-red-400">Could not load vaults.</div>';
-      }
+    // ── Size formatter ──────────────────────────────────────
+    function fmtSize(b) {
+      if (!b) return '--';
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+      if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+      return (b/1073741824).toFixed(1) + ' GB';
     }
+
+    // ── Escape helper ───────────────────────────────────────
+    function escapeAttr(s) {
+      return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ── Scroll to vault log section ─────────────────────────
+    function scrollToLog() {
+      document.getElementById('vault-log-section').scrollIntoView({behavior:'smooth'});
+    }
+
+    /* ================================================================
+       VAULT STATUS (from index.html)
+       ================================================================ */
+
+    // ── Stat tiles ──────────────────────────────────────────
+    var STAT_TILES = [
+      { key:'total',      label:'Total',      color:'var(--c-accent-dim)', filter:'ALL' },
+      { key:'pending',    label:'Pending',    color:'var(--c-pend)',       filter:'PENDING' },
+      { key:'processing', label:'Processing', color:'var(--c-proc)',       filter:'PROCESSING' },
+      { key:'extracted',  label:'Extracted',  color:'#3399ff',             filter:'EXTRACTED' },
+      { key:'embedding',  label:'Embedding',  color:'var(--c-proc)',       filter:'EMBEDDING' },
+      { key:'completed',  label:'Completed',  color:'var(--c-ok)',         filter:'COMPLETED' },
+      { key:'error',      label:'Errors',     color:'var(--c-error)',      filter:'ERROR' }
+    ];
 
     async function loadStats() {
-      const s = await api('/stats');
-      document.getElementById('stat-total').textContent = s.total || '0';
-      document.getElementById('stat-pending').textContent = s.pending || '0';
-      document.getElementById('stat-processing').textContent = s.processing || '0';
-      document.getElementById('stat-extracted').textContent = s.extracted || '0';
-      document.getElementById('stat-embedding').textContent = s.embedding || '0';
-      document.getElementById('stat-completed').textContent = s.completed || '0';
-      document.getElementById('stat-error').textContent = s.error || '0';
-
-      // Check for stuck tasks and surface a banner + tile highlight if found
       try {
-        const h = await api('/utils/health');
-        const stuckIssue = (h.issues || []).find(i => i.id === 'stuck_processing');
-        const banner = document.getElementById('stuck-banner');
-        const stuckTiles = ['stat-processing', 'stat-embedding'].map(id =>
-          document.getElementById(id).closest('a')
-        );
+        var s = await api('/stats');
+        var grid = document.getElementById('stat-grid');
+        grid.innerHTML = STAT_TILES.map(function(t) {
+          var val = s[t.key] || 0;
+          return '<div class="lc-stat-tile" onclick="setFilter(\'' + t.filter + '\');scrollToLog();" style="border-left-color:' + t.color + '">' +
+            '<div class="lc-stat-val" style="color:' + t.color + '">' + val + '</div>' +
+            '<div class="lc-stat-lbl">' + t.label + '</div></div>';
+        }).join('');
 
-        if (stuckIssue) {
-          document.getElementById('stuck-banner-msg').textContent =
-            `${stuckIssue.count} task${stuckIssue.count !== 1 ? 's' : ''} stuck — inactive for >10 minutes.`;
-          banner.classList.remove('hidden');
-          stuckTiles.forEach(el => el && el.classList.add('ring-2', 'ring-amber-400'));
-          loadStuckTaskDetails();
-        } else {
-          banner.classList.add('hidden');
-          stuckTiles.forEach(el => el && el.classList.remove('ring-2', 'ring-amber-400'));
-        }
-      } catch (_) { /* health check failure is non-fatal */ }
-    }
-
-    async function loadWorkerStatus() {
-      const s = await api('/workers/status');
-      document.getElementById('pause-status').textContent =
-        s.paused ? '⏸ Paused' : '▶ Running';
-      
-      const btnPause = document.getElementById('btn-pause');
-      const btnResume = document.getElementById('btn-resume');
-      if (s.paused) {
-        btnPause.classList.add('hidden');
-        btnResume.classList.remove('hidden');
-      } else {
-        btnPause.classList.remove('hidden');
-        btnResume.classList.add('hidden');
+        // Check for stuck tasks
+        try {
+          var h = await api('/utils/health');
+          var stuckIssue = (h.issues || []).find(function(i) { return i.id === 'stuck_processing'; });
+          var banner = document.getElementById('stuck-banner');
+          if (stuckIssue) {
+            document.getElementById('stuck-count').textContent =
+              stuckIssue.count + ' task' + (stuckIssue.count !== 1 ? 's' : '') + ' stuck (inactive >10 min).';
+            banner.style.display = '';
+          } else {
+            banner.style.display = 'none';
+          }
+        } catch (_) {}
+      } catch(e) {
+        console.error('loadStats failed', e);
       }
     }
 
-    async function loadUnknowns() {
-      const items = await api('/catalog?status=UNKNOWN&limit=20');
-      const el = document.getElementById('unknowns');
-      if (!items.length) { el.textContent = 'None'; return; }
-      el.innerHTML = items.map(i =>
-        `<div class="py-1">${i.file_type || '?'} — ${formatPath(i.file_path)}</div>`
-      ).join('');
+    // ── Vault cards ─────────────────────────────────────────
+    async function loadVaultCards() {
+      var container = document.getElementById('vault-cards');
+      try {
+        var vaults = await api('/vaults');
+        if (!vaults.length) {
+          container.innerHTML = '<div style="color:var(--c-label-dim);font-size:11px;padding:10px;">No active vaults.</div>';
+          return;
+        }
+        container.innerHTML = vaults.map(function(v) {
+          var isArchived = ['archived','gutted','deleted'].indexOf(v.state) >= 0;
+          var stateClass = isArchived ? 'archived' : '';
+          var stateBadge = isArchived
+            ? '<span class="lc-badge lc-badge-archived">' + v.state + '</span>'
+            : '<span class="lc-badge lc-badge-active">' + v.state + '</span>';
+          return '<div class="lc-vault-card ' + stateClass + '" style="border-top-color:' + (v.color||'var(--c-accent-dim)') + '">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
+                '<div class="lc-vault-name">' + escapeAttr(v.name) + '</div>' +
+                stateBadge +
+              '</div>' +
+              '<div class="lc-vault-path" title="' + escapeAttr(v.scan_directory) + '">' + escapeAttr(v.scan_directory) + '</div>' +
+              '<div class="lc-vault-meta">Priority <span>' + v.priority + '</span></div>' +
+              '<div style="display:flex;gap:10px;font-size:11px;margin-top:4px;">' +
+                '<a href="javascript:void(0)" onclick="setFilter(\'ALL\');setVaultFilter(\'' + v.vault_id + '\');scrollToLog();" style="color:var(--c-accent);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">View Files</a>' +
+                '<span style="color:var(--c-border-str);">|</span>' +
+                '<a href="javascript:void(0)" onclick="openVaultManagement(\'' + v.vault_id + '\',\'' + escapeAttr(v.name) + '\')" style="color:var(--c-error);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">Manage</a>' +
+              '</div>' +
+            '</div>';
+        }).join('');
+      } catch(e) {
+        container.innerHTML = '<div style="color:var(--c-error);font-size:11px;padding:10px;">Could not load vaults.</div>';
+      }
     }
 
+    // ── Unknown file types ──────────────────────────────────
+    async function loadUnknowns() {
+      try {
+        var resp = await api('/catalog?status=UNKNOWN&limit=20');
+        var section = document.getElementById('unknowns-section');
+        var row = document.getElementById('unknowns-row');
+        // Handle both array (old) and {tasks:[...]} (new) response shapes
+        var list = Array.isArray(resp) ? resp : (resp.tasks || []);
+        if (!list.length) { section.style.display = 'none'; return; }
+        section.style.display = '';
+        row.innerHTML = list.map(function(i) {
+          return '<div class="unknown-chip" onclick="setFilter(\'UNKNOWN\');scrollToLog();">' + (i.file_type || '?') + ' - ' + formatPath(i.file_path) + '</div>';
+        }).join('');
+      } catch(e) {
+        document.getElementById('unknowns-section').style.display = 'none';
+      }
+    }
+
+    // ── Worker controls ─────────────────────────────────────
     async function pauseWorkers() {
       await api('/workers/pause', { method: 'POST' });
-      loadWorkerStatus();
+      lcToast('Workers paused');
     }
 
     async function resumeWorkers() {
       await api('/workers/resume', { method: 'POST' });
-      loadWorkerStatus();
+      lcToast('Workers resumed');
     }
 
     async function resetStuck() {
-      const r = await api('/workers/reset_stuck', { method: 'POST' });
-      document.getElementById('stuck-banner').classList.add('hidden');
-      document.getElementById('stuck-accordion').innerHTML = '';
-      document.getElementById('stuck-accordion').classList.add('hidden');
-      document.getElementById('stuck-accordion-chevron').style.transform = '';
-      ['stat-processing', 'stat-embedding'].forEach(id => {
-        const el = document.getElementById(id).closest('a');
-        if (el) el.classList.remove('ring-2', 'ring-amber-400');
-      });
-      alert(`Reset ${r.reset} stuck task(s) back to PENDING.`);
-      loadStats();
-    }
-
-    async function loadStuckTaskDetails() {
-      const body = document.getElementById('stuck-accordion');
       try {
-        const tasks = await api('/utils/stuck_tasks');
-        if (!tasks.length) { body.innerHTML = ''; return; }
-        body.innerHTML = tasks.map(t => {
-          const name = t.file_path ? t.file_path.split(/[\\/]/).pop() : '—';
-          const since = t.last_update ? new Date(t.last_update + 'Z').toLocaleTimeString() : '—';
-          return `
-            <div class="flex items-center gap-3 px-4 py-2 text-xs text-amber-900">
-              <span class="font-mono bg-amber-100 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">${t.status}</span>
-              <span class="flex-1 truncate font-medium" title="${escapeAttr(t.file_path || '')}">${name}</span>
-              <span class="text-amber-500 shrink-0">${t.file_type || '?'}</span>
-              <span class="text-amber-400 shrink-0">since&nbsp;${since}</span>
-            </div>`;
-        }).join('');
-      } catch (_) {
-        body.innerHTML = '<div class="px-4 py-2 text-xs text-amber-600">Could not load task details.</div>';
+        var r = await api('/workers/reset_stuck', { method: 'POST' });
+        document.getElementById('stuck-banner').style.display = 'none';
+        lcToast('Reset ' + r.reset + ' stuck task(s) back to PENDING.');
+        loadStats();
+        loadCatalog();
+      } catch(e) {
+        lcToast('Reset failed: ' + e.message, true);
       }
     }
 
-    function toggleStuckAccordion() {
-      const body = document.getElementById('stuck-accordion');
-      const chevron = document.getElementById('stuck-accordion-chevron');
-      const isHidden = body.classList.toggle('hidden');
-      chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
+    /* ================================================================
+       VAULT LOG (from catalog.html)
+       ================================================================ */
+
+    var g_sortBy = 'last_update';
+    var g_sortOrder = 'DESC';
+    var g_currentPage = 1;
+    var g_pageSize = 50;
+    var g_totalMatches = 0;
+    var g_statusFilter = '';
+    var g_vaultFilter = '';
+    var g_vaultList = [];
+
+    function sortBy(col) {
+      if (g_sortBy === col) {
+        g_sortOrder = (g_sortOrder === 'ASC') ? 'DESC' : 'ASC';
+      } else {
+        g_sortBy = col;
+        g_sortOrder = 'DESC';
+      }
+      g_currentPage = 1;
+      updateSortIndicators();
+      loadCatalog();
     }
 
-    let activeVaultId = null;
-    let activeResetAction = null;
-    let availableKernels = [];
+    function updateSortIndicators() {
+      ['file_path','file_type','vault_id','status','file_size','last_update'].forEach(function(col) {
+        var span = document.getElementById('sort-' + col);
+        if (span) span.textContent = (g_sortBy === col) ? (g_sortOrder === 'ASC' ? ' ▲' : ' ▼') : '';
+      });
+    }
 
-    // --- Vault Wizard & Editor Logic ---
+    function setFilter(status, pill) {
+      g_statusFilter = (status === 'ALL') ? '' : status;
+      g_currentPage = 1;
+      // Update active pill
+      document.querySelectorAll('#filter-bar .lc-filter-pill[data-filter]').forEach(function(p) { p.classList.remove('active'); });
+      if (pill) {
+        pill.classList.add('active');
+      } else {
+        var match = document.querySelector('[data-filter="' + status + '"]');
+        if (match) match.classList.add('active');
+      }
+      loadCatalog();
+    }
 
-    async function openAddVaultWizard() {
+    function setVaultFilter(vaultId) {
+      g_vaultFilter = vaultId || '';
+      g_currentPage = 1;
+      // Update vault filter pills
+      document.querySelectorAll('#filter-bar .lc-filter-pill[data-vault]').forEach(function(p) {
+        if (p.dataset.vault === vaultId) {
+          p.classList.add('active');
+        } else {
+          p.classList.remove('active');
+        }
+      });
+      loadCatalog();
+    }
+
+    function nextPage() {
+      if ((g_currentPage * g_pageSize) < g_totalMatches) {
+        g_currentPage++;
+        loadCatalog();
+      }
+    }
+
+    function prevPage() {
+      if (g_currentPage > 1) {
+        g_currentPage--;
+        loadCatalog();
+      }
+    }
+
+    function updatePaginationControls() {
+      var info = document.getElementById('page-info');
+      var prev = document.getElementById('btn-prev');
+      var next = document.getElementById('btn-next');
+      var start = (g_currentPage - 1) * g_pageSize + 1;
+      var end = Math.min(g_currentPage * g_pageSize, g_totalMatches);
+      if (g_totalMatches === 0) {
+        info.textContent = 'No items found';
+      } else {
+        info.textContent = 'Showing ' + start + '-' + end + ' of ' + g_totalMatches;
+      }
+      prev.disabled = (g_currentPage === 1);
+      next.disabled = (end >= g_totalMatches);
+    }
+
+    async function loadCatalog() {
+      var typeFilter = document.getElementById('filter-type').value.trim();
+      var offset = (g_currentPage - 1) * g_pageSize;
+
+      var url = '/catalog?limit=' + g_pageSize + '&offset=' + offset + '&sort_by=' + g_sortBy + '&sort_order=' + g_sortOrder;
+      if (g_statusFilter) url += '&status=' + g_statusFilter;
+      if (typeFilter) url += '&file_type=' + typeFilter;
+      if (g_vaultFilter) url += '&vault_id=' + g_vaultFilter;
+
+      try {
+        var resp = await api(url);
+        var items = resp.tasks;
+        g_totalMatches = resp.total_matches;
+        var body = document.getElementById('catalog-body');
+
+        updatePaginationControls();
+
+        if (!items) {
+          body.innerHTML = '<tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">Failed to load items.</td></tr>';
+          return;
+        }
+        if (items.length === 0) {
+          body.innerHTML = '<tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">No items match filters.</td></tr>';
+          return;
+        }
+
+        // Resolve vault names
+        var vaultMap = {};
+        g_vaultList.forEach(function(v) { vaultMap[v.vault_id] = v.name; });
+
+        body.innerHTML = items.map(function(i) {
+          var vaultName = vaultMap[i.vault_id] || (i.vault_id ? i.vault_id.slice(0,8) : '--');
+          return '<tr style="cursor:pointer;"' +
+              ' onclick="showDetail(\'' + i.file_hash + '\')"' +
+              ' oncontextmenu="showCtxMenu(event, this)"' +
+              ' data-hash="' + i.file_hash + '"' +
+              ' data-path="' + (i.file_path||'').replace(/"/g, '&quot;') + '">' +
+              '<td class="lc-filename" title="' + escapeAttr(i.file_path) + '">' + formatPath(i.file_path) + '</td>' +
+              '<td>' + (i.file_type || '?') + '</td>' +
+              '<td>' + vaultName + '</td>' +
+              '<td>' + lcStatusBadge(i.status) + '</td>' +
+              '<td>' + fmtSize(i.file_size) + '</td>' +
+              '<td>' + (i.last_update ? new Date(i.last_update).toLocaleString() : '--') + '</td>' +
+              '<td></td>' +
+            '</tr>';
+        }).join('');
+      } catch(e) {
+        document.getElementById('catalog-body').innerHTML =
+          '<tr><td colspan="7" style="color:var(--c-error);text-align:center;padding:20px;">Error: ' + e.message + '</td></tr>';
+      }
+    }
+
+    // ── Vault filter pills ──────────────────────────────────
+    async function loadVaultFilter() {
+      try {
+        var vaults = await api('/vaults');
+        g_vaultList = vaults;
+        var bar = document.getElementById('filter-bar');
+        if (vaults.length > 0) {
+          var sep = document.createElement('div');
+          sep.style.cssText = 'width:1px;height:16px;background:var(--c-border-str);margin:0 4px;';
+          bar.appendChild(sep);
+
+          vaults.forEach(function(v) {
+            var pill = document.createElement('div');
+            pill.className = 'lc-filter-pill';
+            pill.dataset.vault = v.vault_id;
+            pill.textContent = v.name;
+            pill.onclick = function() { setVaultFilter(pill.classList.contains('active') ? '' : v.vault_id); };
+            bar.appendChild(pill);
+          });
+        }
+      } catch(e) {
+        console.error('loadVaultFilter failed', e);
+      }
+    }
+
+    // ── Detail overlay ──────────────────────────────────────
+    async function showDetail(hash) {
+      try {
+        var item = await api('/catalog/' + hash);
+        document.getElementById('detail-title').textContent =
+          formatPath(item.file_path) + ' [' + item.file_type + ']';
+        document.getElementById('detail-text').textContent =
+          item.extracted_text || item.error_log || '(No content to display)';
+        document.getElementById('detail-overlay').style.display = '';
+      } catch(e) {
+        lcToast('Could not load detail: ' + e.message, true);
+      }
+    }
+
+    function closeDetail() {
+      document.getElementById('detail-overlay').style.display = 'none';
+    }
+
+    // ── Context menu ────────────────────────────────────────
+    var g_ctxHash = null;
+    var g_ctxPath = null;
+
+    function showCtxMenu(e, row) {
+      e.preventDefault();
+      e.stopPropagation();
+      g_ctxHash = row.dataset.hash;
+      g_ctxPath = row.dataset.path;
+      var menu = document.getElementById('ctx-menu');
+      menu.style.left = e.pageX + 'px';
+      menu.style.top  = e.pageY + 'px';
+      menu.classList.add('open');
+    }
+
+    function hideCtxMenu() {
+      document.getElementById('ctx-menu').classList.remove('open');
+      g_ctxHash = null;
+      g_ctxPath = null;
+    }
+
+    function ctxOpenFile() {
+      if (!g_ctxPath) return;
+      var path = g_ctxPath;
+      hideCtxMenu();
+      openFile(path);
+    }
+
+    function ctxOpenFolder() {
+      if (!g_ctxPath) return;
+      var path = g_ctxPath;
+      hideCtxMenu();
+      openFolder(path);
+    }
+
+    function ctxInspect() {
+      if (!g_ctxPath) return;
+      var path = g_ctxPath;
+      hideCtxMenu();
+      inspectFile(path);
+    }
+
+    async function ctxReprocess() {
+      if (!g_ctxHash) return;
+      var hash = g_ctxHash;
+      hideCtxMenu();
+      try {
+        await api('/catalog/' + hash + '/reprocess', { method: 'POST' });
+        lcToast('Reprocessing queued');
+        loadCatalog();
+      } catch(e) {
+        lcToast('Reprocess failed: ' + e.message, true);
+      }
+    }
+
+    document.addEventListener('click', hideCtxMenu);
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        hideCtxMenu();
+        closeDetail();
+      }
+    });
+
+    /* ================================================================
+       VAULT MODAL (Add / Edit / Maintenance)
+       ================================================================ */
+
+    var activeVaultId = null;
+    var activeResetAction = null;
+    var availableKernels = [];
+
+    function openAddVaultWizard() {
       activeVaultId = null;
-      document.getElementById('reset-title').textContent = "Add New Vault";
-      document.getElementById('v-input-name').value = "";
-      document.getElementById('v-input-path').value = "";
-      document.getElementById('v-input-priority').value = "5";
-      document.getElementById('v-input-color').value = "#6366f1";
-      document.getElementById('btn-vault-save').textContent = "Create Vault";
-      
-      document.getElementById('v-maint-new-msg').classList.remove('hidden');
-      document.getElementById('v-maint-tools').classList.add('hidden');
-      
+      document.getElementById('vault-modal-title').textContent = 'Add New Vault';
+      document.getElementById('v-input-name').value = '';
+      document.getElementById('v-input-path').value = '';
+      document.getElementById('v-input-priority').value = '5';
+      document.getElementById('v-input-color').value = '#cc6600';
+      document.getElementById('btn-vault-save').textContent = 'Create Vault';
+
+      document.getElementById('v-maint-new-msg').style.display = '';
+      document.getElementById('v-maint-tools').style.display = 'none';
+
       showVaultTab('identity');
-      await loadKernelRegistry();
-      document.getElementById('reset-modal').classList.remove('hidden');
+      loadKernelRegistry();
+      document.getElementById('vault-modal').classList.add('open');
     }
 
     async function openVaultManagement(id, name) {
       activeVaultId = id;
       try {
-        const v = await api(`/vaults/${id}`);
-        document.getElementById('reset-title').textContent = `Manage Vault: ${v.name}`;
+        var v = await api('/vaults/' + id);
+        document.getElementById('vault-modal-title').textContent = 'Manage: ' + v.name;
         document.getElementById('v-input-name').value = v.name;
         document.getElementById('v-input-path').value = v.scan_directory;
         document.getElementById('v-input-priority').value = v.priority;
-        document.getElementById('v-input-color').value = v.color || "#6366f1";
-        document.getElementById('btn-vault-save').textContent = "Save Changes";
+        document.getElementById('v-input-color').value = v.color || '#cc6600';
+        document.getElementById('btn-vault-save').textContent = 'Save Changes';
 
-        document.getElementById('v-maint-new-msg').classList.add('hidden');
-        document.getElementById('v-maint-tools').classList.remove('hidden');
+        document.getElementById('v-maint-new-msg').style.display = 'none';
+        document.getElementById('v-maint-tools').style.display = '';
 
         showVaultTab('identity');
         await loadKernelRegistry(id);
-        document.getElementById('reset-modal').classList.remove('hidden');
         cancelReset();
-      } catch (err) {
-        alert("Could not load vault details: " + err.message);
+        document.getElementById('vault-modal').classList.add('open');
+      } catch(err) {
+        lcToast('Could not load vault: ' + err.message, true);
       }
     }
 
     function showVaultTab(tab) {
-      document.querySelectorAll('.v-pane').forEach(p => p.classList.add('hidden'));
-      document.getElementById(`v-pane-${tab}`).classList.remove('hidden');
-      
-      document.querySelectorAll('[id^="v-tab-"]').forEach(b => {
-        b.classList.remove('border-indigo-600', 'text-indigo-700');
-        b.classList.add('border-transparent', 'text-gray-500');
-      });
-      document.getElementById(`v-tab-${tab}`).classList.add('border-indigo-600', 'text-indigo-700');
-      document.getElementById(`v-tab-${tab}`).classList.remove('border-transparent', 'text-gray-500');
+      document.querySelectorAll('.v-pane').forEach(function(p) { p.style.display = 'none'; });
+      document.getElementById('v-pane-' + tab).style.display = '';
+      document.querySelectorAll('.v-tab').forEach(function(b) { b.classList.remove('active'); });
+      document.getElementById('v-tab-' + tab).classList.add('active');
     }
 
     async function browseVaultPath() {
-      const res = await api('/utils/browse', { method: 'POST', body: JSON.stringify({ mode: 'folder' }) });
-      if (res.path) document.getElementById('v-input-path').value = res.path;
+      try {
+        var res = await api('/utils/browse', { method: 'POST', body: JSON.stringify({ mode: 'folder' }) });
+        if (res.path) document.getElementById('v-input-path').value = res.path;
+      } catch(e) {
+        lcToast('Browse failed: ' + e.message, true);
+      }
     }
 
-    async function loadKernelRegistry(vaultId = null) {
-      const list = document.getElementById('v-extractor-list');
+    async function loadKernelRegistry(vaultId) {
+      var list = document.getElementById('v-extractor-list');
       try {
-        // 1. Get all available extractors
         if (availableKernels.length === 0) {
           availableKernels = await api('/utils/extractors');
         }
-
-        // 2. Get vault-specific config if editing
-        let config = [];
+        var config = [];
         if (vaultId) {
-          config = await api(`/vaults/${vaultId}/extractors`);
+          config = await api('/vaults/' + vaultId + '/extractors');
         }
-
-        list.innerHTML = availableKernels.map(k => {
-          const vConfig = config.find(c => c.name === k.name) || { enabled: true, priority: 10 };
-          return `
-            <div class="flex items-center gap-4 p-3 border border-gray-100 rounded hover:bg-gray-50 group">
-              <input type="checkbox" class="v-kernel-check w-4 h-4 text-indigo-600" data-name="${k.name}" ${vConfig.enabled ? 'checked' : ''}>
-              <div class="flex-1">
-                <div class="text-sm font-bold text-gray-800">${k.name}</div>
-                <div class="text-[10px] text-gray-400 uppercase tracking-tighter">${k.settings.length} configurable settings</div>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] text-gray-400 font-bold uppercase">Priority:</span>
-                <input type="number" class="v-kernel-priority w-12 border border-gray-200 rounded px-1 py-0.5 text-xs text-center" 
-                       data-name="${k.name}" value="${vConfig.priority}" min="1" max="99">
-              </div>
-            </div>
-          `;
+        list.innerHTML = availableKernels.map(function(k) {
+          var vConfig = config.find(function(c) { return c.name === k.name; }) || { enabled: true, priority: 10 };
+          return '<div class="v-kernel-row">' +
+              '<input type="checkbox" class="v-kernel-check" data-name="' + k.name + '" ' + (vConfig.enabled ? 'checked' : '') + '>' +
+              '<div style="flex:1;">' +
+                '<div class="v-kernel-name">' + k.name + '</div>' +
+                '<div class="v-kernel-meta">' + k.settings.length + ' configurable settings</div>' +
+              '</div>' +
+              '<span style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">Pri:</span>' +
+              '<input type="number" class="lc-input v-kernel-pri v-kernel-priority" data-name="' + k.name + '" value="' + vConfig.priority + '" min="1" max="99">' +
+            '</div>';
         }).join('');
-      } catch (err) {
-        list.innerHTML = `<div class="text-red-500 text-sm">Registry error: ${err.message}</div>`;
+      } catch(err) {
+        list.innerHTML = '<div style="color:var(--c-error);font-size:11px;">Registry error: ' + err.message + '</div>';
       }
     }
 
     async function saveVaultConfig() {
-      const btn = document.getElementById('btn-vault-save');
-      const payload = {
+      var btn = document.getElementById('btn-vault-save');
+      var payload = {
         name: document.getElementById('v-input-name').value,
         scan_directory: document.getElementById('v-input-path').value,
         priority: parseInt(document.getElementById('v-input-priority').value),
         color: document.getElementById('v-input-color').value
       };
-
       if (!payload.name || !payload.scan_directory) {
-        return alert("Name and Path are required.");
+        lcToast('Name and Path are required.', true);
+        return;
       }
-
       btn.disabled = true;
-      btn.textContent = "SAVING...";
-
+      var origText = btn.textContent;
+      btn.textContent = 'SAVING...';
       try {
-        let v;
+        var v;
         if (activeVaultId) {
-          // Update Identity
-          v = await api(`/vaults/${activeVaultId}`, { method: 'PUT', body: JSON.stringify(payload) });
+          v = await api('/vaults/' + activeVaultId, { method: 'PUT', body: JSON.stringify(payload) });
         } else {
-          // Create New
-          v = await api(`/vaults`, { method: 'POST', body: JSON.stringify(payload) });
+          v = await api('/vaults', { method: 'POST', body: JSON.stringify(payload) });
           activeVaultId = v.vault_id;
         }
-
-        // Save Extractor Config
-        const extractorConfig = [];
-        document.querySelectorAll('.v-kernel-check').forEach(check => {
-          const name = check.dataset.name;
-          const priorityInput = document.querySelector(`.v-kernel-priority[data-name="${name}"]`);
-          extractorConfig.push({
-            name: name,
-            enabled: check.checked,
-            priority: parseInt(priorityInput.value)
-          });
+        // Save extractor config
+        var extractorConfig = [];
+        document.querySelectorAll('.v-kernel-check').forEach(function(check) {
+          var name = check.dataset.name;
+          var priInput = document.querySelector('.v-kernel-priority[data-name="' + name + '"]');
+          extractorConfig.push({ name: name, enabled: check.checked, priority: parseInt(priInput.value) });
         });
+        await api('/vaults/' + activeVaultId + '/extractors', { method: 'POST', body: JSON.stringify(extractorConfig) });
 
-        // Sort by priority (higher first for UI representation, but here we just send the list)
-        await api(`/vaults/${activeVaultId}/extractors`, { 
-          method: 'POST', 
-          body: JSON.stringify(extractorConfig) 
-        });
-
-        closeResetModal();
+        closeVaultModal();
+        lcToast('Vault saved');
         refreshAll();
-      } catch (err) {
-        alert("Save failed: " + err.message);
+      } catch(err) {
+        lcToast('Save failed: ' + err.message, true);
       } finally {
         btn.disabled = false;
-        btn.textContent = activeVaultId ? "Save Changes" : "Create Vault";
+        btn.textContent = origText;
       }
     }
 
-    function closeResetModal() {
-      document.getElementById('reset-modal').classList.add('hidden');
+    function closeVaultModal() {
+      document.getElementById('vault-modal').classList.remove('open');
       activeVaultId = null;
     }
 
     function confirmResetAction(action) {
       activeResetAction = action;
-      const confirmStep = document.getElementById('confirm-step');
-      const confirmMsg = document.getElementById('confirm-msg');
-      const executeBtn = document.getElementById('btn-execute-reset');
-      
-      confirmStep.classList.remove('hidden');
-      
+      var step = document.getElementById('confirm-step');
+      var msg = document.getElementById('confirm-msg');
+      var btn = document.getElementById('btn-execute-reset');
+      step.classList.add('open');
       if (action === 'reindex') {
-        confirmMsg.textContent = "WARNING: This will wipe all search vectors for this vault. Files will be re-embedded automatically. Extracted text remains safe.";
-        executeBtn.className = "px-4 py-2 rounded text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all shadow-lg";
+        msg.textContent = 'WARNING: This will wipe all search vectors for this vault. Files will be re-embedded automatically. Extracted text remains safe.';
       } else if (action === 'gut') {
-        confirmMsg.textContent = "DANGER: This will delete ALL extracted text, images, and history for this vault. DocVault will behave as if it has never seen these files.";
-        executeBtn.className = "px-4 py-2 rounded text-sm bg-orange-600 hover:bg-orange-700 text-white font-bold transition-all shadow-lg";
+        msg.textContent = 'DANGER: This will delete ALL extracted text, images, and history for this vault. DocVault will behave as if it has never seen these files.';
       } else if (action === 'delete') {
-        confirmMsg.textContent = "CRITICAL: This will permanently remove this vault and all its data from DocVault. (Your actual files on disk are never touched).";
-        executeBtn.className = "px-4 py-2 rounded text-sm bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-lg";
+        msg.textContent = 'CRITICAL: This will permanently remove this vault and all its data from DocVault. (Your actual files on disk are never touched).';
       }
-
-      executeBtn.onclick = executeVaultReset;
+      btn.onclick = executeVaultReset;
     }
 
     function cancelReset() {
-      document.getElementById('confirm-step').classList.add('hidden');
+      document.getElementById('confirm-step').classList.remove('open');
       activeResetAction = null;
     }
 
     async function executeVaultReset() {
       if (!activeVaultId || !activeResetAction) return;
-      
-      const btn = document.getElementById('btn-execute-reset');
-      const originalText = btn.textContent;
+      var btn = document.getElementById('btn-execute-reset');
       btn.disabled = true;
+      var origText = btn.textContent;
       btn.textContent = 'PROCESSING...';
-      btn.classList.add('opacity-50', 'cursor-not-allowed');
-
       try {
-        let endpoint = '';
-        if (activeResetAction === 'reindex') endpoint = `/vaults/${activeVaultId}/reindex`;
-        else if (activeResetAction === 'gut') endpoint = `/vaults/${activeVaultId}/gut`;
-        else if (activeResetAction === 'delete') endpoint = `/vaults/${activeVaultId}/delete`;
-
-        const res = await api(endpoint, { method: 'POST' });
-        
-        closeResetModal();
+        var endpoint = '';
+        if (activeResetAction === 'reindex') endpoint = '/vaults/' + activeVaultId + '/reindex';
+        else if (activeResetAction === 'gut') endpoint = '/vaults/' + activeVaultId + '/gut';
+        else if (activeResetAction === 'delete') endpoint = '/vaults/' + activeVaultId + '/delete';
+        await api(endpoint, { method: 'POST' });
+        closeVaultModal();
+        lcToast('Vault operation completed');
         refreshAll();
-      } catch (err) {
-        alert("Operation failed: " + err.message);
+      } catch(err) {
+        lcToast('Operation failed: ' + err.message, true);
       } finally {
         btn.disabled = false;
-        btn.textContent = originalText;
-        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        btn.textContent = origText;
       }
     }
 
-    function escapeAttr(s) {
-      return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
+    /* ================================================================
+       INIT + POLLING
+       ================================================================ */
 
     function refreshAll() {
       loadStats();
-      loadWorkerStatus();
-      loadUnknowns();
-      loadResourceStrip();
       loadVaultCards();
+      loadUnknowns();
+      loadCatalog();
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      refreshAll();
+    window.addEventListener('DOMContentLoaded', function() {
+      // URL param handling
+      var p = new URLSearchParams(location.search);
+      if (p.get('status')) {
+        g_statusFilter = p.get('status');
+        var pill = document.querySelector('[data-filter="' + p.get('status') + '"]');
+        if (pill) setFilter(p.get('status'), pill);
+        scrollToLog();
+      }
+      if (p.get('vault_id')) {
+        g_vaultFilter = p.get('vault_id');
+      }
+
+      // Load vault filter pills, then load everything
+      loadVaultFilter().then(function() {
+        // If vault_id in URL, activate that pill
+        if (g_vaultFilter) {
+          var vp = document.querySelector('[data-vault="' + g_vaultFilter + '"]');
+          if (vp) vp.classList.add('active');
+        }
+        refreshAll();
+      });
+
+      updateSortIndicators();
+
+      // Polling intervals (same as originals)
       setInterval(loadStats, 5000);
-      setInterval(loadWorkerStatus, 5000);
-      setInterval(loadResourceStrip, 10000);
       setInterval(loadVaultCards, 30000);
       setInterval(loadUnknowns, 30000);
+      setInterval(loadCatalog, 15000);
     });
   </script>
 </body>
