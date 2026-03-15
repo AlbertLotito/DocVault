@@ -4,7 +4,6 @@ core/tuner.py — Performance optimizer for DocVault.
 Owns: sweep matrix generation, profile selection.
 The optimizer thread and state management are added in Task 5.
 """
-import threading
 import json
 from typing import Optional
 
@@ -27,7 +26,7 @@ def build_sweep_matrix(snapshot: dict, gpu_util_pct: Optional[float]) -> list[di
     current_throttle = float(snapshot.get('monitor:gpu_temp_throttle', '80'))
     relaxed_throttle = str(min(current_throttle + 5, 90.0))
     throttle_vals = [snapshot['monitor:gpu_temp_throttle']]
-    if relaxed_throttle != snapshot['monitor:gpu_temp_throttle']:
+    if min(current_throttle + 5, 90.0) != current_throttle:
         throttle_vals.append(relaxed_throttle)
 
     # Only test max_parallel=2 if GPU util headroom > 20% AND sensor is available.
