@@ -155,6 +155,26 @@ def run_benchmark(db_path: str, n: int, types: list[str], vault_id: str | None) 
     return {'by_type': results, 'bottleneck_extractor': overall_bottleneck}
 
 
+def _get_pending_counts(db_path: str, types: list[str]) -> dict[str, int]:
+    """Query PENDING task counts from docvault.db, classified by category."""
+    counts: dict[str, int] = {t: 0 for t in types}
+    try:
+        conn = sqlite3.connect(db_path, timeout=30)
+        try:
+            rows = conn.execute(
+                "SELECT file_type, COUNT(*) FROM tasks WHERE status='PENDING' GROUP BY file_type"
+            ).fetchall()
+        finally:
+            conn.close()
+        for file_type, count in rows:
+            cat = _classify(file_type)
+            if cat and cat in counts:
+                counts[cat] += count
+    except Exception:
+        pass
+    return counts
+
+
 def _print_report(results: dict, db_path: str):
     print(f"\nDocVault Benchmark — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     cs   = settings.get('embeddings:chunk_size')
@@ -177,26 +197,88 @@ def _print_report(results: dict, db_path: str):
         if r['samples'] == 0:
             print(f"{cat:<12}  {'—':>7}  {'—':>9}  {'—':>7}  {'no COMPLETED files':>23}")
             continue
-        marker = '  <- BOTTLENECK' if cat == bottleneck_cat else ''
+        marker = '  ← BOTTLENECK' if cat == bottleneck_cat else ''
         print(f"{cat:<12}  {r['samples']:>7}  {r['avg_secs']:>8.2f}s  {r['p95_secs']:>6.2f}s  {r['throughput']:>20,.0f} f/hr{marker}")
 
+    # Overall weighted throughput
+    types = list(results['by_type'].keys())
+    pending = _get_pending_counts(db_path, types)
+    by_type = results['by_type']
+
+    weighted_sum = sum(
+        by_type[cat]['throughput'] * pending[cat]
+        for cat in types
+        if by_type[cat]['throughput'] > 0 and pending.get(cat, 0) > 0
+    )
+    weight_total = sum(
+        pending[cat]
+        for cat in types
+        if by_type[cat]['throughput'] > 0 and pending.get(cat, 0) > 0
+    )
+
+    if weight_total > 0:
+        overall = weighted_sum / weight_total
+    else:
+        non_zero = [by_type[cat]['throughput'] for cat in types if by_type[cat]['throughput'] > 0]
+        overall = sum(non_zero) / len(non_zero) if non_zero else 0.0
+
+    print(f"\nOverall (weighted by queue depth): {overall:,.0f} f/hr (in-process)")
+
+    # Queue drain estimate
+    total_drain_hours = 0.0
+    has_drain = False
+    for cat in types:
+        tp = by_type[cat]['throughput']
+        pend = pending.get(cat, 0)
+        if tp > 0 and pend > 0:
+            total_drain_hours += pend / tp
+            has_drain = True
+    if has_drain:
+        print(f"Queue drain estimate: ~{total_drain_hours:.1f} hours at current speed")
+
+    # Bottleneck line
     if bottleneck_cat:
-        bn = results['by_type'][bottleneck_cat]
+        bn = by_type[bottleneck_cat]
         print(f"\nBottleneck: {bn['bottleneck'] or bottleneck_cat} ({bn['avg_secs']}s avg)")
+
+    # Tip based on bottleneck category
+    tips = {
+        'image': "Tip: Disabling vision for non-art vaults would increase throughput significantly.",
+        'audio': "Tip: Disabling Whisper transcription would reduce audio processing time.",
+        'video': "Tip: Limiting video frame extraction would improve video throughput.",
+    }
+    tip = tips.get(bottleneck_cat, "Tip: Consider increasing max_parallel if GPU headroom is available.")
+    print(tip)
 
     print()
 
 
-def save_result(results: dict):
+def save_result(results: dict, db_path: str):
     """Write one row to logs.db benchmark_runs."""
     from core.manager import get_logs_db_path, _connect, init_logs_db
     # Ensure logs.db schema exists (idempotent — safe even when server hasn't run yet)
     init_logs_db()
     bottleneck = results.get('bottleneck_extractor')
     by_type    = results['by_type']
-    # Overall throughput: average of non-zero category throughputs
-    throughputs = [r['throughput'] for r in by_type.values() if r['throughput'] > 0]
-    overall    = sum(throughputs) / len(throughputs) if throughputs else 0.0
+
+    # Weighted overall throughput (matches what _print_report() prints)
+    types = list(by_type.keys())
+    pending = _get_pending_counts(db_path, types)
+    weighted_sum = sum(
+        by_type[cat]['throughput'] * pending[cat]
+        for cat in types
+        if by_type[cat]['throughput'] > 0 and pending.get(cat, 0) > 0
+    )
+    weight_total = sum(
+        pending[cat]
+        for cat in types
+        if by_type[cat]['throughput'] > 0 and pending.get(cat, 0) > 0
+    )
+    if weight_total > 0:
+        overall = weighted_sum / weight_total
+    else:
+        non_zero = [by_type[cat]['throughput'] for cat in types if by_type[cat]['throughput'] > 0]
+        overall = sum(non_zero) / len(non_zero) if non_zero else 0.0
 
     with _connect(get_logs_db_path()) as conn:
         conn.execute(
@@ -232,7 +314,7 @@ def main():
     results = run_benchmark(db_path, n, types, vault_id)
     _print_report(results, db_path)
     if not args.no_save:
-        save_result(results)
+        save_result(results, db_path)
 
 
 if __name__ == '__main__':
