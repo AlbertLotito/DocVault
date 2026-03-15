@@ -1001,6 +1001,7 @@
                   <div class="bar-label" title="${s.extractor}">${s.extractor}</div>
                   <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
                   <div class="bar-val" style="color:${color}">${s.avg_secs}s avg</div>
+                  <div style="width:70px;text-align:right;font-size:0.65rem;opacity:0.6">p95: ${s.p95_secs}s</div>
                   <div style="width:60px;text-align:right;font-size:0.65rem;opacity:0.5">${s.count} files</div>
                 </div>`;
             }).join('');
