@@ -498,12 +498,20 @@
       // Params
       if (s.state === 'running' && s.current_params && Object.keys(s.current_params).length) {
         const paramMap = { 'embeddings:chunk_size': 'chunk_size', 'embeddings:chunk_overlap': 'chunk_overlap', 'ollama:max_parallel': 'max_parallel', 'monitor:gpu_temp_throttle': 'gpu_throttle' };
-        document.getElementById('mc-params-rows').innerHTML = Object.entries(s.current_params).map(([k, v]) =>
-          `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #0d1117">
-            <span style="color:#475569">${paramMap[k]||k}</span>
-            <span style="color:#e2e8f0">${v}</span>
-           </div>`
-        ).join('');
+        const rowsEl = document.getElementById('mc-params-rows');
+        rowsEl.innerHTML = '';
+        for (const [k, v] of Object.entries(s.current_params)) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #0d1117';
+          const kSpan = document.createElement('span');
+          kSpan.style.color = '#475569';
+          kSpan.textContent = paramMap[k] || k;
+          const vSpan = document.createElement('span');
+          vSpan.style.color = '#e2e8f0';
+          vSpan.textContent = v;
+          row.append(kSpan, vSpan);
+          rowsEl.appendChild(row);
+        }
       }
 
       // Log new run completions
@@ -531,10 +539,15 @@
     function mcLog(level, msg) {
       const colors = { info: '#60a5fa', ok: '#4ade80', warn: '#f59e0b', error: '#f87171' };
       const log = document.getElementById('mc-log');
-      const ts = new Date().toLocaleTimeString();
       const line = document.createElement('div');
       line.className = 'mc-log-line';
-      line.innerHTML = `<span style="color:#334155">${ts} </span><span style="color:${colors[level]||'#94a3b8'}">${msg}</span>`;
+      const tsSpan = document.createElement('span');
+      tsSpan.style.color = '#334155';
+      tsSpan.textContent = new Date().toLocaleTimeString() + ' ';
+      const msgSpan = document.createElement('span');
+      msgSpan.style.color = colors[level] || '#94a3b8';
+      msgSpan.textContent = msg;
+      line.append(tsSpan, msgSpan);
       log.appendChild(line);
       log.scrollTop = log.scrollHeight;
     }
@@ -548,19 +561,29 @@
       cards.style.display = 'flex';
       const labels = { raw_speed: 'Raw Speed', sustainable: 'Sustainable', balanced: 'Balanced' };
       const shown = new Set();
-      let html = '';
+      cards.innerHTML = '';
       for (const [key, p] of Object.entries(profiles)) {
         const sig = JSON.stringify(p.params);
         if (shown.has(sig)) continue;
         shown.add(sig);
-        html += `<div class="mc-profile-card">
-          <div class="mc-profile-name">${labels[key]||key}</div>
-          <div class="mc-profile-val">${p.throughput?.toLocaleString() || '—'}</div>
-          <div style="font-size:9px;color:#475569;margin-top:2px">f/hr</div>
-          <button class="mc-apply-btn" onclick="mcApplyProfile('${key}')">↓ Apply</button>
-        </div>`;
+        const card = document.createElement('div');
+        card.className = 'mc-profile-card';
+        const nameEl = document.createElement('div');
+        nameEl.className = 'mc-profile-name';
+        nameEl.textContent = labels[key] || key;
+        const valEl = document.createElement('div');
+        valEl.className = 'mc-profile-val';
+        valEl.textContent = p.throughput?.toLocaleString() || '—';
+        const unitEl = document.createElement('div');
+        unitEl.style.cssText = 'font-size:9px;color:#475569;margin-top:2px';
+        unitEl.textContent = 'f/hr';
+        const btn = document.createElement('button');
+        btn.className = 'mc-apply-btn';
+        btn.textContent = '↓ Apply';
+        btn.addEventListener('click', () => mcApplyProfile(key));
+        card.append(nameEl, valEl, unitEl, btn);
+        cards.appendChild(card);
       }
-      cards.innerHTML = html;
       mcLog('ok', 'Optimizer complete. Select a profile to apply.');
     }
 
