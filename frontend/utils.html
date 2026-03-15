@@ -119,6 +119,15 @@
       </button>
       <div id="clear-logs-result" class="hidden mt-4 p-4 rounded text-sm"></div>
     </div>
+    <!-- Performance Tuning -->
+    <div class="bg-white rounded shadow p-4 mb-4">
+      <h2 class="font-semibold text-gray-700 mb-1">Performance Tuning</h2>
+      <p class="text-xs text-gray-400 mb-3">Pause workers and run an automated parameter sweep to find optimal throughput settings for your hardware.</p>
+      <div class="flex gap-3">
+        <button onclick="openOptimizer()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">⚡ Run Optimizer</button>
+        <a href="/telemetry" onclick="event.preventDefault(); window.location.href='/telemetry#perf'" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm">📊 Analytics Dashboard</a>
+      </div>
+    </div>
   </main>
 
   <script>
@@ -306,6 +315,271 @@
 
     loadGDriveStatus();
     runHealthCheck();
+  </script>
+
+  <!-- ═══ MISSION CONTROL OPTIMIZER OVERLAY ═══ -->
+  <div id="mc-overlay" class="hidden fixed inset-0 z-50 flex flex-col" style="background:#050809;font-family:'JetBrains Mono','Fira Code',monospace;color:#94a3b8">
+
+    <!-- Title bar -->
+    <div style="border-bottom:1px solid #1e2740;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <span style="color:#4f6ef7;font-size:11px;font-weight:700;letter-spacing:0.15em">◈ DOCVAULT ENGINEERING CONSOLE — OPTIMIZER</span>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span id="mc-run-label" style="font-size:10px;color:#334155">IDLE</span>
+        <button onclick="mcAbort()" id="mc-abort-btn" style="background:#7f1d1d;color:#fca5a5;border:none;padding:3px 12px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em" class="hidden">■ ABORT</button>
+        <button onclick="closeOptimizer()" style="background:transparent;border:1px solid #334155;color:#64748b;padding:3px 10px;font-size:10px;cursor:pointer">✕ CLOSE</button>
+      </div>
+    </div>
+
+    <!-- Quadrant grid -->
+    <div style="flex:1;display:grid;grid-template-columns:160px 1fr;grid-template-rows:1fr 1fr 40px;overflow:hidden">
+
+      <!-- TOP-LEFT: Hardware Gauges (spans both rows) -->
+      <div style="grid-row:span 2;border-right:1px solid #1e2740;border-bottom:1px solid #1e2740;padding:12px;display:flex;flex-direction:column;gap:8px;overflow:hidden">
+        <div style="font-size:8px;color:#334155;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Hardware</div>
+        <div id="mc-gauge-gpu-temp" class="mc-gauge-block"></div>
+        <div id="mc-gauge-gpu-util" class="mc-gauge-block"></div>
+        <div id="mc-gauge-ram" class="mc-gauge-block"></div>
+        <div id="mc-gauge-cpu-temp" class="mc-gauge-block"></div>
+      </div>
+
+      <!-- TOP-RIGHT: Throughput + sparkline -->
+      <div style="border-bottom:1px solid #1e2740;padding:16px 20px;display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:9px;color:#334155;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Throughput</div>
+        <div id="mc-throughput-val" style="font-size:42px;font-weight:900;color:#4ade80;letter-spacing:-2px;line-height:1">—</div>
+        <div id="mc-throughput-delta" style="font-size:11px;color:#64748b;margin-top:4px">files / hour</div>
+        <div id="mc-sparkline" style="display:flex;align-items:flex-end;gap:3px;height:40px;margin-top:12px"></div>
+      </div>
+
+      <!-- MID-RIGHT: Params / Profile cards -->
+      <div id="mc-params-pane" style="border-bottom:1px solid #1e2740;padding:12px 20px;overflow-y:auto">
+        <div style="font-size:8px;color:#334155;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Parameters</div>
+        <div id="mc-params-rows" style="font-size:10px;color:#64748b">Waiting for optimizer start...</div>
+        <div id="mc-profile-cards" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- BOTTOM-RIGHT: Event log -->
+      <div style="border-bottom:1px solid #1e2740;padding:8px 20px;overflow-y:auto;font-size:9px" id="mc-log">
+        <div style="color:#334155">Awaiting optimizer start...</div>
+      </div>
+
+      <!-- BOTTOM BAR (full width) -->
+      <div style="grid-column:span 2;border-top:1px solid #1e2740;display:flex;justify-content:space-between;align-items:center;padding:0 16px;background:#030507">
+        <span id="mc-eta" style="font-size:9px;color:#334155">—</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="mcAbort()" id="mc-abort-btn-bar" style="background:#7f1d1d;color:#fca5a5;border:none;padding:4px 12px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em" class="hidden">■ ABORT</button>
+          <button id="mc-apply-btn" onclick="mcApplyBest()" disabled style="background:#312e81;color:#a5b4fc;border:none;padding:4px 16px;font-size:10px;font-weight:700;cursor:not-allowed;opacity:0.4;letter-spacing:0.05em">↓ APPLY BEST PROFILE</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <style>
+    .mc-gauge-block { background:#0a0e18; border:1px solid #1e2740; border-radius:4px; padding:6px 8px; }
+    .mc-gauge-label { font-size:8px; color:#334155; text-transform:uppercase; letter-spacing:0.08em; }
+    .mc-gauge-val { font-size:16px; font-weight:700; font-family:monospace; line-height:1.2; }
+    .mc-gauge-bar { height:3px; background:#0d1117; border-radius:2px; margin-top:4px; }
+    .mc-gauge-fill { height:3px; border-radius:2px; transition:width 0.5s; }
+    .mc-log-line { padding:2px 0; border-bottom:1px solid #0d1117; }
+    .mc-profile-card { background:#0a0e18; border:1px solid #1e2740; border-radius:6px; padding:10px; min-width:140px; flex:1; }
+    .mc-profile-name { font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; }
+    .mc-profile-val { font-size:20px; font-weight:700; font-family:monospace; color:#4ade80; }
+    .mc-apply-btn { background:#1e2a4a; color:#818cf8; border:1px solid #3730a3; padding:4px 12px; font-size:9px; font-weight:700; cursor:pointer; margin-top:8px; width:100%; }
+    .mc-apply-btn:hover { background:#1e3a8a; }
+  </style>
+
+  <script>
+    let _mcPollInterval = null;
+    let _mcSelectedProfile = 'raw_speed';
+    let _mcRunCount = 0;
+    let _mcStartTime = null;
+
+    function openOptimizer() {
+      document.getElementById('mc-overlay').classList.remove('hidden');
+      mcStartRun();
+    }
+
+    function closeOptimizer() {
+      if (_mcPollInterval) { clearInterval(_mcPollInterval); _mcPollInterval = null; }
+      document.getElementById('mc-overlay').classList.add('hidden');
+    }
+
+    async function mcStartRun() {
+      try {
+        const r = await api('/utils/optimizer/start', { method: 'POST' });
+        mcLog('info', 'Optimizer started — pausing workers...');
+        _mcStartTime = Date.now();
+        document.getElementById('mc-abort-btn').classList.remove('hidden');
+        document.getElementById('mc-abort-btn-bar').classList.remove('hidden');
+        document.getElementById('mc-apply-btn').disabled = true;
+        document.getElementById('mc-apply-btn').style.opacity = '0.4';
+        document.getElementById('mc-apply-btn').style.cursor = 'not-allowed';
+        _mcPollInterval = setInterval(mcPoll, 1000);
+      } catch(e) {
+        if (e.status === 409) {
+          mcLog('warn', 'Optimizer already running — connecting to existing run.');
+          _mcPollInterval = setInterval(mcPoll, 1000);
+        } else {
+          mcLog('error', 'Failed to start optimizer: ' + e.message);
+        }
+      }
+    }
+
+    async function mcAbort() {
+      try {
+        await api('/utils/optimizer/abort', { method: 'POST' });
+        mcLog('warn', 'Abort signal sent — restoring settings...');
+      } catch(e) {
+        mcLog('error', 'Abort failed: ' + e.message);
+      }
+    }
+
+    async function mcPoll() {
+      try {
+        const s = await api('/utils/optimizer/status');
+        mcRender(s);
+        if (s.state === 'complete' || s.state === 'aborted' || s.state === 'error') {
+          clearInterval(_mcPollInterval); _mcPollInterval = null;
+          document.getElementById('mc-abort-btn').classList.add('hidden');
+          document.getElementById('mc-abort-btn-bar').classList.add('hidden');
+          if (s.state === 'complete') {
+            document.getElementById('mc-apply-btn').disabled = false;
+            document.getElementById('mc-apply-btn').style.opacity = '1';
+            document.getElementById('mc-apply-btn').style.cursor = 'pointer';
+            mcRenderProfiles(s.profiles);
+          }
+        }
+      } catch(e) { /* poll errors are non-fatal */ }
+    }
+
+    function mcRender(s) {
+      // Title bar
+      if (s.state === 'running') {
+        const elapsed = _mcStartTime ? Math.round((Date.now() - _mcStartTime) / 1000) : 0;
+        const perRun = s.run_index > 0 ? elapsed / s.run_index : 0;
+        const remaining = s.total_runs - s.run_index;
+        const eta = Math.round(perRun * remaining / 60);
+        document.getElementById('mc-run-label').textContent = `RUN ${s.run_index} / ${s.total_runs}  ·  ETA ~${eta}m`;
+        document.getElementById('mc-eta').textContent = `RUN ${s.run_index} / ${s.total_runs} · ETA ~${eta} min`;
+      } else {
+        document.getElementById('mc-run-label').textContent = (s.state || 'idle').toUpperCase();
+        document.getElementById('mc-eta').textContent = s.state || '—';
+      }
+
+      // Throughput
+      const tp = s.current_throughput;
+      document.getElementById('mc-throughput-val').textContent = tp ? tp.toLocaleString() : '—';
+      if (tp && s.baseline_throughput) {
+        const delta = Math.round((tp - s.baseline_throughput) / s.baseline_throughput * 100);
+        const sign = delta >= 0 ? '+' : '';
+        document.getElementById('mc-throughput-delta').innerHTML =
+          `files / hour &nbsp;·&nbsp; <span style="color:${delta>=0?'#4ade80':'#f87171'}">${sign}${delta}% vs baseline</span>`;
+      }
+
+      // Sparkline
+      const spark = document.getElementById('mc-sparkline');
+      if (s.runs && s.runs.length) {
+        const maxTp = Math.max(...s.runs.map(r => r.throughput));
+        spark.innerHTML = s.runs.map(r => {
+          const h = maxTp > 0 ? Math.max(r.throughput / maxTp * 100, 5) : 5;
+          const isLast = r.index === s.run_index;
+          const color = isLast ? '#4ade80' : '#1e3a5f';
+          return `<div style="flex:1;height:${h}%;background:${color};border-radius:2px 2px 0 0;min-width:6px;transition:height 0.3s" title="Run ${r.index}: ${r.throughput?.toLocaleString()} f/hr"></div>`;
+        }).join('');
+      }
+
+      // Hardware gauges
+      const hw = s.hardware || {};
+      mcSetGauge('mc-gauge-gpu-temp', 'GPU Temp', hw.gpu_temp != null ? `${Math.round(hw.gpu_temp)}°C` : '—', hw.gpu_temp, 100, hw.gpu_temp > 80 ? '#ef4444' : hw.gpu_temp > 70 ? '#f59e0b' : '#4ade80');
+      mcSetGauge('mc-gauge-gpu-util', 'GPU Util', hw.gpu_util != null ? `${Math.round(hw.gpu_util)}%` : '—', hw.gpu_util, 100, '#60a5fa');
+      mcSetGauge('mc-gauge-ram', 'RAM', hw.ram_pct != null ? `${Math.round(hw.ram_pct)}%` : '—', hw.ram_pct, 100, hw.ram_pct > 85 ? '#ef4444' : '#a78bfa');
+      mcSetGauge('mc-gauge-cpu-temp', 'CPU Temp', hw.cpu_temp != null ? `${Math.round(hw.cpu_temp)}°C` : '—', hw.cpu_temp, 100, '#4ade80');
+
+      // Params
+      if (s.state === 'running' && s.current_params && Object.keys(s.current_params).length) {
+        const paramMap = { 'embeddings:chunk_size': 'chunk_size', 'embeddings:chunk_overlap': 'chunk_overlap', 'ollama:max_parallel': 'max_parallel', 'monitor:gpu_temp_throttle': 'gpu_throttle' };
+        document.getElementById('mc-params-rows').innerHTML = Object.entries(s.current_params).map(([k, v]) =>
+          `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #0d1117">
+            <span style="color:#475569">${paramMap[k]||k}</span>
+            <span style="color:#e2e8f0">${v}</span>
+           </div>`
+        ).join('');
+      }
+
+      // Log new run completions
+      if (s.runs && s.runs.length > _mcRunCount) {
+        for (let i = _mcRunCount; i < s.runs.length; i++) {
+          const r = s.runs[i];
+          const baseline = s.baseline_throughput || 0;
+          const delta = baseline > 0 ? Math.round((r.throughput - baseline) / baseline * 100) : 0;
+          const sign = delta >= 0 ? '+' : '';
+          const color = delta > 0 ? 'ok' : (delta < 0 ? 'warn' : 'info');
+          mcLog(color, `[RUN ${r.index}] → ${r.throughput?.toLocaleString()} f/hr  ${sign}${delta}%${r.max_gpu_temp ? '  GPU:' + Math.round(r.max_gpu_temp) + '°' : ''}`);
+        }
+        _mcRunCount = s.runs.length;
+      }
+    }
+
+    function mcSetGauge(id, label, valText, val, max, color) {
+      const pct = (val && max) ? Math.min(val / max * 100, 100) : 0;
+      document.getElementById(id).innerHTML = `
+        <div class="mc-gauge-label">${label}</div>
+        <div class="mc-gauge-val" style="color:${color}">${valText}</div>
+        <div class="mc-gauge-bar"><div class="mc-gauge-fill" style="width:${pct}%;background:${color}"></div></div>`;
+    }
+
+    function mcLog(level, msg) {
+      const colors = { info: '#60a5fa', ok: '#4ade80', warn: '#f59e0b', error: '#f87171' };
+      const log = document.getElementById('mc-log');
+      const ts = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = 'mc-log-line';
+      line.innerHTML = `<span style="color:#334155">${ts} </span><span style="color:${colors[level]||'#94a3b8'}">${msg}</span>`;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function mcRenderProfiles(profiles) {
+      if (!profiles) return;
+      document.getElementById('mc-params-rows').classList.add('hidden');
+      document.getElementById('mc-params-rows').style.display = 'none';
+      const cards = document.getElementById('mc-profile-cards');
+      cards.classList.remove('hidden');
+      cards.style.display = 'flex';
+      const labels = { raw_speed: 'Raw Speed', sustainable: 'Sustainable', balanced: 'Balanced' };
+      const shown = new Set();
+      let html = '';
+      for (const [key, p] of Object.entries(profiles)) {
+        const sig = JSON.stringify(p.params);
+        if (shown.has(sig)) continue;
+        shown.add(sig);
+        html += `<div class="mc-profile-card">
+          <div class="mc-profile-name">${labels[key]||key}</div>
+          <div class="mc-profile-val">${p.throughput?.toLocaleString() || '—'}</div>
+          <div style="font-size:9px;color:#475569;margin-top:2px">f/hr</div>
+          <button class="mc-apply-btn" onclick="mcApplyProfile('${key}')">↓ Apply</button>
+        </div>`;
+      }
+      cards.innerHTML = html;
+      mcLog('ok', 'Optimizer complete. Select a profile to apply.');
+    }
+
+    async function mcApplyProfile(profileKey) {
+      _mcSelectedProfile = profileKey;  // track selected for mcApplyBest()
+      try {
+        const r = await api('/utils/optimizer/apply', {
+          method: 'POST',
+          body: JSON.stringify({ profile: profileKey })
+        });
+        mcLog('ok', `✓ Applied ${profileKey} profile. Restart server to take full effect.`);
+      } catch(e) {
+        mcLog('error', 'Apply failed: ' + e.message);
+      }
+    }
+
+    async function mcApplyBest() {
+      await mcApplyProfile(_mcSelectedProfile);
+    }
   </script>
 </body>
 </html>
