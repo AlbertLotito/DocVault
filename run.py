@@ -2,6 +2,7 @@
 DocVault entry point.
 Starts the FastAPI web server and spawns background workers in threads.
 """
+import json
 import threading
 import time
 import uvicorn
@@ -31,9 +32,38 @@ def ingestion_worker_run(db_path, interval_seconds=60):
             logger.error(f"Ingestion worker failed: {e}")
         time.sleep(interval_seconds)
 
+def _rollback_optimizer_snapshot():
+    """
+    If a previous optimizer run crashed mid-sweep, tuning:_optimizer_snapshot
+    will still be in settings.db with the original settings. Restore them.
+    This must run after init_settings_db() and before any workers start.
+    """
+    from core.manager import get_settings_db_path, _connect
+    try:
+        with _connect(get_settings_db_path()) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key='tuning:_optimizer_snapshot'"
+            ).fetchone()
+            if not row:
+                return
+            snapshot = json.loads(row['value'])
+            from core.settings import settings as _settings
+            for k, v in snapshot.items():
+                try:
+                    _settings.set(k, v)
+                except Exception:
+                    pass  # skip keys not in schema
+            conn.execute("DELETE FROM settings WHERE key='tuning:_optimizer_snapshot'")
+            conn.commit()
+            logger.warning("Startup: restored settings from stale optimizer snapshot and cleared it.")
+    except Exception as e:
+        logger.error(f"Startup: optimizer snapshot rollback failed: {e}")
+
+
 def start():
     # Init DBs in order — settings.db first (survives resets), then main DB, then logs
     manager.init_settings_db()
+    _rollback_optimizer_snapshot()
     manager.init_db(DB_PATH)
     manager.init_logs_db()
 
