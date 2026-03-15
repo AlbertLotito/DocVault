@@ -450,6 +450,8 @@
             document.getElementById('mc-apply-btn').style.opacity = '1';
             document.getElementById('mc-apply-btn').style.cursor = 'pointer';
             mcRenderProfiles(s.profiles);
+          } else if (s.state === 'error') {
+            mcLog('error', 'Optimizer error: ' + (s.error || 'unknown — check server logs'));
           }
         }
       } catch(e) { /* poll errors are non-fatal */ }
