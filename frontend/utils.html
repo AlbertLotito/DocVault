@@ -392,10 +392,12 @@
     let _mcPollInterval = null;
     let _mcSelectedProfile = 'raw_speed';
     let _mcRunCount = 0;
+    let _mcLastRunIndex = 0;
     let _mcStartTime = null;
 
     function openOptimizer() {
       document.getElementById('mc-overlay').classList.remove('hidden');
+      if (!confirm('Run Optimizer will pause all extraction and embedding workers while it benchmarks ~8–16 parameter combinations.\n\nThis can take 10–30 minutes depending on your hardware. Workers resume automatically when done.\n\nStart now?')) return;
       mcStartRun();
     }
 
@@ -409,6 +411,7 @@
         const r = await api('/utils/optimizer/start', { method: 'POST' });
         mcLog('info', 'Optimizer started — pausing workers...');
         _mcStartTime = Date.now();
+        _mcLastRunIndex = 0;
         document.getElementById('mc-abort-btn').classList.remove('hidden');
         document.getElementById('mc-abort-btn-bar').classList.remove('hidden');
         document.getElementById('mc-apply-btn').disabled = true;
@@ -512,6 +515,12 @@
           row.append(kSpan, vSpan);
           rowsEl.appendChild(row);
         }
+      }
+
+      // Log when a new run begins (before benchmark finishes)
+      if (s.state === 'running' && s.run_index > _mcLastRunIndex) {
+        _mcLastRunIndex = s.run_index;
+        mcLog('info', `[RUN ${s.run_index}/${s.total_runs}] Benchmarking... (this may take a minute)`);
       }
 
       // Log new run completions
