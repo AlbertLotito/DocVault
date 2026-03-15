@@ -4,16 +4,36 @@
 
 Read the following files in full before doing anything else:
 
-1. `docs/internals/status/2026-03-05-project-status.md` — authoritative current state of the project
+1. `docs/internals/status/2026-03-15-project-status.md` — authoritative current state of the project
 2. `docs/internals/plans/2026-03-02-future-architecture.md` — planned future architecture (vaults, logs.db, resource governor)
 3. `docs/internals/plans/2026-02-26-docvault-design.md` — original design document
 4. `docs/internals/plans/2026-02-26-docvault-implementation.md` — original implementation plan
 
-When a new status document appears (e.g. `docs/internals/status/2026-03-03-project-status.md`), read it instead of the previous one — it supersedes all earlier status docs.
+When a new status document appears (e.g. `docs/internals/status/2026-03-06-project-status.md`), read it instead of the previous one — it supersedes all earlier status docs.
 
 ## Project Location
 
 `E:\DocVault`
+
+---
+
+## Agent Roles
+
+- **Claude Code** — Primary agent. Handles implementation, editing, and planning.
+- **Gemini CLI** — Secondary agent. Handles deep codebase scans that exceed practical context limits.
+
+## Delegation Rules for Claude
+
+- Delegate to the `gemini-analyzer` subagent when a task requires reading more than 30 files or analyzing files larger than 100KB.
+- Always pipe Gemini output to `.claude/temp/analysis.md` — never stream large output into the main session context.
+- Read only the summary from Gemini's output. Reference `.claude/temp/analysis.md` for full details.
+
+## Security Rules
+
+- Never enable YOLO mode persistently in any settings file.
+- Use `--yolo` on the CLI only, only for read-only scans, and only when running interactively.
+
+---
 
 ## Key Conventions
 
@@ -40,3 +60,4 @@ When a new status document appears (e.g. `docs/internals/status/2026-03-03-proje
 - `.cache/` — extracted artefacts, regenerable
 - `qdrant_storage/` — vector data, regenerable via Rebuild Index
 - `venv/` — Python environment
+- `.claude/temp/` — ephemeral Gemini analysis buffers, do not modify
