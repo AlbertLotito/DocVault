@@ -456,7 +456,7 @@ def get_task(db_path, file_hash):
 def list_tasks(db_path, status=None, file_type=None, vault_id=None, limit=50, offset=0, sort_by='last_update', sort_order='DESC'):
     with _connect(db_path) as conn:
         # Prevent SQL injection by validating sort parameters
-        allowed_sort_by = ['file_path', 'file_type', 'status', 'last_update', 'priority']
+        allowed_sort_by = ['file_path', 'file_type', 'status', 'last_update', 'priority', 'file_size', 'vault_id']
         if sort_by not in allowed_sort_by:
             sort_by = 'last_update'
 
