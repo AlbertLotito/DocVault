@@ -1,7 +1,7 @@
 import configparser, os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from api.routes import catalog, search, query, workers, utils, settings as settings_routes
 from api.routes.vaults  import router as vaults_router
 from api.routes.monitor import router as monitor_router
@@ -30,46 +30,43 @@ app.mount("/static", StaticFiles(directory=os.path.join(FRONTEND, 'static')),
           name="static")
 
 
-@app.get("/")
-def root():
-    return FileResponse(os.path.join(FRONTEND, 'index.html'))
+# ── HTML page routes ────────────────────────────────────
+@app.get("/", include_in_schema=False)
+@app.get("/status", include_in_schema=False)
+@app.get("/vault", include_in_schema=False)
+def vault_page():
+    return FileResponse(os.path.join(FRONTEND, 'vault.html'))
 
-@app.get("/status")
-def status_page():
-    return FileResponse(os.path.join(FRONTEND, 'index.html'))
+@app.get("/catalog", include_in_schema=False)
+def catalog_redirect():
+    return RedirectResponse(url="/vault", status_code=301)
 
-@app.get("/catalog")
-def catalog_page():
-    return FileResponse(os.path.join(FRONTEND, 'catalog.html'))
-
-@app.get("/search")
+@app.get("/search", include_in_schema=False)
 def search_page():
     return FileResponse(os.path.join(FRONTEND, 'search.html'))
 
-@app.get("/utils")
+@app.get("/utils", include_in_schema=False)
 def utils_page():
     return FileResponse(os.path.join(FRONTEND, 'utils.html'))
 
-@app.get("/settings")
+@app.get("/optimizer", include_in_schema=False)
+def optimizer_page():
+    return FileResponse(os.path.join(FRONTEND, 'optimizer.html'))
+
+@app.get("/settings", include_in_schema=False)
 def settings_page():
     return FileResponse(os.path.join(FRONTEND, 'settings.html'))
 
-@app.get("/telemetry")
-def telemetry_page():
-    return FileResponse(os.path.join(FRONTEND, 'telemetry.html'))
-
-@app.get("/telemetry.html")
-def telemetry_html():
-    return FileResponse(os.path.join(FRONTEND, 'telemetry.html'))
-
-@app.get("/lab")
+@app.get("/lab", include_in_schema=False)
+@app.get("/lab.html", include_in_schema=False)
 def lab_page():
     return FileResponse(os.path.join(FRONTEND, 'lab.html'))
 
-@app.get("/lab.html")
-def lab_html():
-    return FileResponse(os.path.join(FRONTEND, 'lab.html'))
+@app.get("/telemetry", include_in_schema=False)
+@app.get("/telemetry.html", include_in_schema=False)
+def telemetry_page():
+    return FileResponse(os.path.join(FRONTEND, 'telemetry.html'))
 
-@app.get("/identity")
+@app.get("/identity", include_in_schema=False)
 def identity_page():
     return FileResponse(os.path.join(FRONTEND, 'identity.html'))
