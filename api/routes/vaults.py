@@ -81,6 +81,20 @@ def reindex_vault(vault_id: str):
     return {"status": "ok"}
 
 
+@router.post("/{vault_id}/retry_errors")
+def retry_errors(vault_id: str):
+    """Reset all ERROR tasks in this vault back to PENDING."""
+    from core.manager import get_db_path, _connect
+    db_path = get_db_path()
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            "UPDATE tasks SET status='PENDING', error=NULL WHERE vault_id=? AND status='ERROR'",
+            (vault_id,)
+        )
+        conn.commit()
+    return {"reset": cur.rowcount}
+
+
 @router.post("/{vault_id}/gut")
 def gut_vault(vault_id: str):
     """Transition vault to gutted state (wipes data)."""
