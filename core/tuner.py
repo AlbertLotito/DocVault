@@ -5,6 +5,8 @@ Owns: sweep matrix generation, profile selection.
 The optimizer thread and state management are added in Task 5.
 """
 import json
+import threading
+import time
 from typing import Optional
 
 
@@ -115,3 +117,258 @@ def select_profiles(runs: list[dict], original_throttle: float) -> dict:
         'sustainable': _fmt(sustainable, 'sustainable'),
         'balanced':    _fmt(balanced, 'balanced'),
     }
+
+
+# ── Module-level optimizer state ──────────────────────────────────────────────
+
+_optimizer_thread: threading.Thread | None = None
+_abort_event      = threading.Event()
+_state_lock       = threading.Lock()
+_state: dict = {
+    'state':               'idle',    # idle | starting | running | complete | aborted | error
+    'run_index':           0,
+    'total_runs':          0,
+    'current_params':      {},
+    'current_throughput':  None,
+    'baseline_throughput': None,
+    'runs':                [],
+    'hardware':            {},
+    'profiles':            None,
+    'error':               None,
+}
+
+
+def get_state() -> dict:
+    with _state_lock:
+        import copy
+        return copy.deepcopy(_state)
+
+
+def _update_state(**kwargs):
+    with _state_lock:
+        _state.update(kwargs)
+
+
+# ── Snapshot helpers ──────────────────────────────────────────────────────────
+
+_SWEPT_KEYS = [
+    'embeddings:chunk_size',
+    'embeddings:chunk_overlap',
+    'ollama:max_parallel',
+    'monitor:gpu_temp_throttle',
+]
+
+
+def _read_snapshot_keys() -> dict:
+    """Read current production values for swept keys via settings.get()."""
+    from core.settings import settings
+    return {k: str(settings.get(k) or '') for k in _SWEPT_KEYS}
+
+
+def _write_snapshot(snapshot: dict):
+    """Persist snapshot to settings.db as reserved key (direct DB write)."""
+    from core.manager import get_settings_db_path, _connect
+    with _connect(get_settings_db_path()) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            ('tuning:_optimizer_snapshot', json.dumps(snapshot))
+        )
+        conn.commit()
+
+
+def _delete_snapshot():
+    from core.manager import get_settings_db_path, _connect
+    with _connect(get_settings_db_path()) as conn:
+        conn.execute("DELETE FROM settings WHERE key='tuning:_optimizer_snapshot'")
+        conn.commit()
+
+
+def _restore_snapshot(snapshot: dict):
+    from core.settings import settings
+    for k, v in snapshot.items():
+        try:
+            settings.set(k, v)
+        except Exception:
+            pass
+
+
+def _apply_params(params: dict):
+    from core.settings import settings
+    for k, v in params.items():
+        try:
+            settings.set(k, v)
+        except Exception:
+            pass
+
+
+# ── Hardware reading ───────────────────────────────────────────────────────────
+
+def _read_hardware() -> dict:
+    try:
+        from core.monitor import get_last_reading
+        r = get_last_reading()
+        if r is None:
+            return {}
+        return {
+            'gpu_temp':  r.gpu_temp or None,
+            'gpu_util':  r.gpu_util_pct or None,
+            'ram_pct':   r.ram_pct or None,
+            'cpu_temp':  r.cpu_temp or None,
+        }
+    except Exception:
+        return {}
+
+
+# ── Mini-benchmark (shared by optimizer and tools/benchmark.py) ───────────────
+
+def run_mini_benchmark(db_path: str, n: int, vault_id: str | None = None) -> float:
+    """
+    Run in-process benchmark. Returns overall files/hour (in-process).
+    Imports from tools/benchmark.py to avoid duplicating logic.
+    """
+    import importlib.util, os
+    spec = importlib.util.spec_from_file_location(
+        'benchmark',
+        os.path.join(os.path.dirname(__file__), '..', 'tools', 'benchmark.py')
+    )
+    bm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bm)
+
+    types = list(bm.TYPE_EXTENSIONS.keys())
+    results = bm.run_benchmark(db_path, n, types, vault_id)
+    # Use same weighted logic as benchmark's save_result
+    pending = bm._get_pending_counts(db_path, types)
+    by_type = results['by_type']
+    weighted_sum = 0.0
+    weight_total = 0
+    for cat in types:
+        r = by_type.get(cat, {})
+        tp = r.get('throughput', 0)
+        pend = pending.get(cat, 0)
+        if tp > 0 and pend > 0:
+            weighted_sum += tp * pend
+            weight_total += pend
+    if weight_total > 0:
+        return weighted_sum / weight_total
+    throughputs = [r['throughput'] for r in by_type.values() if r.get('throughput', 0) > 0]
+    return sum(throughputs) / len(throughputs) if throughputs else 0.0
+
+
+# ── Optimizer sweep thread ─────────────────────────────────────────────────────
+
+def _run_sweep(db_path: str, samples: int):
+    """Main optimizer body — runs in daemon thread."""
+    from core import manager as _manager
+
+    snapshot = _read_snapshot_keys()
+    _write_snapshot(snapshot)
+
+    # Pause workers
+    _manager.set_pause_state(True)
+    _update_state(state='running')
+
+    try:
+        hw = _read_hardware()
+        gpu_util = hw.get('gpu_util')
+        matrix = build_sweep_matrix(snapshot, gpu_util_pct=gpu_util)
+        original_throttle = float(snapshot.get('monitor:gpu_temp_throttle', '80'))
+
+        _update_state(total_runs=len(matrix), runs=[], baseline_throughput=None)
+
+        completed_runs = []
+        for i, params in enumerate(matrix):
+            if _abort_event.is_set():
+                break
+
+            _apply_params(params)
+            _update_state(run_index=i + 1, current_params=params,
+                          hardware=_read_hardware())
+
+            # Measure GPU temp before + after; take max
+            hw_before = _read_hardware()
+            t0 = time.monotonic()
+            throughput = run_mini_benchmark(db_path, samples)
+            hw_after = _read_hardware()
+
+            max_gpu_temp = None
+            for hw_snap in [hw_before, hw_after]:
+                t = hw_snap.get('gpu_temp')
+                if t and (max_gpu_temp is None or t > max_gpu_temp):
+                    max_gpu_temp = t
+
+            run_record = {
+                'index':        i + 1,
+                'params':       params,
+                'throughput':   throughput,
+                'max_gpu_temp': max_gpu_temp,
+            }
+            completed_runs.append(run_record)
+
+            if i == 0:
+                _update_state(baseline_throughput=throughput)
+
+            _update_state(
+                current_throughput=throughput,
+                runs=list(completed_runs),
+                hardware=_read_hardware(),
+            )
+
+        if _abort_event.is_set():
+            _restore_snapshot(snapshot)
+            _delete_snapshot()
+            _manager.set_pause_state(False)
+            _update_state(state='aborted')
+            return
+
+        # Select profiles
+        profiles = None
+        if completed_runs:
+            profiles = select_profiles(completed_runs, original_throttle)
+
+        _restore_snapshot(snapshot)
+        _delete_snapshot()
+        _manager.set_pause_state(False)
+        _update_state(state='complete', profiles=profiles)
+
+    except Exception as e:
+        try:
+            _restore_snapshot(snapshot)
+            _delete_snapshot()
+        except Exception:
+            pass
+        try:
+            _manager.set_pause_state(False)
+        except Exception:
+            pass
+        _update_state(state='error', error=str(e))
+
+
+def start_optimizer(db_path: str) -> bool:
+    """
+    Start the optimizer. Returns False if already running (caller should 409).
+    """
+    global _optimizer_thread, _abort_event
+    if _optimizer_thread is not None and _optimizer_thread.is_alive():
+        return False
+
+    _abort_event = threading.Event()
+    from core.settings import settings
+    samples = int(settings.get('tuning:benchmark_samples_per_type') or 5)
+
+    _update_state(state='starting', run_index=0, total_runs=0,
+                  current_params={}, current_throughput=None,
+                  baseline_throughput=None, runs=[], profiles=None, error=None)
+
+    _optimizer_thread = threading.Thread(
+        target=_run_sweep, args=(db_path, samples), daemon=True, name='optimizer'
+    )
+    _optimizer_thread.start()
+    return True
+
+
+def abort_optimizer() -> bool:
+    """Signal abort. Returns False if no active run."""
+    if _optimizer_thread is None or not _optimizer_thread.is_alive():
+        return False
+    _abort_event.set()
+    return True
