@@ -250,8 +250,6 @@ def _print_report(results: dict, db_path: str):
     tip = tips.get(bottleneck_cat, "Tip: Consider increasing max_parallel if GPU headroom is available.")
     print(tip)
 
-    print()
-
 
 def save_result(results: dict, db_path: str):
     """Write one row to logs.db benchmark_runs."""
