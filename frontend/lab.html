@@ -7,16 +7,16 @@
     <style>
         :root {
             --bg-black: #050505;
-            --emerald: #10b981;
+            --emerald: #33ee77;
             --amber: #f59e0b;
-            --ruby: #ef4444;
+            --ruby: #ff4444;
             --slate: #94a3b8;
-            --indigo: #6366f1;
+            --indigo: #cc6600;
             --terminal-gray: #1a1a1a;
         }
 
         body, html { margin: 0; padding: 0; background-color: var(--bg-black); color: var(--slate); font-family: 'JetBrains Mono', 'Fira Code', monospace; height: 100%; overflow: hidden; }
-        .lab-container { display: grid; grid-template-columns: 350px 1fr; height: calc(100vh - 52px); }
+        .lab-container { display: grid; grid-template-columns: 350px 1fr; height: calc(100vh - 65px); }
 
         /* Sidebar */
         .extractor-registry { background: #0a0a0a; border-right: 1px solid var(--terminal-gray); display: flex; flex-direction: column; height: 100%; overflow: hidden; }
@@ -25,17 +25,17 @@
 
         .extractor-list { padding: 0; margin: 0; list-style: none; overflow-y: auto; flex: 1; }
         .extractor-item { padding: 1rem 1.5rem; border-bottom: 1px solid rgba(148, 163, 184, 0.05); cursor: pointer; transition: all 0.2s; position: relative; }
-        .extractor-item:hover { background: rgba(99, 102, 241, 0.05); }
-        .extractor-item.active { background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--indigo); }
+        .extractor-item:hover { background: rgba(204, 102, 0, 0.05); }
+        .extractor-item.active { background: rgba(204, 102, 0, 0.1); border-left: 3px solid var(--indigo); }
         .extractor-item.simulator { border-top: 1px solid var(--terminal-gray); margin-top: 1rem; }
         .extractor-item.simulator.active { border-left-color: var(--amber); background: rgba(245, 158, 11, 0.05); }
 
         .extractor-name { display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.2rem; }
         .extractor-meta { font-size: 0.65rem; opacity: 0.5; display: block; margin-bottom: 0.5rem; }
-        .status-pill { font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 2px; font-weight: bold; text-transform: uppercase; display: inline-block; }
+        .status-pill { font-size: 10px; padding: 0.1rem 0.4rem; border-radius: 2px; font-weight: bold; text-transform: uppercase; display: inline-block; }
         .pill-certified { color: var(--emerald); border: 1px solid var(--emerald); }
         .pill-unverified { color: var(--amber); border: 1px solid var(--amber); }
-        .pill-tampered { color: var(--ruby); border: 1px solid var(--ruby); background: rgba(239, 68, 68, 0.1); }
+        .pill-tampered { color: var(--ruby); border: 1px solid var(--ruby); background: rgba(255, 68, 68, 0.1); }
 
         /* Main Bench */
         .lab-bench { display: flex; flex-direction: column; overflow: hidden; }
@@ -49,8 +49,8 @@
         .cert-step { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem; background: #050505; border: 1px solid #111; }
         .step-label { font-size: 0.75rem; font-weight: bold; }
         .step-status { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 2px; }
-        .status-pass { color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
-        .status-fail { color: var(--ruby); background: rgba(239, 68, 68, 0.1); }
+        .status-pass { color: var(--emerald); background: rgba(51, 238, 119, 0.1); }
+        .status-fail { color: var(--ruby); background: rgba(255, 68, 68, 0.1); }
         .status-pending { color: var(--slate); opacity: 0.3; }
 
         /* Controls */
@@ -80,42 +80,34 @@
         .loading-text { animation: jitter 0.1s infinite; }
 
     </style>
+    <link rel="stylesheet" href="/static/lcars.css">
 </head>
-<body class="bg-gray-50 flex flex-col min-h-screen">
+<body data-page="lab">
 
-  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
-    <span class="font-bold text-lg">DocVault</span>
-    <a href="/search" class="hover:underline">Search</a>
-    <a href="/" class="hover:underline">Vault Status</a>
-    <a href="/catalog" class="hover:underline">Vault Log</a>
-    <a href="/identity" class="hover:underline">Identity Hub</a>
-    <a href="/lab" class="hover:underline font-semibold">Lab</a>
-    <a href="/utils" class="hover:underline">Utilities</a>
-    <a href="/settings" class="hover:underline">Settings</a>
-  </nav>
+  <div class="lc-nav"></div>
 
   <div class="flex-1 flex overflow-hidden">
     <div class="lab-container w-full">
         <!-- Binary Wizard Modal -->
-    <div id="binaryModal" class="hidden fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-md">
-        <div class="bg-[#0a0a0a] border border-gray-800 rounded-lg shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
+    <div id="binaryModal" class="lc-modal-backdrop" style="display:none; z-index:3000;">
+        <div class="lc-modal" style="max-width: 560px; width: 100%; overflow: hidden; display: flex; flex-direction: column;">
             <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-[#0d0d0d]">
-                <h3 class="text-sm font-bold text-indigo-400 uppercase tracking-widest">Register External Binary Kernel</h3>
+                <h3 class="text-sm font-bold text-orange-400 uppercase tracking-widest">Register External Binary Kernel</h3>
                 <button onclick="closeBinaryWizard()" class="text-gray-500 hover:text-white text-2xl">&times;</button>
             </div>
             <div class="p-6 space-y-4 overflow-y-auto" style="max-height: 70vh;">
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Kernel Unique ID</label>
-                    <input type="text" id="bin-id" placeholder="com.custom.vision.face" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                    <input type="text" id="bin-id" placeholder="com.custom.vision.face" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Display Name</label>
-                        <input type="text" id="bin-name" placeholder="Face AI Recognizer" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                        <input type="text" id="bin-name" placeholder="Face AI Recognizer" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Extensions (CSV)</label>
-                        <input type="text" id="bin-exts" placeholder="jpg, png, mp4" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                        <input type="text" id="bin-exts" placeholder="jpg, png, mp4" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                     </div>
                 </div>
                 <div>
@@ -127,17 +119,17 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">CLI Arguments</label>
-                    <input type="text" id="bin-args" placeholder="--input {file_path} --output-json" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none font-mono">
-                    <p class="text-[9px] text-gray-600 mt-1 italic">Use {file_path} as a placeholder for the target file.</p>
+                    <input type="text" id="bin-args" placeholder="--input {file_path} --output-json" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none font-mono">
+                    <p class="text-[10px] text-gray-600 mt-1 italic">Use {file_path} as a placeholder for the target file.</p>
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Description</label>
-                    <input type="text" id="bin-desc" placeholder="High-speed analysis written in Go." class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none">
+                    <input type="text" id="bin-desc" placeholder="High-speed analysis written in Go." class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                 </div>
             </div>
             <div class="p-4 bg-[#0d0d0d] border-t border-gray-800 flex justify-end gap-3">
                 <button onclick="closeBinaryWizard()" class="px-4 py-2 text-xs font-bold text-gray-500 hover:text-white uppercase">Cancel</button>
-                <button id="btn-bin-save" onclick="saveBinaryKernel()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded text-xs font-bold shadow-lg transition-all uppercase tracking-widest">Sign & Register</button>
+                <button id="btn-bin-save" onclick="saveBinaryKernel()" class="bg-orange-600 hover:bg-orange-700 text-white px-8 py-2 rounded text-xs font-bold shadow-lg transition-all uppercase tracking-widest">Sign & Register</button>
             </div>
         </div>
     </div>
@@ -171,7 +163,7 @@
 
         <main class="lab-bench">
             <div class="bench-header">
-                <div class="bench-title" id="activeTitle">CERTIFICATION SUITE <span style="font-size: 0.6rem; opacity: 0.3; margin-left: 10px;">[ LAB_ENGINE_V1.3 ]</span></div>
+                <div class="bench-title" id="activeTitle">CERTIFICATION SUITE <span style="font-size: 10px; opacity: 0.3; margin-left: 10px;">[ LAB_ENGINE_V1.3 ]</span></div>
                 <div id="benchStats" style="font-size: 0.7rem; color: var(--slate)"></div>
             </div>
 
@@ -471,7 +463,7 @@
                     updateStepUI('execution', false);
                     ioConsole.innerHTML += `<div class="sim-line" style="color:var(--ruby)"><span class="sim-tag">CRASH</span><span>${_esc(bench.detail)}</span></div>`;
                     if (bench.traceback) {
-                        ioConsole.innerHTML += `<pre style="font-size:0.6rem; color:var(--ruby); opacity:0.7; margin-top:10px">${_esc(bench.traceback)}</pre>`;
+                        ioConsole.innerHTML += `<pre style="font-size:10px; color:var(--ruby); opacity:0.7; margin-top:10px">${_esc(bench.traceback)}</pre>`;
                     }
                     throw new Error(bench.detail);
                 }
@@ -602,11 +594,11 @@
         // --- Binary Wizard Logic ---
 
         function openBinaryWizard() {
-            document.getElementById('binaryModal').classList.remove('hidden');
+            document.getElementById('binaryModal').style.display = 'flex';
         }
 
         function closeBinaryWizard() {
-            document.getElementById('binaryModal').classList.add('hidden');
+            document.getElementById('binaryModal').style.display = 'none';
         }
 
         async function browseBinary() {
@@ -655,5 +647,6 @@
             }
         }
     </script>
+    <script src="/static/lcars.js"></script>
 </body>
 </html>
