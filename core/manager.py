@@ -267,6 +267,9 @@ def init_db(db_path=None):
             conn.execute("ALTER TABLE tasks ADD COLUMN progress_text TEXT")
         if 'progress_pct' not in columns:
             conn.execute("ALTER TABLE tasks ADD COLUMN progress_pct REAL DEFAULT 0")
+        if 'parent_hash' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN parent_hash TEXT REFERENCES tasks(file_hash)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent_hash ON tasks(parent_hash)")
 
         # extracted_images migration
         cursor = conn.execute("PRAGMA table_info(extracted_images)")
@@ -314,15 +317,98 @@ def bootstrap_default_vault(db_path=None, scan_directory=None):
 
 def insert_task(db_path, file_hash, file_path, file_type, priority=10,
                 file_size=None, file_created=None, file_modified=None,
-                vault_id=None):
+                vault_id=None, parent_hash=None, metadata_json=None):
     with _connect(db_path) as conn:
         conn.execute(
             """INSERT OR IGNORE INTO tasks
                (file_hash, file_path, file_type, priority, file_size,
-                file_created, file_modified, vault_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                file_created, file_modified, vault_id, parent_hash, metadata_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (file_hash, file_path, file_type, priority, file_size,
-             file_created, file_modified, vault_id)
+             file_created, file_modified, vault_id, parent_hash,
+             json.dumps(metadata_json) if metadata_json else None)
+        )
+        conn.commit()
+
+
+def get_task_metadata(db_path, file_hash) -> dict:
+    """Return the metadata_json dict for a task, or {} if absent."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT metadata_json FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+    if not row or not row['metadata_json']:
+        return {}
+    try:
+        return json.loads(row['metadata_json'])
+    except Exception:
+        return {}
+
+
+def update_task_metadata(db_path, file_hash, metadata: dict):
+    """Merge metadata dict into the task's existing metadata_json."""
+    existing = get_task_metadata(db_path, file_hash)
+    existing.update(metadata)
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE tasks SET metadata_json = ? WHERE file_hash = ?",
+            (json.dumps(existing), file_hash)
+        )
+        conn.commit()
+
+
+def update_fts(db_path, file_hash):
+    """Re-sync FTS index for a single task from its current extracted_text."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT file_path, extracted_text FROM tasks WHERE file_hash = ?",
+            (file_hash,)
+        ).fetchone()
+        if not row:
+            return
+        conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
+        if row['extracted_text']:
+            try:
+                from embeddings.chunker import chunk
+                chunks = chunk(row['extracted_text'])
+                for i, chunk_text in enumerate(chunks):
+                    conn.execute(
+                        "INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES (?, ?, ?, ?)",
+                        (file_hash, i, row['file_path'], chunk_text)
+                    )
+            except Exception as e:
+                print(f"[manager] Warning: FTS update failed for {file_hash}: {e}")
+        conn.commit()
+
+
+def append_parent_text(db_path, parent_hash, suffix: str):
+    """Append suffix to parent task's extracted_text and update FTS. Idempotent."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT extracted_text FROM tasks WHERE file_hash = ?", (parent_hash,)
+        ).fetchone()
+        if not row:
+            return
+        existing = row['extracted_text'] or ''
+        # Idempotency: the suffix starts with "[Image, Page N, #M (hash8):" —
+        # extract the guard token (everything up to and including the closing paren)
+        guard = suffix.split('):')[0] + '):' if '):' in suffix else suffix[:30]
+        if guard in existing:
+            return
+        conn.execute(
+            "UPDATE tasks SET extracted_text = ? WHERE file_hash = ?",
+            (existing + '\n\n' + suffix, parent_hash)
+        )
+        conn.commit()
+    update_fts(db_path, parent_hash)
+
+
+def reset_to_extracted_if_complete(db_path, file_hash):
+    """Atomically reset a COMPLETED task to EXTRACTED for re-embedding."""
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE tasks SET status = 'EXTRACTED' WHERE file_hash = ? AND status = 'COMPLETED'",
+            (file_hash,)
         )
         conn.commit()
 
@@ -477,6 +563,7 @@ def claim_pending_task(db_path, worker_id):
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             """SELECT t.file_hash, t.file_path, t.file_type, t.priority, t.vault_id,
+                      t.parent_hash, t.metadata_json,
                       COALESCE(v.priority, 5) AS vault_priority
                FROM tasks t
                LEFT JOIN vaults v ON t.vault_id = v.vault_id

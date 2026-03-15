@@ -130,6 +130,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         threshold = int(settings.get('pdf:sparse_threshold') or 50)
         page_texts = []
         sparse_indices = []
+        ocr_pages = set()   # 1-based page numbers processed via OCR or vision
 
         # Phase 1: native text layer
         for i, page in enumerate(reader.pages):
@@ -152,17 +153,19 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
                 if tess:
                     logger.debug(f"Page {i+1}: Tesseract → {len(tess)} chars", ext="pdf")
                     page_texts[i] = tess
+                    ocr_pages.add(i + 1)
                 else:
                     logger.debug(f"Page {i+1}: Tesseract empty → vision model", ext="pdf")
                     vis = _vision_ocr(img)
                     if vis:
                         logger.debug(f"Page {i+1}: vision → {len(vis)} chars", ext="pdf")
                         page_texts[i] = vis
+                    ocr_pages.add(i + 1)   # mark regardless — page was sparse
 
         final_text = "\n\n".join(t for t in page_texts if t.strip())
         if not final_text:
             return None, "No text found in PDF after all extraction attempts"
-        return final_text, None
+        return final_text, None, {'ocr_pages': sorted(ocr_pages)}
 
     except Exception as e:
         return None, f"Failed to extract PDF: {e}"

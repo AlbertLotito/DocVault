@@ -3,34 +3,39 @@
 Specialized engine for surgical extraction of embedded binary assets from PDF streams.
 
 PIPELINE:
-1. Binary Extraction (pypdf): Identifies and isolates XObject image streams.
-2. Asset Caching: Saves raw images as PNGs in the '.cache/extracted_images' directory.
-   Files are namespaced by source hash to prevent document-to-document collisions.
-3. Vision Analysis (vision.py): Passes extracted images to the Vision AI for 
-   natural-language description (e.g., 'Chart showing revenue').
+1. Filter Pass: deduplication (SHA-256), area threshold, per-PDF cap, OCR-page skip.
+2. Asset Caching: Saves qualifying images as PNGs in the '.cache/extracted_images' dir,
+   namespaced by source hash to prevent document-to-document collisions.
+3. Child Task Dispatch: Each qualifying image is registered as a PENDING extraction task.
+   Vision analysis runs asynchronously via the intelligent_image_extractor kernel.
+   Results are written back to this PDF's record when child tasks complete.
 
-REQUIRES: Vision Model (vision:describe_images).
+No Ollama calls happen inline — this kernel returns in milliseconds regardless of PDF size.
+
+REQUIRES: pypdf, pillow
 """
 
 MANIFEST = {
     "id": "com.docvault.pdf.images",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "name": "PDF Image Harvester",
     "extensions": ["pdf"],
-    "requires": ["pypdf", "ollama", "pillow"]
+    "requires": ["pypdf", "pillow"]
 }
 
 __description__ = (
-    "Specialized engine for surgical extraction of embedded binary assets from PDF streams. "
-    "Identifies XObject images, saves them as PNGs in the system cache, and generates "
-    "natural-language descriptions using Vision AI to enable visual-content search."
+    "Fast PDF image harvester. Extracts embedded images with deduplication, area filtering, "
+    "and per-PDF cap. Dispatches each qualifying image as a child extraction task for "
+    "asynchronous vision analysis. Descriptions are written back to the parent PDF record "
+    "when child tasks complete."
 )
 
+import hashlib
 import os
+import json
 from pypdf import PdfReader
-from extractors.vision import describe as vision_describe
 from core import logger
-from core.extractors.base import ExtractorContext
+from core.extractors.base import ExtractorContext, ChildTask
 
 
 def _cache_dir() -> str:
@@ -40,96 +45,164 @@ def _cache_dir() -> str:
     return d
 
 
-def _analyze_image(img_path: str, pil_img, ctx: ExtractorContext) -> str:
-    """
-    Dispatches an extracted image to the system's image-processing kernels.
-    Falls back to direct Vision AI if no specialized kernels are active.
-    """
-    from core import router
-    from core.extractors.base import LegacyExtractorAdapter, BaseExtractor
-
-    # 1. Get kernels registered for PNG (our cache format)
-    kernels = router.get_extractors('png', vault_id=ctx.vault_id)
-    
-    # 2. Filter out the fallback kernel to see if we have specialized intelligence active
-    active_kernels = [k for k in kernels if getattr(k, '__name__', '') != 'fallback_kernel']
-    
-    if not active_kernels:
-        return vision_describe(pil_img)
-
-    results = []
-    for kernel in active_kernels:
-        # Avoid circularity (though image_extractor is usually pdf-only)
-        if getattr(kernel, '__name__', '') == 'image_extractor':
-            continue
-            
-        adapter = kernel if isinstance(kernel, BaseExtractor) else LegacyExtractorAdapter(kernel)
-        
-        try:
-            # Run the specialized kernel on the saved image asset
-            res = adapter.run(img_path, ctx)
-            if res.text:
-                results.append(res.text)
-        except Exception as e:
-            logger.debug(f"Sub-extraction failed for {adapter.name}: {e}", ext="image")
-
-    # 3. Combine specialized results, or fallback to generic vision if nothing was recovered
-    if results:
-        return "\n\n".join(results)
-    
-    return vision_describe(pil_img)
-
-
 def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
-    Extracts all embedded images from a PDF and saves them as PNGs.
+    Filter, save, and dispatch embedded PDF images as child tasks.
+    Returns (images_list, error, metadata) — no vision calls inline.
     """
-    logger.info(f"Extracting images from: {os.path.basename(file_path)}", ext="image")
-    try:
-        import hashlib
-        pdf_stem = os.path.splitext(os.path.basename(file_path))[0]
-        # Use first 8 chars of path hash for a short, collision-free suffix
-        path_hash = hashlib.md5(file_path.encode()).hexdigest()[:8]
-        output_dir = os.path.join(_cache_dir(), f"{pdf_stem}_{path_hash}")
+    from core.settings import settings
+    from core import manager
+    from api.main import DB_PATH
 
+    logger.info(f"Harvesting images: {os.path.basename(file_path)}", ext="image")
+
+    max_images = max(0, int(settings.get('pdf:max_images_per_pdf') or 50))
+    min_area   = int(settings.get('pdf:min_image_area') or 10000)
+
+    # Read ocr_pages from this task's metadata (written by text_extractor earlier)
+    try:
+        task_meta  = manager.get_task_metadata(DB_PATH, ctx.file_hash)
+        ocr_pages  = set(task_meta.get('ocr_pages', []))
+    except Exception:
+        ocr_pages = set()
+
+    pdf_stem  = os.path.splitext(os.path.basename(file_path))[0]
+    path_hash = hashlib.md5(file_path.encode()).hexdigest()[:8]
+    output_dir = os.path.join(_cache_dir(), f"{pdf_stem}_{path_hash}")
+
+    try:
         reader = PdfReader(file_path)
         if reader.is_encrypted:
             from pypdf import PasswordType
             if reader.decrypt("") == PasswordType.NOT_DECRYPTED:
                 return None, "PDF is password-protected and could not be decrypted"
+    except Exception as e:
+        return None, f"Failed to open PDF: {e}"
 
-        extracted = []
-        for page_num, page in enumerate(reader.pages, start=1):
-            if not page.images:
+    seen_hashes  = set()
+    spawned      = 0
+    skipped_dup  = 0
+    skipped_area = 0
+    skipped_ocr  = 0
+    extracted    = []
+    child_tasks  = []
+
+    for page_num, page in enumerate(reader.pages, start=1):
+        if not page.images:
+            continue
+
+        # Page dimensions for full-page image detection (opt 4)
+        try:
+            mb = page.mediabox
+            page_area = float(mb.width) * float(mb.height)
+        except Exception:
+            page_area = 0.0
+
+        for img_idx, img_obj in enumerate(page.images, start=1):
+
+            pil_img = img_obj.image
+            # Normalise colour mode
+            if pil_img.mode not in ('RGB', 'RGBA', 'L', 'P'):
+                pil_img = pil_img.convert('RGB')
+
+            width, height = pil_img.size
+
+            # ── Filter 1: deduplication ───────────────────────────────────────
+            img_bytes = pil_img.tobytes()
+            img_hash  = hashlib.sha256(img_bytes).hexdigest()
+            if img_hash in seen_hashes:
+                skipped_dup += 1
+                logger.debug(f"p{page_num}i{img_idx}: duplicate — skipped", ext="image")
+                continue
+            seen_hashes.add(img_hash)
+
+            # ── Filter 2: area ────────────────────────────────────────────────
+            if width * height < min_area:
+                skipped_area += 1
+                logger.debug(f"p{page_num}i{img_idx}: too small ({width}×{height}) — skipped", ext="image")
                 continue
 
+            # ── Filter 3: cap ─────────────────────────────────────────────────
+            if max_images > 0 and spawned >= max_images:
+                remaining = sum(len(p.images) for p in reader.pages[page_num - 1:])
+                logger.info(f"Cap reached ({max_images}): skipped ~{remaining} remaining images", ext="image")
+                break
+
+            # ── Filter 4: skip full-page images on OCR'd pages ────────────────
+            if page_num in ocr_pages and page_area > 0:
+                img_area = width * height
+                # pypdf page dimensions are in points; image pixels aren't directly
+                # comparable, but if the image dominates the page it's a scanned page.
+                # Use a pixel-count heuristic: if image is > 80% of likely page pixels
+                # (assume 150dpi for a typical scanned page for the check)
+                approx_page_px = page_area * (150 / 72) ** 2
+                if approx_page_px > 0 and (img_area / approx_page_px) >= 0.8:
+                    skipped_ocr += 1
+                    logger.debug(f"p{page_num}i{img_idx}: full-page on OCR'd page — skipped", ext="image")
+                    continue
+
+            # ── Save PNG ──────────────────────────────────────────────────────
             os.makedirs(output_dir, exist_ok=True)
+            filename = f"page_{page_num:03d}_img_{img_idx:03d}.png"
+            out_path = os.path.normpath(os.path.join(output_dir, filename))
+            pil_img.save(out_path, "PNG")
 
-            for img_idx, img_obj in enumerate(page.images, start=1):
-                filename = f"page_{page_num:03d}_img_{img_idx:03d}.png"
-                out_path = os.path.normpath(os.path.join(output_dir, filename))
-                pil_img = img_obj.image
-                if pil_img.mode not in ('RGB', 'RGBA', 'L', 'P'):
-                    pil_img = pil_img.convert('RGB')
-                pil_img.save(out_path, "PNG")
-                width, height = pil_img.size
-                logger.debug(f"Saved: {filename} ({width}x{height})", ext="image")
+            # Compute file_hash for the saved PNG
+            with open(out_path, 'rb') as f:
+                png_hash = hashlib.sha256(f.read()).hexdigest()
 
-                # Dispatch to specialized image kernels (Face, OCR, Photo-AI, etc.)
-                description = _analyze_image(out_path, pil_img, ctx)
-                if description:
-                    logger.debug(f"Analyzed: {filename} via sub-kernels → {len(description)} chars", ext="image")
+            logger.debug(f"Saved: {filename} ({width}×{height})", ext="image")
 
-                extracted.append({
-                    "file_path":   out_path,
-                    "page_num":    page_num,
-                    "image_index": img_idx,
-                    "width":       width,
-                    "height":      height,
-                    "description": description or None,
-                })
+            extracted.append({
+                "file_path":   out_path,
+                "page_num":    page_num,
+                "image_index": img_idx,
+                "width":       width,
+                "height":      height,
+                "description": None,   # filled in by child task write-back
+            })
 
-        return extracted, None
+            child_tasks.append(ChildTask(
+                file_path     = out_path,
+                file_type     = 'png',
+                vault_id      = ctx.vault_id or '',
+                file_hash     = png_hash,
+                priority      = 5,    # lower than normal extraction
+                parent_hash   = ctx.file_hash,
+                metadata_json = {
+                    'parent_hash':  ctx.file_hash,
+                    'parent_path':  file_path,
+                    'page_num':     page_num,
+                    'image_index':  img_idx,
+                },
+            ))
+            spawned += 1
 
-    except Exception as e:
-        return None, f"Failed to extract images: {e}"
+        else:
+            # inner loop completed without break — continue outer loop
+            continue
+        break  # cap was hit — stop page iteration too
+
+    logger.info(
+        f"Harvested {spawned} image(s) for {os.path.basename(file_path)} "
+        f"(dup={skipped_dup} area={skipped_area} ocr={skipped_ocr})",
+        ext="image"
+    )
+
+    # Return 3-tuple so LegacyExtractorAdapter passes child_tasks through.
+    # We attach child_tasks in metadata so the worker can dispatch them.
+    # The worker reads result.child_tasks from IngestResult — but since we return
+    # a list[dict] as the value, the adapter normalizes it into result.images.
+    # We instead pass child_tasks via metadata key and let the worker handle dispatch.
+    return extracted, None, {'_child_tasks': [
+        {
+            'file_path':     ct.file_path,
+            'file_type':     ct.file_type,
+            'vault_id':      ct.vault_id,
+            'file_hash':     ct.file_hash,
+            'priority':      ct.priority,
+            'parent_hash':   ct.parent_hash,
+            'metadata_json': ct.metadata_json,
+        }
+        for ct in child_tasks
+    ]}

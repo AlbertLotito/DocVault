@@ -42,10 +42,13 @@ class ExtractedImage:
 @dataclass
 class ChildTask:
     """Produced by ArchiveExtractor — a sub-document to queue for extraction."""
-    file_path: str
-    file_type: str
-    vault_id: str
-    priority: int = 10
+    file_path:     str
+    file_type:     str
+    vault_id:      str
+    file_hash:     str  = ''
+    priority:      int  = 10
+    parent_hash:   str | None = None
+    metadata_json: dict = field(default_factory=dict)
 
 
 @dataclass
