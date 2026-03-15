@@ -163,9 +163,10 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
                     ocr_pages.add(i + 1)   # mark regardless — page was sparse
 
         final_text = "\n\n".join(t for t in page_texts if t.strip())
+        meta = {'ocr_pages': sorted(ocr_pages)}
         if not final_text:
-            return None, "No text found in PDF after all extraction attempts"
-        return final_text, None, {'ocr_pages': sorted(ocr_pages)}
+            return None, "No text found in PDF after all extraction attempts", meta
+        return final_text, None, meta
 
     except Exception as e:
         return None, f"Failed to extract PDF: {e}"
