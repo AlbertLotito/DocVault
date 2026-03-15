@@ -2,114 +2,175 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DocVault — Identity Hub</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/lcars.css">
   <script src="/static/app.js"></script>
-  <link href="/static/styles.css" rel="stylesheet">
+  <style>
+    .identity-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px;
+      padding: 0 20px 20px;
+    }
+    .identity-card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-top: 3px solid var(--c-accent-dim);
+      overflow: hidden;
+      position: relative;
+    }
+    .identity-card:hover { border-color: var(--c-accent); }
+    .identity-thumb {
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--c-panel);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .identity-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .identity-thumb-placeholder { font-size: 36px; opacity: 0.2; }
+    .identity-sightings {
+      position: absolute;
+      top: 6px; right: 6px;
+      background: rgba(0,0,0,0.7);
+      color: var(--c-warn);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 8px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .identity-info { padding: 8px 10px; }
+    .identity-name {
+      color: var(--c-accent);
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .identity-cluster-id {
+      color: var(--c-label-dim);
+      font-size: 10px;
+      font-family: monospace;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .identity-actions { display: flex; gap: 5px; }
+    .identity-rename-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--c-label-dim); padding: 0; font-size: 14px;
+      flex-shrink: 0;
+    }
+    .identity-rename-btn:hover { color: var(--c-accent); }
+  </style>
 </head>
-<body class="bg-gray-50 flex flex-col min-h-screen">
+<body data-page="identity">
+  <div class="lc-nav"></div>
 
-  <nav class="bg-indigo-700 text-white px-6 py-3 flex gap-6 items-center shadow sticky top-0 z-50">
-    <span class="font-bold text-lg">DocVault</span>
-    <a href="/search" class="hover:underline">Search</a>
-    <a href="/" class="hover:underline">Vault Status</a>
-    <a href="/catalog" class="hover:underline">Vault Log</a>
-    <a href="/identity" class="hover:underline font-semibold">Identity Hub</a>
-    <a href="/lab" class="hover:underline">Lab</a>
-    <a href="/utils" class="hover:underline">Utilities</a>
-    <a href="/settings" class="hover:underline">Settings</a>
-  </nav>
+  <div class="lc-page lc-page-pad">
 
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="flex justify-between items-center mb-8">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900">Identity Hub</h1>
-        <p class="text-gray-500 mt-1">Manage people and identities across your document vaults.</p>
-      </div>
-      <div class="flex gap-3">
-        <button onclick="loadRegistry()" class="bg-white border border-gray-300 px-4 py-2 rounded text-sm hover:bg-gray-50 transition-colors">Refresh</button>
-      </div>
+    <div class="lc-section-title" style="padding-top:14px;">
+      Identity Hub
+      <button onclick="loadRegistry()" class="lc-btn lc-btn-sm" style="margin-left:auto;">Refresh</button>
     </div>
 
-    <!-- Identity Grid -->
-    <div id="identity-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-      <!-- Injected via JS -->
-      <div class="col-span-full py-12 text-center text-gray-400 italic">Scanning for identities...</div>
+    <div class="identity-grid" id="identity-grid">
+      <div style="color:var(--c-label-dim);font-size:11px;padding:20px;">Scanning for identities…</div>
     </div>
-  </main>
+
+  </div>
 
   <!-- Rename Modal -->
-  <div id="rename-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-    <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6">
-      <h3 class="text-lg font-bold text-gray-800 mb-4">Rename Identity</h3>
-      <input type="text" id="new-name-input" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-6">
-      <div class="flex justify-end gap-3">
-        <button onclick="closeRenameModal()" class="px-4 py-2 text-sm text-gray-500 hover:underline">Cancel</button>
-        <button onclick="executeRename()" class="bg-indigo-600 text-white px-6 py-2 rounded text-sm font-bold shadow-lg">Save Name</button>
+  <div id="rename-modal" class="lc-modal-backdrop">
+    <div class="lc-modal">
+      <div class="lc-modal-title">Rename Identity</div>
+      <input type="text" id="new-name-input" class="lc-input" style="margin-bottom:16px;"
+             placeholder="Enter name…"
+             onkeydown="if(event.key==='Enter')executeRename()">
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="closeRenameModal()" class="lc-btn lc-btn-sm">Cancel</button>
+        <button onclick="executeRename()" class="lc-btn lc-btn-sm lc-btn-primary">Save Name</button>
       </div>
     </div>
   </div>
 
+  <script src="/static/lcars.js"></script>
   <script>
     let activeClusterId = null;
 
     async function loadRegistry() {
       const grid = document.getElementById('identity-grid');
+      grid.innerHTML = '<div style="color:var(--c-label-dim);font-size:11px;padding:20px;">Loading…</div>';
       try {
         const people = await api('/identity/registry');
-        
+
         if (people.length === 0) {
-          grid.innerHTML = `<div class="col-span-full py-12 text-center bg-white border-2 border-dashed border-gray-200 rounded-xl">
-            <div class="text-4xl mb-2">👤</div>
-            <div class="text-gray-500 font-medium">No identities discovered yet.</div>
-            <div class="text-xs text-gray-400 mt-1">Run the Face Identity Extractor in the Lab or scan a vault with images.</div>
-          </div>`;
+          grid.innerHTML = `
+            <div style="color:var(--c-label-dim);font-size:11px;text-align:center;padding:40px 20px;">
+              <div style="font-size:32px;margin-bottom:10px;opacity:0.3;">👤</div>
+              <div>No identities discovered yet.</div>
+              <div style="margin-top:5px;color:var(--c-label-dim);">
+                Run the Face Identity Extractor in the Lab or scan a vault with images.
+              </div>
+            </div>`;
           return;
         }
 
         grid.innerHTML = people.map(p => `
-          <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
-            <div class="aspect-square bg-gray-100 flex items-center justify-center relative">
-              ${p.thumbnail_path ? `<img src="${p.thumbnail_path}" class="w-full h-full object-cover">` : `<span class="text-4xl opacity-20">👤</span>`}
-              <div class="absolute top-2 right-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                ${p.detection_count} SIGHTINGS
-              </div>
+          <div class="identity-card">
+            <div class="identity-thumb">
+              ${p.thumbnail_path
+                ? `<img src="${p.thumbnail_path}" alt="${_esc(p.person_name)}">`
+                : `<span class="identity-thumb-placeholder">👤</span>`}
+              <div class="identity-sightings">${p.detection_count} sightings</div>
             </div>
-            <div class="p-4">
-              <div class="flex justify-between items-start mb-1">
-                <h3 class="font-bold text-gray-800 truncate pr-2">${_esc(p.person_name)}</h3>
-                <button onclick="openRenameModal('${p.cluster_id}', '${_esc(p.person_name)}')" class="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                </button>
+            <div class="identity-info">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                <div class="identity-name" title="${_esc(p.person_name)}">${_esc(p.person_name)}</div>
+                <button class="identity-rename-btn"
+                  onclick="openRenameModal('${_esc(p.cluster_id)}', '${_esc(p.person_name)}')"
+                  title="Rename">✎</button>
               </div>
-              <p class="text-[10px] text-gray-400 font-mono mb-4 truncate">${p.cluster_id}</p>
-              <div class="flex gap-2">
-                <a href="/catalog?query=${encodeURIComponent(p.person_name)}" class="flex-1 text-center bg-indigo-50 text-indigo-700 py-1.5 rounded text-xs font-bold hover:bg-indigo-100 transition-colors">Find Photos</a>
+              <div class="identity-cluster-id">${_esc(p.cluster_id)}</div>
+              <div class="identity-actions">
+                <a href="/vault?query=${encodeURIComponent(p.person_name)}"
+                   class="lc-btn lc-btn-sm" style="flex:1;text-align:center;">Find Photos</a>
               </div>
             </div>
           </div>
         `).join('');
       } catch (err) {
-        grid.innerHTML = `<div class="col-span-full text-red-500 p-4 bg-red-50 rounded">Failed to load registry: ${err.message}</div>`;
+        grid.innerHTML = `<div style="color:var(--c-error);font-size:11px;padding:20px;">
+          Failed to load registry: ${_esc(err.message)}</div>`;
       }
     }
 
     function openRenameModal(id, currentName) {
       activeClusterId = id;
       document.getElementById('new-name-input').value = currentName;
-      document.getElementById('rename-modal').classList.remove('hidden');
+      document.getElementById('rename-modal').classList.add('open');
       document.getElementById('new-name-input').focus();
     }
 
     function closeRenameModal() {
-      document.getElementById('rename-modal').classList.add('hidden');
+      document.getElementById('rename-modal').classList.remove('open');
       activeClusterId = null;
     }
 
     async function executeRename() {
       const newName = document.getElementById('new-name-input').value.trim();
       if (!newName || !activeClusterId) return;
-
       try {
         await api('/identity/rename', {
           method: 'POST',
@@ -118,11 +179,10 @@
         closeRenameModal();
         loadRegistry();
       } catch (err) {
-        alert("Rename failed: " + err.message);
+        lcToast('Rename failed: ' + err.message, true);
       }
     }
 
-    // Initialize
     window.onload = loadRegistry;
   </script>
 </body>
