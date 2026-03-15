@@ -62,7 +62,7 @@ class Settings:
             },
             'ollama:max_parallel': {
                 'type': 'int', 'default': 1, 'label': 'Max Parallel Requests', 'group': 'ollama',
-                'description': 'Maximum number of concurrent requests sent to Ollama. Set to 1 to serialize all requests (prevents "no slots available" errors). Increase this if you have configured Ollama with OLLAMA_NUM_PARALLEL > 1 and have sufficient VRAM. A server restart is required for changes to take effect.',
+                'description': 'Maximum number of concurrent requests sent to Ollama. Set to 1 to serialize all requests (prevents "no slots available" errors). Increase this if you have configured Ollama with OLLAMA_NUM_PARALLEL > 1 and have sufficient VRAM. Changes take effect immediately — no restart required.',
             },
             # Qdrant
             'qdrant:host': {
@@ -81,6 +81,14 @@ class Settings:
             'pdf:sparse_threshold': {
                 'type': 'int', 'default': 50, 'label': 'Sparse page threshold (chars)', 'group': 'pdf',
                 'description': 'A PDF page with fewer extracted characters than this value is considered "sparse" (likely scanned or image-based) and will be re-processed via image rendering and OCR/vision. Increase to push more pages through the image pipeline; decrease to trust the native text layer more.',
+            },
+            'pdf:min_image_area': {
+                'type': 'int', 'default': 10000, 'label': 'Min image area (px²)', 'group': 'pdf',
+                'description': 'Minimum pixel area (width × height) for an embedded PDF image to be extracted and analysed. Images below this threshold are likely decorative (icons, bullets, dividers) and are skipped. Default: 10,000 (≈ 100×100px).',
+            },
+            'pdf:max_images_per_pdf': {
+                'type': 'int', 'default': 50, 'label': 'Max images per PDF', 'group': 'pdf',
+                'description': 'Maximum number of embedded images extracted per PDF file. Set to 0 for no limit. Prevents a single image-heavy PDF from monopolising the extraction worker. Images beyond the cap are not saved or analysed.',
             },
             # Vision
             'vision:model': {
