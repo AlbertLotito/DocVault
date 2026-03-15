@@ -366,6 +366,7 @@
       <div style="grid-column:span 2;border-top:1px solid #1e2740;display:flex;justify-content:space-between;align-items:center;padding:0 16px;background:#030507">
         <span id="mc-eta" style="font-size:9px;color:#334155">—</span>
         <div style="display:flex;gap:8px;align-items:center">
+          <button id="mc-start-btn" onclick="mcStartRun()" style="background:#14532d;color:#86efac;border:none;padding:4px 14px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em">▶ START SWEEP</button>
           <button onclick="mcAbort()" id="mc-abort-btn-bar" style="background:#7f1d1d;color:#fca5a5;border:none;padding:4px 12px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em" class="hidden">■ ABORT</button>
           <button id="mc-apply-btn" onclick="mcApplyBest()" disabled style="background:#312e81;color:#a5b4fc;border:none;padding:4px 16px;font-size:10px;font-weight:700;cursor:not-allowed;opacity:0.4;letter-spacing:0.05em">↓ APPLY BEST PROFILE</button>
         </div>
@@ -397,8 +398,6 @@
 
     function openOptimizer() {
       document.getElementById('mc-overlay').classList.remove('hidden');
-      if (!confirm('Run Optimizer will pause all extraction and embedding workers while it benchmarks ~8–16 parameter combinations.\n\nThis can take 10–30 minutes depending on your hardware. Workers resume automatically when done.\n\nStart now?')) return;
-      mcStartRun();
     }
 
     function closeOptimizer() {
@@ -412,6 +411,7 @@
         mcLog('info', 'Optimizer started — pausing workers...');
         _mcStartTime = Date.now();
         _mcLastRunIndex = 0;
+        document.getElementById('mc-start-btn').classList.add('hidden');
         document.getElementById('mc-abort-btn').classList.remove('hidden');
         document.getElementById('mc-abort-btn-bar').classList.remove('hidden');
         document.getElementById('mc-apply-btn').disabled = true;
@@ -443,6 +443,7 @@
         mcRender(s);
         if (s.state === 'complete' || s.state === 'aborted' || s.state === 'error') {
           clearInterval(_mcPollInterval); _mcPollInterval = null;
+          document.getElementById('mc-start-btn').classList.remove('hidden');
           document.getElementById('mc-abort-btn').classList.add('hidden');
           document.getElementById('mc-abort-btn-bar').classList.add('hidden');
           if (s.state === 'complete') {
