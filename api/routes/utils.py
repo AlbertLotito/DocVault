@@ -493,12 +493,13 @@ def retry_task(file_hash: str):
 @router.get("/utils/extractors")
 def list_all_extractors():
     """Returns a list of all registered extractors and their settings."""
-    from core.router import _all_extractors
+    import core.router as _router
+    _router._ensure_initialized()
     from core.extractors.base import LegacyExtractorAdapter
     from core.settings import settings
-    
+
     results = []
-    for mod in _all_extractors:
+    for mod in _router._all_extractors:
         adapter = LegacyExtractorAdapter(mod)
         name = adapter.name
         
