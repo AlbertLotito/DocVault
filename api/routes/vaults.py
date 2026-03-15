@@ -91,8 +91,9 @@ def retry_errors(vault_id: str):
             "UPDATE tasks SET status='PENDING', error=NULL WHERE vault_id=? AND status='ERROR'",
             (vault_id,)
         )
+        reset_count = cur.rowcount
         conn.commit()
-    return {"reset": cur.rowcount}
+    return {"reset": reset_count}
 
 
 @router.post("/{vault_id}/gut")
