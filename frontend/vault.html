@@ -167,7 +167,7 @@
 
   <!-- stuck-banner -->
   <div id="stuck-banner" style="display:none;background:#220000;border-top:2px solid var(--c-error);padding:8px 20px;font-size:11px;color:var(--c-error);">
-    <strong id="stuck-count"></strong> stuck tasks detected.
+    <strong id="stuck-count"></strong>
     <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="resetStuck()" style="margin-left:10px;">Reset</button>
   </div>
 
@@ -365,10 +365,10 @@
             : '<span class="lc-badge lc-badge-active">' + v.state + '</span>';
           return '<div class="lc-vault-card ' + stateClass + '" style="border-top-color:' + (v.color||'var(--c-accent-dim)') + '">' +
               '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
-                '<div class="lc-vault-name">' + escapeAttr(v.name) + '</div>' +
+                '<div class="lc-vault-name">' + _esc(v.name) + '</div>' +
                 stateBadge +
               '</div>' +
-              '<div class="lc-vault-path" title="' + escapeAttr(v.scan_directory) + '">' + escapeAttr(v.scan_directory) + '</div>' +
+              '<div class="lc-vault-path" title="' + escapeAttr(v.scan_directory) + '">' + _esc(v.scan_directory) + '</div>' +
               '<div class="lc-vault-meta">Priority <span>' + v.priority + '</span></div>' +
               '<div style="display:flex;gap:10px;font-size:11px;margin-top:4px;">' +
                 '<a href="javascript:void(0)" onclick="setFilter(\'ALL\');setVaultFilter(\'' + v.vault_id + '\');scrollToLog();" style="color:var(--c-accent);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">View Files</a>' +
