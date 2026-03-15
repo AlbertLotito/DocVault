@@ -986,6 +986,10 @@
             }
         }
 
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
         function renderExtractorBars(stats) {
             if (!stats || !stats.length) {
                 document.getElementById('extractor-bars').innerHTML =
@@ -997,12 +1001,13 @@
             document.getElementById('extractor-bars').innerHTML = stats.map(s => {
                 const pct = maxAvg > 0 ? (s.avg_secs / maxAvg * 100).toFixed(1) : 0;
                 const color = colors[s.category] || 'var(--slate)';
+                const name = escapeHtml(s.extractor);
                 return `<div class="bar-row">
-                  <div class="bar-label" title="${s.extractor}">${s.extractor}</div>
+                  <div class="bar-label" title="${name}">${name}</div>
                   <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
-                  <div class="bar-val" style="color:${color}">${s.avg_secs}s avg</div>
-                  <div style="width:70px;text-align:right;font-size:0.65rem;opacity:0.6">p95: ${s.p95_secs}s</div>
-                  <div style="width:60px;text-align:right;font-size:0.65rem;opacity:0.5">${s.count} files</div>
+                  <div class="bar-val" style="color:${color}">${escapeHtml(s.avg_secs)}s avg</div>
+                  <div style="width:70px;text-align:right;font-size:0.65rem;opacity:0.6">p95: ${escapeHtml(s.p95_secs)}s</div>
+                  <div style="width:60px;text-align:right;font-size:0.65rem;opacity:0.5">${escapeHtml(s.count)} files</div>
                 </div>`;
             }).join('');
         }
@@ -1046,7 +1051,7 @@
               <div class="bench-row">
                 <span style="color:var(--slate)">${new Date(r.run_at).toLocaleDateString()}</span>
                 <span style="color:#fff">${r.overall_files_per_hour?.toLocaleString() || '—'} f/hr</span>
-                <span style="color:var(--amber);font-size:0.7rem">${r.bottleneck_extractor || '—'}</span>
+                <span style="color:var(--amber);font-size:0.7rem">${escapeHtml(r.bottleneck_extractor) || '—'}</span>
               </div>`).join('');
         }
 
