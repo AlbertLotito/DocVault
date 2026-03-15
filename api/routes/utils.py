@@ -23,66 +23,83 @@ def performance_stats():
     import sqlite3
 
     logs_db = get_logs_db_path()
+    import math
+    import collections
 
-    with _connect(logs_db) as conn:
-        # Extractor stats
-        rows = conn.execute(
-            """SELECT extractor,
-                      AVG(elapsed_secs) AS avg_secs,
-                      COUNT(*) AS cnt
-               FROM task_timings
-               WHERE elapsed_secs IS NOT NULL
-               GROUP BY extractor
-               ORDER BY avg_secs DESC"""
-        ).fetchall()
+    try:
+        with _connect(logs_db) as conn:
+            # Extractor stats
+            rows = conn.execute(
+                """SELECT extractor,
+                          AVG(elapsed_secs) AS avg_secs,
+                          COUNT(*) AS cnt
+                   FROM task_timings
+                   WHERE elapsed_secs IS NOT NULL
+                   GROUP BY extractor
+                   ORDER BY avg_secs DESC"""
+            ).fetchall()
 
-        extractor_stats = []
-        for r in rows:
-            avg = r['avg_secs']
-            category = 'fast' if avg < 1 else ('moderate' if avg < 10 else 'slow')
-            # p95: fetch all elapsed for this extractor, sort, take 95th pct
-            elapseds = [row[0] for row in conn.execute(
-                "SELECT elapsed_secs FROM task_timings WHERE extractor=? AND elapsed_secs IS NOT NULL ORDER BY elapsed_secs",
-                (r['extractor'],)
-            ).fetchall()]
-            p95 = elapseds[max(0, int(len(elapseds) * 0.95) - 1)] if elapseds else 0.0
-            extractor_stats.append({
-                'extractor': r['extractor'], 'avg_secs': round(avg, 2),
-                'p95_secs': round(p95, 2), 'count': r['cnt'], 'category': category,
-            })
+            # Pre-fetch all elapsed values by extractor (avoids N+1 queries)
+            all_elapsed_rows = conn.execute(
+                "SELECT extractor, elapsed_secs FROM task_timings WHERE elapsed_secs IS NOT NULL ORDER BY extractor, elapsed_secs"
+            ).fetchall()
+            elapsed_by_extractor = collections.defaultdict(list)
+            for row in all_elapsed_rows:
+                elapsed_by_extractor[row['extractor']].append(row['elapsed_secs'])
 
-        # Throughput 24h (hourly bins)
-        rows_24h = conn.execute(
-            """SELECT strftime('%H:00', completed_at) AS hour, COUNT(*) AS cnt
-               FROM task_timings
-               WHERE completed_at >= datetime('now', '-24 hours')
-               GROUP BY hour ORDER BY hour"""
-        ).fetchall()
-        throughput_24h = [{'hour': r['hour'], 'files_per_hour': r['cnt']} for r in rows_24h]
+            extractor_stats = []
+            for r in rows:
+                avg = r['avg_secs']
+                category = 'fast' if avg < 1 else ('moderate' if avg < 10 else 'slow')
+                elapseds = elapsed_by_extractor.get(r['extractor'], [])
+                p95_idx = min(len(elapseds) - 1, max(0, math.ceil(len(elapseds) * 0.95) - 1))
+                p95 = elapseds[p95_idx] if elapseds else 0.0
+                extractor_stats.append({
+                    'extractor': r['extractor'], 'avg_secs': round(avg, 2),
+                    'p95_secs': round(p95, 2), 'count': r['cnt'], 'category': category,
+                })
 
-        # Throughput 7d (daily bins)
-        rows_7d = conn.execute(
-            """SELECT date(completed_at) AS day, COUNT(*) AS cnt
-               FROM task_timings
-               WHERE completed_at >= datetime('now', '-7 days')
-               GROUP BY day ORDER BY day"""
-        ).fetchall()
-        throughput_7d = [{'day': r['day'], 'files_per_hour': r['cnt']} for r in rows_7d]
+            # Throughput 24h (hourly bins)
+            rows_24h = conn.execute(
+                """SELECT strftime('%H:00', completed_at) AS hour, COUNT(*) AS cnt
+                   FROM task_timings
+                   WHERE completed_at >= datetime('now', '-24 hours')
+                   GROUP BY hour ORDER BY hour"""
+            ).fetchall()
+            throughput_24h = [{'hour': r['hour'], 'files_per_hour': r['cnt']} for r in rows_24h]
 
-        # Bottleneck (slowest extractor)
-        bottleneck = None
-        if extractor_stats:
-            b = extractor_stats[0]
-            tip = (f"Your slowest extractor is {b['extractor']} ({b['avg_secs']}s avg, "
-                   f"{b['count']} files processed). Consider disabling it for vaults that don't need it.")
-            bottleneck = {'extractor': b['extractor'], 'avg_secs': b['avg_secs'], 'tip': tip}
+            # Throughput 7d (daily bins)
+            rows_7d = conn.execute(
+                """SELECT date(completed_at) AS day, COUNT(*) AS cnt
+                   FROM task_timings
+                   WHERE completed_at >= datetime('now', '-7 days')
+                   GROUP BY day ORDER BY day"""
+            ).fetchall()
+            throughput_7d = [{'day': r['day'], 'files_per_hour': r['cnt']} for r in rows_7d]
 
-        # Last 5 benchmark runs
-        bench_rows = conn.execute(
-            """SELECT run_id, run_at, overall_files_per_hour, bottleneck_extractor
-               FROM benchmark_runs ORDER BY run_id DESC LIMIT 5"""
-        ).fetchall()
-        benchmark_runs = [dict(r) for r in bench_rows]
+            # Bottleneck (slowest extractor)
+            bottleneck = None
+            if extractor_stats:
+                b = extractor_stats[0]
+                tip = (f"Your slowest extractor is {b['extractor']} ({b['avg_secs']}s avg, "
+                       f"{b['count']} files processed). Consider disabling it for vaults that don't need it.")
+                bottleneck = {'extractor': b['extractor'], 'avg_secs': b['avg_secs'], 'tip': tip}
+
+            # Last 5 benchmark runs
+            bench_rows = conn.execute(
+                """SELECT run_id, run_at, overall_files_per_hour, bottleneck_extractor
+                   FROM benchmark_runs ORDER BY run_id DESC LIMIT 5"""
+            ).fetchall()
+            benchmark_runs = [dict(r) for r in bench_rows]
+
+    except Exception:
+        return {
+            'extractor_stats': [],
+            'throughput_24h':  [],
+            'throughput_7d':   [],
+            'bottleneck':      None,
+            'benchmark_runs':  [],
+        }
 
     return {
         'extractor_stats': extractor_stats,
@@ -131,12 +148,16 @@ def optimizer_apply(req: OptimizerApplyRequest):
         raise HTTPException(status_code=400, detail=f"unknown profile: {req.profile}")
     from core.settings import settings
     params = profile['params']
+    failed = {}
     for k, v in params.items():
         try:
             settings.set(k, v)
-        except Exception:
-            pass
-    return {"applied": True, "params": params}
+        except Exception as exc:
+            failed[k] = str(exc)
+    result = {"applied": True, "params": params}
+    if failed:
+        result["warnings"] = failed
+    return result
 
 
 @router.post("/utils/optimizer/abort")
