@@ -97,6 +97,15 @@ def init_logs_db():
                 bottleneck_extractor   TEXT,
                 overall_files_per_hour REAL
             );
+
+            CREATE TABLE IF NOT EXISTS optimizer_profiles (
+                profile_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+                saved_at    TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                params      TEXT NOT NULL,
+                throughput  REAL,
+                source_run  TEXT
+            );
         """)
 
         # Logs DB migrations
