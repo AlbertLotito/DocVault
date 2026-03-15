@@ -103,8 +103,6 @@
         <div class="lc-filter-pill active" data-filter="ALL" onclick="setFilter('ALL',this)">All</div>
         <div class="lc-filter-pill" data-filter="COMPLETED"  onclick="setFilter('COMPLETED',this)">Completed</div>
         <div class="lc-filter-pill" data-filter="PROCESSING" onclick="setFilter('PROCESSING',this)">Processing</div>
-        <div class="lc-filter-pill" data-filter="EXTRACTED"  onclick="setFilter('EXTRACTED',this)">Extracted</div>
-        <div class="lc-filter-pill" data-filter="EMBEDDING"  onclick="setFilter('EMBEDDING',this)">Embedding</div>
         <div class="lc-filter-pill" data-filter="PENDING"    onclick="setFilter('PENDING',this)">Pending</div>
         <div class="lc-filter-pill" data-filter="ERROR"      onclick="setFilter('ERROR',this)">Error</div>
         <div class="lc-filter-pill" data-filter="UNKNOWN"    onclick="setFilter('UNKNOWN',this)">Unknown</div>
@@ -310,14 +308,13 @@
        ================================================================ */
 
     // ── Stat tiles ──────────────────────────────────────────
-    var STAT_TILES = [
-      { key:'total',      label:'Total',      color:'var(--c-accent-dim)', filter:'ALL' },
-      { key:'pending',    label:'Pending',    color:'var(--c-pend)',       filter:'PENDING' },
-      { key:'processing', label:'Processing', color:'var(--c-proc)',       filter:'PROCESSING' },
-      { key:'extracted',  label:'Extracted',  color:'#3399ff',             filter:'EXTRACTED' },
-      { key:'embedding',  label:'Embedding',  color:'var(--c-proc)',       filter:'EMBEDDING' },
-      { key:'completed',  label:'Completed',  color:'var(--c-ok)',         filter:'COMPLETED' },
-      { key:'error',      label:'Errors',     color:'var(--c-error)',      filter:'ERROR' }
+    const STAT_TILES = [
+      { key: 'COMPLETED',  label: 'Completed',  color: 'var(--c-ok)'    },
+      { key: 'PROCESSING', label: 'Processing', color: 'var(--c-proc)'   },
+      { key: 'PENDING',    label: 'Pending',    color: 'var(--c-pend)'   },
+      { key: 'ERROR',      label: 'Error',      color: 'var(--c-error)'  },
+      { key: 'UNKNOWN',    label: 'Unknown',    color: 'var(--c-unk)'    },
+      { key: 'TOTAL',      label: 'Total',      color: 'var(--c-accent-dim)' },
     ];
 
     async function loadStats() {
@@ -325,8 +322,10 @@
         var s = await api('/stats');
         var grid = document.getElementById('stat-grid');
         grid.innerHTML = STAT_TILES.map(function(t) {
-          var val = s[t.key] || 0;
-          return '<div class="lc-stat-tile" onclick="setFilter(\'' + t.filter + '\');scrollToLog();" style="border-left-color:' + t.color + '">' +
+          var apiKey = t.key.toLowerCase();
+          var val = s[apiKey] || 0;
+          var filterVal = (t.key === 'TOTAL') ? 'ALL' : t.key;
+          return '<div class="lc-stat-tile" onclick="setFilter(\'' + filterVal + '\');scrollToLog();" style="border-left-color:' + t.color + '">' +
             '<div class="lc-stat-val" style="color:' + t.color + '">' + val + '</div>' +
             '<div class="lc-stat-lbl">' + t.label + '</div></div>';
         }).join('');
