@@ -1,5 +1,5 @@
 """
-tools/benchmark.py — DocVault standalone benchmark tool.
+tools/benchmark.py - DocVault standalone benchmark tool.
 
 Samples COMPLETED tasks from docvault.db, runs their extractors
 in-process (timing only, no DB writes), prints a report.
@@ -95,7 +95,7 @@ def _time_file(task: dict, resolver: SettingsResolver) -> tuple[str | None, floa
         adapter = ext_mod if isinstance(ext_mod, BaseExtractor) else LegacyExtractorAdapter(ext_mod)
         t0 = time.monotonic()
         try:
-            adapter.run(file_path, ctx)   # result discarded — timing only
+            adapter.run(file_path, ctx)   # result discarded - timing only
         except Exception:
             pass
         elapsed = time.monotonic() - t0
@@ -186,7 +186,7 @@ def _get_pending_counts(db_path: str, types: list[str]) -> dict[str, int]:
 
 
 def _print_report(results: dict, db_path: str):
-    print(f"\nDocVault Benchmark — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"\nDocVault Benchmark - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     cs   = settings.get('embeddings:chunk_size')
     mp   = settings.get('ollama:max_parallel')
     emb  = settings.get('ollama:embed_model')
@@ -205,9 +205,9 @@ def _print_report(results: dict, db_path: str):
     )
     for cat, r in results['by_type'].items():
         if r['samples'] == 0:
-            print(f"{cat:<12}  {'—':>7}  {'—':>9}  {'—':>7}  {'no COMPLETED files':>23}")
+            print(f"{cat:<12}  {'-':>7}  {'-':>9}  {'-':>7}  {'no COMPLETED files':>23}")
             continue
-        marker = '  ← BOTTLENECK' if cat == bottleneck_cat else ''
+        marker = '  << BOTTLENECK' if cat == bottleneck_cat else ''
         print(f"{cat:<12}  {r['samples']:>7}  {r['avg_secs']:>8.2f}s  {r['p95_secs']:>6.2f}s  {r['throughput']:>20,.0f} f/hr{marker}")
 
     # Overall weighted throughput
@@ -263,7 +263,7 @@ def _print_report(results: dict, db_path: str):
 def save_result(results: dict, db_path: str):
     """Write one row to logs.db benchmark_runs."""
     from core.manager import get_logs_db_path, _connect, init_logs_db
-    # Ensure logs.db schema exists (idempotent — safe even when server hasn't run yet)
+    # Ensure logs.db schema exists (idempotent - safe even when server hasn't run yet)
     init_logs_db()
     bottleneck = results.get('bottleneck_extractor')
     by_type    = results['by_type']
