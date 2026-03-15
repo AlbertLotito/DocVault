@@ -162,15 +162,23 @@ _SWEPT_KEYS = [
 
 
 def _read_snapshot_keys() -> dict:
-    """Read current production values for swept keys via direct DB query."""
+    """Read current production values for swept keys.
+    Prefers settings.db (direct query, avoids reading back our own snapshot),
+    falls back to settings.get() for keys that only exist in config.ini/defaults.
+    """
     from core.manager import get_settings_db_path, _connect
+    from core.settings import settings as _settings
     result = {}
     with _connect(get_settings_db_path()) as conn:
         for k in _SWEPT_KEYS:
             row = conn.execute(
                 "SELECT value FROM settings WHERE key=?", (k,)
             ).fetchone()
-            result[k] = str(row['value']) if row else ''
+            if row:
+                result[k] = str(row['value'])
+            else:
+                # Key lives in config.ini or schema default — read effective value
+                result[k] = str(_settings.get(k) or '')
     return result
 
 
