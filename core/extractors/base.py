@@ -326,7 +326,7 @@ class LegacyExtractorAdapter(BaseExtractor):
                     text_parts.append(f"{label}\n{desc}")
             return IngestResult(
                 text="\n\n".join(text_parts) if text_parts else None,
-                images=images, errors=errors,
+                images=images, errors=errors, metadata=meta,
                 status='failed' if (err and not images) else 'success'
             )
 
@@ -337,9 +337,9 @@ class LegacyExtractorAdapter(BaseExtractor):
 
         # None with error
         if err:
-            return IngestResult(text=None, errors=errors, status='failed')
+            return IngestResult(text=None, errors=errors, status='failed', metadata=meta)
 
-        return IngestResult(text=None, status='success')
+        return IngestResult(text=None, status='success', metadata=meta)
 
 
 # ---------------------------------------------------------------------------
