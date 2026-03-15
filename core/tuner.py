@@ -27,7 +27,7 @@ def build_sweep_matrix(snapshot: dict, gpu_util_pct: Optional[float]) -> list[di
     gpu_util_pct: current GPU utilisation (0-100) or None if no sensor.
     Spec: if gpu_util_pct is None (no sensor), max_parallel stays at [1] only.
     """
-    current_throttle = float(snapshot.get('monitor:gpu_temp_throttle', '80'))
+    current_throttle = float(snapshot.get('monitor:gpu_temp_throttle') or '80')
     relaxed_throttle = str(min(current_throttle + 5, 90.0))
     throttle_vals = [snapshot['monitor:gpu_temp_throttle']]
     if min(current_throttle + 5, 90.0) != current_throttle:
@@ -293,7 +293,7 @@ def _run_sweep(db_path: str, samples: int):
         hw = _read_hardware()
         gpu_util = hw.get('gpu_util')
         matrix = build_sweep_matrix(snapshot, gpu_util_pct=gpu_util)
-        original_throttle = float(snapshot.get('monitor:gpu_temp_throttle', '80'))
+        original_throttle = float(snapshot.get('monitor:gpu_temp_throttle') or '80')
 
         _update_state(total_runs=len(matrix), runs=[], baseline_throughput=None)
 
