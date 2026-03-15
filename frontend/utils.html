@@ -322,12 +322,14 @@
 
     <!-- Title bar -->
     <div style="border-bottom:1px solid #1e2740;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-      <span style="color:#4f6ef7;font-size:11px;font-weight:700;letter-spacing:0.15em">◈ DOCVAULT ENGINEERING CONSOLE — OPTIMIZER</span>
-      <div style="display:flex;gap:12px;align-items:center">
-        <span id="mc-run-label" style="font-size:10px;color:#334155">IDLE</span>
-        <button onclick="mcAbort()" id="mc-abort-btn" style="background:#7f1d1d;color:#fca5a5;border:none;padding:3px 12px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em" class="hidden">■ ABORT</button>
-        <button onclick="closeOptimizer()" style="background:transparent;border:1px solid #334155;color:#64748b;padding:3px 10px;font-size:10px;cursor:pointer">✕ CLOSE</button>
+      <div style="display:flex;align-items:center;gap:16px">
+        <span style="color:#4f6ef7;font-size:11px;font-weight:700;letter-spacing:0.15em">◈ OPTIMIZER</span>
+        <button id="mc-start-btn" onclick="mcStartRun()" style="background:#166534;color:#bbf7d0;border:1px solid #16a34a;padding:5px 18px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;border-radius:3px">▶ START SWEEP</button>
+        <button onclick="mcAbort()" id="mc-abort-btn" style="background:#7f1d1d;color:#fca5a5;border:1px solid #b91c1c;padding:5px 16px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.08em;border-radius:3px" class="hidden">■ ABORT</button>
+        <button id="mc-apply-btn" onclick="mcApplyBest()" disabled style="background:#1e1b4b;color:#a5b4fc;border:1px solid #3730a3;padding:5px 16px;font-size:11px;font-weight:700;cursor:not-allowed;opacity:0.35;letter-spacing:0.08em;border-radius:3px">↓ APPLY BEST</button>
+        <span id="mc-run-label" style="font-size:10px;color:#475569">IDLE</span>
       </div>
+      <button onclick="closeOptimizer()" style="background:transparent;border:1px solid #334155;color:#64748b;padding:3px 10px;font-size:10px;cursor:pointer">✕ CLOSE</button>
     </div>
 
     <!-- Quadrant grid -->
@@ -363,13 +365,8 @@
       </div>
 
       <!-- BOTTOM BAR (full width) -->
-      <div style="grid-column:span 2;border-top:1px solid #1e2740;display:flex;justify-content:space-between;align-items:center;padding:0 16px;background:#030507">
+      <div style="grid-column:span 2;border-top:1px solid #1e2740;display:flex;align-items:center;padding:0 16px;background:#030507">
         <span id="mc-eta" style="font-size:9px;color:#334155">—</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button id="mc-start-btn" onclick="mcStartRun()" style="background:#14532d;color:#86efac;border:none;padding:4px 14px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em">▶ START SWEEP</button>
-          <button onclick="mcAbort()" id="mc-abort-btn-bar" style="background:#7f1d1d;color:#fca5a5;border:none;padding:4px 12px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em" class="hidden">■ ABORT</button>
-          <button id="mc-apply-btn" onclick="mcApplyBest()" disabled style="background:#312e81;color:#a5b4fc;border:none;padding:4px 16px;font-size:10px;font-weight:700;cursor:not-allowed;opacity:0.4;letter-spacing:0.05em">↓ APPLY BEST PROFILE</button>
-        </div>
       </div>
 
     </div>
@@ -413,7 +410,6 @@
         _mcLastRunIndex = 0;
         document.getElementById('mc-start-btn').classList.add('hidden');
         document.getElementById('mc-abort-btn').classList.remove('hidden');
-        document.getElementById('mc-abort-btn-bar').classList.remove('hidden');
         document.getElementById('mc-apply-btn').disabled = true;
         document.getElementById('mc-apply-btn').style.opacity = '0.4';
         document.getElementById('mc-apply-btn').style.cursor = 'not-allowed';
