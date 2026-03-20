@@ -76,6 +76,25 @@
       </div>
     </div>
 
+    <!-- Embedding progress card (hidden when idle) -->
+    <div id="embed-progress-card" style="display:none;margin-bottom:12px;">
+      <div class="lc-bar-badge" style="cursor:default;justify-content:space-between;align-items:center;padding:8px 14px;gap:12px;">
+        <span style="color:var(--c-accent);font-size:11px;font-weight:700;letter-spacing:.08em;white-space:nowrap;">EMBEDDING</span>
+        <span id="ep-filename" style="color:var(--c-accent);font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 12px;"></span>
+        <span style="font-size:11px;color:var(--c-label-dim);">ETA&nbsp;<span id="ep-eta" style="color:var(--c-value);">—</span></span>
+        <span id="ep-pct" style="color:var(--c-value);font-size:13px;font-weight:700;min-width:36px;text-align:right;"></span>
+      </div>
+      <div style="padding:6px 14px 10px;">
+        <div style="background:var(--c-bar-bg,#1a1a1a);border-radius:2px;height:6px;overflow:hidden;margin-bottom:6px;">
+          <div id="ep-bar" style="height:100%;background:var(--c-accent);width:0%;transition:width .4s ease;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span id="ep-chunks" style="font-size:11px;color:var(--c-label-dim);"></span>
+          <span style="font-size:11px;color:var(--c-label-dim);">elapsed&nbsp;<span id="ep-elapsed" style="color:var(--c-value);">—</span></span>
+        </div>
+      </div>
+    </div>
+
     <!-- Stat grid (6 tiles, color-coded) -->
     <div class="lc-stat-grid" id="stat-grid">
       <!-- populated by loadStats() -->
@@ -273,6 +292,34 @@
        ================================================================ */
 
     // ── Status badge helper (LCARS-styled) ──────────────────
+    function fmtSecs(s) {
+      if (s == null) return '—';
+      if (s < 60)   return `${Math.round(s)}s`;
+      if (s < 3600) return `${Math.floor(s/60)}m ${Math.round(s%60)}s`;
+      return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`;
+    }
+
+    async function updateEmbedProgress() {
+      try {
+        const wrk = await api('/workers/status');
+        const ep  = wrk && wrk.embedding_progress;
+        const card = document.getElementById('embed-progress-card');
+        if (!card) return;
+        if (!ep) {
+          card.style.display = 'none';
+          return;
+        }
+        card.style.display = '';
+        document.getElementById('ep-filename').textContent = ep.filename || '';
+        document.getElementById('ep-pct').textContent      = `${ep.pct}%`;
+        document.getElementById('ep-bar').style.width      = `${ep.pct}%`;
+        document.getElementById('ep-eta').textContent      = fmtSecs(ep.eta_secs);
+        document.getElementById('ep-elapsed').textContent  = fmtSecs(ep.elapsed_secs);
+        const m = (ep.progress_text || '').match(/(\d+)\/(\d+)/);
+        document.getElementById('ep-chunks').textContent   = m ? `chunk ${m[1]} / ${m[2]}` : '';
+      } catch (_) {}
+    }
+
     const STATUS_BADGE_MAP = {
       COMPLETED:  'ok',
       EXTRACTED:  'ok',
@@ -903,6 +950,9 @@
       });
 
       updateSortIndicators();
+
+      updateEmbedProgress();
+      setInterval(updateEmbedProgress, 5000);
 
       // Polling intervals (same as originals)
       setInterval(loadStats, 5000);
