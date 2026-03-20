@@ -73,9 +73,21 @@ async function lcPollSensors() {
       _setSensor('lc-s-state', `▐ ${state}`, state === 'READY' ? 'ok' : state === 'PAUSED' ? 'err' : 'warn');
     }
     if (wrk) {
-      // /api/workers/status returns {paused: bool} — no active_workers field
-      const paused = wrk.paused ?? false;
-      _setSensor('lc-s-workers', paused ? '⏸ PAUSED' : '▶ RUNNING', paused ? 'warn' : 'ok');
+      const paused  = wrk.paused   ?? false;
+      const stalled = wrk.stalled  ?? false;
+      const stallM  = wrk.stall_minutes ?? 0;
+      const ep      = wrk.embedding_progress ?? null;
+      if (stalled) {
+        _setSensor('lc-s-workers', `⚠ STALLED ${stallM}m`, 'err');
+      } else if (paused) {
+        _setSensor('lc-s-workers', '⏸ PAUSED', 'warn');
+      } else if (ep) {
+        const m = (ep.progress_text || '').match(/(\d+)\/(\d+)/);
+        const label = m ? `▶ ${ep.pct}% · ${m[1]}/${m[2]}` : '▶ RUNNING';
+        _setSensor('lc-s-workers', label, 'ok');
+      } else {
+        _setSensor('lc-s-workers', '▶ RUNNING', 'ok');
+      }
     }
   } catch (_) { /* never let sensor polling crash the page */ }
 }
