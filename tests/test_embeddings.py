@@ -30,15 +30,19 @@ class TestChunker:
 
 
 class TestEmbedder:
-    @patch('embeddings.embedder.ollama.embeddings')
-    def test_embed_returns_vector(self, mock_embed):
-        mock_embed.return_value = {'embedding': [0.1, 0.2, 0.3]}
+    @patch('embeddings.embedder.ollama.Client')
+    def test_embed_returns_vector(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client.embeddings.return_value = {'embedding': [0.1, 0.2, 0.3]}
+        mock_client_class.return_value = mock_client
         vec = embedder.embed("hello world")
         assert vec == [0.1, 0.2, 0.3]
 
-    @patch('embeddings.embedder.ollama.embeddings')
-    def test_embed_returns_none_on_error(self, mock_embed):
-        mock_embed.side_effect = Exception("Ollama unavailable")
+    @patch('embeddings.embedder.ollama.Client')
+    def test_embed_returns_none_on_error(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client.embeddings.side_effect = Exception("Ollama unavailable")
+        mock_client_class.return_value = mock_client
         vec = embedder.embed("hello world")
         assert vec is None
 
