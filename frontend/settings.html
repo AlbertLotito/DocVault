@@ -110,7 +110,7 @@
     <div class="lc-modal">
       <div id="reindex-step-1">
         <div class="lc-modal-title" data-i18n="settings.modal_title">Rebuild Vector Index?</div>
-        <p style="font-size:12px;color:var(--c-label);margin-bottom:10px;line-height:1.6;">
+        <p data-i18n="settings.modal_step1_body" style="font-size:12px;color:var(--c-label);margin-bottom:10px;line-height:1.6;">
           This will permanently delete all vectors from the Qdrant store and re-queue
           every document for re-embedding. The process runs in the background —
           semantic search and the Ask chat will return no results until it completes.
@@ -131,7 +131,7 @@
           This cannot be undone. All semantic search results and Ask chat answers will be
           unavailable until re-embedding finishes.
         </p>
-        <p style="font-size:13px;font-weight:bold;color:var(--c-error);margin-bottom:18px;">
+        <p data-i18n="settings.modal_step2_body" style="font-size:13px;font-weight:bold;color:var(--c-error);margin-bottom:18px;">
           Pressing "Yes, Wipe and Rebuild" will immediately delete all vectors. There is no undo.
         </p>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -241,7 +241,7 @@
         if (!expand) continue;
 
         const n = items.length;
-        if (countEl) countEl.textContent = `${n} setting${n !== 1 ? 's' : ''}`;
+        if (countEl) countEl.textContent = n === 1 ? t('settings.settings_count_one') : t('settings.settings_count_many', { n });
 
         if (n === 0) {
           expand.innerHTML = `<div style="font-size:11px;color:var(--c-label-dim);">${t('settings.no_settings')}</div>`;
@@ -322,7 +322,7 @@
       try {
         const result = await api('/utils/reindex', { method: 'POST' });
         document.getElementById('reindex-done-msg').textContent =
-          `Vector store wiped. ${result.reset_tasks} document(s) queued for re-embedding. The embedding worker will process them automatically.`;
+          t('settings.reindex_done', { count: result.reset_tasks });
       } catch (err) {
         document.getElementById('reindex-done-msg').textContent = `Error: ${err.message}`;
       }

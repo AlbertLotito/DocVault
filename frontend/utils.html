@@ -116,25 +116,25 @@
           desc.style.color = 'var(--c-label)';
         }
       } catch (_) {
-        document.getElementById('gdrive-status-desc').textContent = 'Status unavailable';
+        document.getElementById('gdrive-status-desc').textContent = t('utils.gdrive_status_unavailable');
       }
     }
 
     async function authoriseGDrive() {
       const btn = document.getElementById('gdrive-auth-btn');
       const status = document.getElementById('gdrive-auth-status');
-      btn.disabled = true; btn.textContent = 'Opening...';
+      btn.disabled = true; btn.textContent = t('utils.gdrive_opening');
       try {
         const data = await api('/utils/gdrive_authorize', { method: 'POST' });
         if (data.ok) {
-          status.textContent = 'Success';
+          status.textContent = t('utils.gdrive_success');
           status.style.color = 'var(--c-ok)';
         } else {
-          status.textContent = 'Error: ' + data.detail;
+          status.textContent = t('utils.gdrive_error', { error: data.detail });
           status.style.color = 'var(--c-error)';
         }
       } catch (err) {
-        status.textContent = err.message;
+        status.textContent = t('utils.gdrive_error', { error: err.message });
         status.style.color = 'var(--c-error)';
       }
       btn.disabled = false; btn.textContent = t('utils.gdrive_auth');
@@ -162,13 +162,13 @@
               <div style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">${issue.severity}</div>
               <div style="font-size:12px;color:var(--c-accent);font-weight:bold;">${issue.title}</div>
               <div style="font-size:11px;color:var(--c-label);">${issue.detail}</div>
-              ${issue.action ? `<button class="lc-btn lc-btn-sm" style="margin-top:4px;" onclick="doHealthFix('${issue.action}', '${issue.action_label}', this)">FIX</button>` : ''}
+              ${issue.action ? `<button class="lc-btn lc-btn-sm" style="margin-top:4px;" onclick="doHealthFix('${issue.action}', '${issue.action_label}', this)">${t('utils.health_fix')}</button>` : ''}
             </div>`;
           }
         }
         res.innerHTML = html;
       } catch (err) {
-        res.innerHTML = '<span style="color:var(--c-error);">Error running health check.</span>';
+        res.innerHTML = `<span style="color:var(--c-error);">${t('utils.health_check_failed')}</span>`;
       }
     }
 
@@ -180,7 +180,7 @@
 
     async function runQdrantCheck() {
       const res = document.getElementById('qdrant-results');
-      res.innerHTML = '<span style="color:var(--c-warn);">Running...</span>';
+      res.innerHTML = `<span style="color:var(--c-warn);">${t('utils.qdrant_running')}</span>`;
       try {
         const result = await api('/utils/qdrant_check');
         if (result.status === 'ok') {
