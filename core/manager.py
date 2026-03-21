@@ -557,10 +557,10 @@ def complete_extraction(db_path, file_hash, status, text=None,
                 "SELECT file_path FROM tasks WHERE file_hash = ?", (file_hash,)
             ).fetchone()
             if row:
-                conn.execute(
-                    "DELETE FROM fts_index WHERE file_hash = ?", (file_hash,)
-                )
                 try:
+                    conn.execute(
+                        "DELETE FROM fts_index WHERE file_hash = ?", (file_hash,)
+                    )
                     from embeddings.chunker import chunk
                     chunks = chunk(text)
                     for i, chunk_text in enumerate(chunks):
@@ -569,7 +569,7 @@ def complete_extraction(db_path, file_hash, status, text=None,
                             (file_hash, i, row['file_path'], chunk_text)
                         )
                 except Exception as e:
-                    print(f"[manager] Warning: FTS chunk indexing failed: {e}")
+                    print(f"[manager] Warning: FTS index update failed: {e}")
         conn.commit()
 
 
