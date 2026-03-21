@@ -76,7 +76,7 @@ function lcApplyI18n() {
     if (firstText) {
       firstText.textContent = t(el.dataset.i18n);
     } else {
-      el.textContent = t(el.dataset.i18n);
+      el.appendChild(document.createTextNode(t(el.dataset.i18n)));
     }
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
