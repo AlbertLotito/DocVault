@@ -11,7 +11,8 @@ def embed(text: str) -> list[float] | None:
     """Generate an embedding vector for the given text using Ollama."""
     from core.monitor import ollama_governor
     model           = settings.get('ollama:embed_model')
-    timeout_secs    = int(settings.get('ollama:embed_timeout') or 120)
+    raw = settings.get('ollama:embed_timeout')
+    timeout_secs = int(raw) if raw not in (None, '', '0', 0) else 120
 
     for attempt in range(_NO_SLOTS_RETRIES + 1):
         try:
