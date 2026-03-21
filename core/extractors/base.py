@@ -112,8 +112,13 @@ class ExtractorLogger:
                      level, message, self._now())
                 )
                 conn.commit()
-        except Exception:
-            pass  # never let logging kill an extractor
+        except Exception as log_err:
+            import sys
+            print(
+                f"[ExtractorLogger._write_log] DB unavailable ({log_err}): "
+                f"[{self.extractor_name}] {level}: {message}",
+                file=sys.stderr
+            )
 
     def _write_error(self, level: str, message: str, error_type: str = '', tb: str = ''):
         try:
@@ -127,8 +132,13 @@ class ExtractorLogger:
                      error_type or level, message, tb, self._now())
                 )
                 conn.commit()
-        except Exception:
-            pass
+        except Exception as log_err:
+            import sys
+            print(
+                f"[ExtractorLogger._write_error] DB unavailable ({log_err}): "
+                f"[{self.extractor_name}] {level}: {message}",
+                file=sys.stderr
+            )
 
     def debug(self, msg: str):
         if self.debug_enabled:
