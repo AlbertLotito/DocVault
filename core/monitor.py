@@ -307,6 +307,24 @@ _throttle_lock = threading.Lock()
 _last_reading: Optional[MonitorReading] = None
 _last_user_activity: float = 0.0
 
+# Shared stall state (set by HardwareMonitor, read by API)
+_stall_detected: bool = False
+_stall_minutes: int = 0
+_stall_lock = threading.Lock()
+
+
+def get_stall_state() -> tuple[bool, int]:
+    """Returns (stalled: bool, stall_minutes: int)."""
+    with _stall_lock:
+        return _stall_detected, _stall_minutes
+
+
+def _set_stall_state(detected: bool, minutes: int):
+    global _stall_detected, _stall_minutes
+    with _stall_lock:
+        _stall_detected = detected
+        _stall_minutes = minutes
+
 # Ollama Governor State
 _ollama_semaphore: Optional[threading.Semaphore] = None
 _ollama_serial_lock = threading.Lock()
@@ -367,7 +385,7 @@ def ollama_governor():
     if _ollama_semaphore:
         with _ollama_semaphore:
             # 3. Check for thermal pressure (Governor Action)
-            state = get_throttle_state()
+            state, _reason = get_throttle_state()
             if state in ('throttled', 'cooldown'):
                 # Force serialization under pressure
                 with _ollama_serial_lock:
@@ -376,7 +394,7 @@ def ollama_governor():
                 yield
     else:
         # No parallel limit. Still serialize under pressure.
-        state = get_throttle_state()
+        state, _reason = get_throttle_state()
         if state in ('throttled', 'cooldown'):
             with _ollama_serial_lock:
                 yield
@@ -478,14 +496,77 @@ class HardwareMonitor:
         except Exception:
             return True
 
+    def _check_stall(self):
+        """
+        Detect a processing stall: PENDING tasks exist but no extraction activity
+        for longer than monitor:stall_threshold_mins. Best-effort; never raises.
+        Fires an alert once per stall event (not every cycle).
+        """
+        try:
+            from core.settings import settings as s
+            threshold_mins = int(s.get('monitor:stall_threshold_mins') or 30)
+
+            from core.manager import get_logs_db_path, get_db_path, _connect
+            from datetime import datetime, timezone, timedelta
+
+            with _connect(get_logs_db_path()) as lconn:
+                row = lconn.execute(
+                    "SELECT MAX(completed_at) as last FROM task_timings"
+                ).fetchone()
+                last_str = row['last'] if row else None
+
+            with _connect(get_db_path()) as dconn:
+                pending = dconn.execute(
+                    "SELECT COUNT(*) as n FROM tasks WHERE status='PENDING'"
+                ).fetchone()['n']
+
+            if pending == 0 or not last_str:
+                _set_stall_state(False, 0)
+                return
+
+            last_dt = datetime.fromisoformat(last_str)
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            age = datetime.now(timezone.utc) - last_dt
+            stall_mins = int(age.total_seconds() // 60)
+            stalled = stall_mins >= threshold_mins
+
+            was_stalled, _ = get_stall_state()
+            _set_stall_state(stalled, stall_mins if stalled else 0)
+
+            if stalled and not was_stalled:
+                logger.error(
+                    f"Stall detected: {pending:,} PENDING tasks, no extraction in {stall_mins}m",
+                    ext="monitor"
+                )
+                try:
+                    from core.alerts import send_alert
+                    send_alert(
+                        title="DocVault pipeline stalled",
+                        message=f"{pending:,} tasks pending but no extraction activity for {stall_mins} minutes.",
+                        level='error',
+                        source='monitor',
+                    )
+                except Exception:
+                    pass
+            elif not stalled and was_stalled:
+                logger.info("Stall cleared — extraction activity resumed", ext="monitor")
+
+        except Exception:
+            pass
+
     def run(self):
         """Main daemon loop. Call from a daemon thread."""
         logger.info("Resource governor starting", ext="monitor")
         while True:
-            if self._is_enabled():
-                reading    = self._sample()
-                thresholds = _load_thresholds()
-                self._sm.update(reading, thresholds)
-                _set_throttle_state(self._sm.state, reading, self._sm.reason)
-                _record_sample(reading, self._sm.state)
+            try:
+                if self._is_enabled():
+                    reading    = self._sample()
+                    thresholds = _load_thresholds()
+                    self._sm.update(reading, thresholds)
+                    _set_throttle_state(self._sm.state, reading, self._sm.reason)
+                    _record_sample(reading, self._sm.state)
+                    self._check_stall()
+            except Exception as e:
+                logger.error(f"Resource governor cycle error (continuing): {e}", ext="monitor")
             time.sleep(self._get_interval())
