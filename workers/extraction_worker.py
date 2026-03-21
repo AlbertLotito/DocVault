@@ -160,10 +160,18 @@ def run(db_path, worker_id=None, shutdown_event=None):
     logger.info(f"Extraction worker starting. ID: {worker_id}")
 
     while True:
-        skip, reason = should_pause_or_throttle()
+        try:
+            skip, reason = should_pause_or_throttle()
+        except Exception as e:
+            logger.warn(f"Extraction worker: pause check failed, assuming normal: {e}")
+            skip, reason = False, 'normal'
+
         if skip:
             logger.info(f"Extraction worker {reason}. Sleeping...")
-            interruptible_sleep(db_path, 10)
+            try:
+                interruptible_sleep(db_path, 10)
+            except Exception:
+                time.sleep(10)
             continue
 
         extra = get_throttle_sleep(reason)
@@ -182,7 +190,16 @@ def run(db_path, worker_id=None, shutdown_event=None):
                 process_task(db_path, task)
             except Exception as e:
                 logger.error(f"Extraction worker unhandled: {e}")
-                manager.complete_extraction(db_path, task['file_hash'],
-                                            status='ERROR', error=str(e))
+                try:
+                    manager.complete_extraction(db_path, task['file_hash'],
+                                                status='ERROR', error=str(e))
+                except Exception as e2:
+                    logger.error(
+                        f"Extraction worker: could not mark task {task['file_hash'][:8]} ERROR — "
+                        f"task is stuck in PROCESSING and will not be retried until server restart: {e2}"
+                    )
         else:
-            interruptible_sleep(db_path, 10)
+            try:
+                interruptible_sleep(db_path, 10)
+            except Exception:
+                time.sleep(10)
