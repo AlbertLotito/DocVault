@@ -375,7 +375,6 @@ class SubprocessExtractorAdapter(BaseExtractor):
         # 2. Execute
         ctx.logger.info(f"Invoking binary: {' '.join(cmd)}")
         try:
-            # We use Popen so we can kill the process if the cancel token is set
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -383,26 +382,37 @@ class SubprocessExtractorAdapter(BaseExtractor):
                 text=True
             )
 
-            # Poll for completion or cancellation
+            # Drain stdout/stderr in a background thread to prevent pipe-buffer deadlock.
+            # A kernel that writes >64KB to either pipe would otherwise block on write(),
+            # while this thread is sleeping in poll() — classic OS deadlock.
+            _result: dict = {}
+
+            def _communicate():
+                out, err = process.communicate()
+                _result['stdout'] = out
+                _result['stderr'] = err
+
+            comm_thread = threading.Thread(target=_communicate, daemon=True)
+            comm_thread.start()
+
             timeout = ctx.timeout_secs or 300
             start_time = time.time()
-            
-            while process.poll() is None:
-                # Check for cancellation
+
+            while comm_thread.is_alive():
                 if ctx.cancel_token.is_set():
-                    ctx.logger.warning(f"Killing subprocess {self.name} due to cancellation.")
                     process.kill()
+                    comm_thread.join(timeout=5)
+                    ctx.logger.warning(f"Killed subprocess {self.name} due to cancellation.")
                     return None, "Extraction cancelled by user", {}
-                
-                # Check for timeout
                 if time.time() - start_time > timeout:
-                    ctx.logger.error(f"Killing subprocess {self.name} due to timeout.")
                     process.kill()
+                    comm_thread.join(timeout=5)
+                    ctx.logger.error(f"Killed subprocess {self.name} due to timeout.")
                     return None, "Binary execution timed out", {}
-                
                 time.sleep(0.5)
 
-            stdout, stderr = process.communicate()
+            stdout = _result.get('stdout', '')
+            stderr = _result.get('stderr', '')
 
             # 3. Capture Stderr (Logs/Progress)
             if stderr:
