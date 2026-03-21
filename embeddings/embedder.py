@@ -10,12 +10,14 @@ _NO_SLOTS_BACKOFF = [10, 20, 40, 60]
 def embed(text: str) -> list[float] | None:
     """Generate an embedding vector for the given text using Ollama."""
     from core.monitor import ollama_governor
-    model = settings.get('ollama:embed_model')
+    model           = settings.get('ollama:embed_model')
+    timeout_secs    = int(settings.get('ollama:embed_timeout') or 120)
 
     for attempt in range(_NO_SLOTS_RETRIES + 1):
         try:
             with ollama_governor():
-                response = ollama.embeddings(model=model, prompt=text)
+                client   = ollama.Client(timeout=timeout_secs)
+                response = client.embeddings(model=model, prompt=text)
                 return response['embedding']
         except Exception as e:
             err = str(e)

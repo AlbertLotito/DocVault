@@ -40,6 +40,11 @@ class Settings:
                 'type': 'string', 'default': 'nomic-embed-text', 'label': 'Embedding Model', 'group': 'ollama',
                 'description': 'Ollama model used to generate vector embeddings for semantic search. Changing this invalidates all existing embeddings — you must delete the Qdrant collection and re-embed everything. Default: nomic-embed-text.',
             },
+            'ollama:embed_timeout': {
+                'type': 'int', 'default': 120, 'label': 'Embedding Timeout (s)', 'group': 'ollama',
+                'description': 'HTTP timeout in seconds for Ollama embedding calls. '
+                               'Prevents indefinite hangs when Ollama is unresponsive.',
+            },
             'ollama:num_ctx': {
                 'type': 'int', 'default': 8192, 'label': 'Context Window (tokens)', 'group': 'ollama',
                 'description': 'Maximum number of tokens the model can see at once, including retrieved chunks and conversation history. Larger values use more VRAM. Must not exceed the model\'s own maximum context length.',
@@ -257,6 +262,30 @@ class Settings:
             'monitor:stuck_task_threshold_mins': {
                 'type': 'int', 'default': 10, 'label': 'Stuck task threshold (m)', 'group': 'monitor',
                 'description': 'How many minutes a task can remain in PROCESSING or EMBEDDING state without an update before it is flagged as "stuck". Lower values catch dead processes faster; higher values avoid false positives for very large files.',
+            },
+            'qdrant:container_name': {
+                'type': 'string', 'default': 'docvault-qdrant-1', 'label': 'Qdrant container name', 'group': 'qdrant',
+                'description': 'Docker container name for Qdrant. If Qdrant becomes unreachable, DocVault will attempt to restart this container automatically.',
+            },
+            'qdrant:auto_restart': {
+                'type': 'string', 'default': 'true', 'label': 'Auto-restart Qdrant', 'group': 'qdrant',
+                'description': 'When enabled, DocVault will automatically run "docker restart <container>" if Qdrant is unreachable for too long.',
+            },
+            'qdrant:restart_after_failures': {
+                'type': 'int', 'default': 3, 'label': 'Restart after N failures', 'group': 'qdrant',
+                'description': 'Number of consecutive Qdrant connection failures (each ~10s apart) before triggering an automatic container restart.',
+            },
+            'qdrant:restart_cooldown_mins': {
+                'type': 'int', 'default': 10, 'label': 'Restart cooldown (m)', 'group': 'qdrant',
+                'description': 'Minimum minutes between automatic Qdrant restarts, to avoid restart storms.',
+            },
+            'monitor:stall_threshold_mins': {
+                'type': 'int', 'default': 30, 'label': 'Stall threshold (m)', 'group': 'monitor',
+                'description': 'How many minutes without any extraction activity (while PENDING tasks exist) before the pipeline is flagged as stalled. A stall alert is sent via ntfy.sh and the sensor rail turns red.',
+            },
+            'monitor:watchdog_interval': {
+                'type': 'int', 'default': 30, 'label': 'Watchdog interval (s)', 'group': 'monitor',
+                'description': 'How often (in seconds) the watchdog checks that all worker threads are alive. Dead threads are restarted automatically and an alert is sent.',
             },
             # System
             'system:debug_mode': {
