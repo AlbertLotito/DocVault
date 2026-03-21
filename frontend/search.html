@@ -175,12 +175,12 @@
   <div class="lc-nav"></div>
 
   <div class="lc-page lc-page-pad">
-    <div class="lc-section-title">Search & Ask</div>
+    <div class="lc-section-title" data-i18n="search.heading">Search & Ask</div>
 
     <!-- Vault selector -->
     <div style="padding:0 20px 6px;">
       <div class="vault-selector" id="vault-selector">
-        <span class="search-filter-label">Vaults:</span>
+        <span class="search-filter-label" data-i18n="search.vault_selector">Vaults:</span>
         <!-- populated by loadVaultSelector() -->
       </div>
     </div>
@@ -192,8 +192,8 @@
              onclick="switchMode('content')" data-mode="content">
           <div class="lc-bar-tab" style="background:#cc6600;">&#128269;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Content Search</div>
-            <div class="lc-bar-desc">Hybrid FTS + semantic search across extracted text</div>
+            <div class="lc-bar-name" data-i18n="search.tab_content">Content Search</div>
+            <div class="lc-bar-desc" data-i18n="search.tab_content_desc">Hybrid FTS + semantic search across extracted text</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
@@ -201,8 +201,8 @@
              onclick="switchMode('filename')" data-mode="filename">
           <div class="lc-bar-tab" style="background:#886600;">&#128193;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Filename Search</div>
-            <div class="lc-bar-desc">Find files by name pattern across all vaults</div>
+            <div class="lc-bar-name" data-i18n="search.tab_filename">Filename Search</div>
+            <div class="lc-bar-desc" data-i18n="search.tab_filename_desc">Find files by name pattern across all vaults</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
@@ -210,8 +210,8 @@
              onclick="switchMode('ask')" data-mode="ask">
           <div class="lc-bar-tab" style="background:#664400;">&#128172;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Ask</div>
-            <div class="lc-bar-desc">RAG — ask questions answered from your documents</div>
+            <div class="lc-bar-name" data-i18n="search.tab_ask">Ask</div>
+            <div class="lc-bar-desc" data-i18n="search.tab_ask_desc">RAG — ask questions answered from your documents</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
@@ -221,24 +221,28 @@
     <!-- ── Content Search panel ─────────────────────────────────────────────── -->
     <div id="panel-content" style="padding:14px 20px;">
       <div class="search-input-row">
-        <input id="search-input" type="text" placeholder="Search document content..."
+        <input id="search-input" type="text"
+          data-i18n-placeholder="search.content.placeholder"
+          placeholder="Search document content..."
           class="lc-input"
           onkeydown="if(event.key==='Enter') doSearch()">
         <select id="search-mode" class="lc-select" style="width:auto;min-width:110px;">
-          <option value="hybrid">Hybrid</option>
-          <option value="fts">Full-text</option>
-          <option value="semantic">Semantic</option>
+          <option value="hybrid" data-i18n="search.content.mode_hybrid">Hybrid</option>
+          <option value="fts" data-i18n="search.content.mode_fts">Full-text</option>
+          <option value="semantic" data-i18n="search.content.mode_semantic">Semantic</option>
         </select>
-        <button onclick="doSearch()" class="lc-btn lc-btn-primary">Search</button>
+        <button onclick="doSearch()" class="lc-btn lc-btn-primary" data-i18n="search.content.search_btn">Search</button>
       </div>
       <div class="search-filter-row">
-        <span class="search-filter-label">Filters:</span>
-        <input id="search-filter-type" type="text" placeholder="File type (pdf, docx...)"
+        <span class="search-filter-label" data-i18n="search.filter.label">Filters:</span>
+        <input id="search-filter-type" type="text"
+          data-i18n-placeholder="search.filter.type_placeholder"
+          placeholder="File type (pdf, docx...)"
           class="search-filter-input" style="width:130px;">
         <input id="search-filter-from" type="date" class="search-filter-input">
         <span style="color:var(--c-label-dim);font-size:11px;">&#8594;</span>
         <input id="search-filter-to" type="date" class="search-filter-input">
-        <button onclick="clearFilters('search')" class="search-filter-clear">&#10005; Clear</button>
+        <button onclick="clearFilters('search')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
       </div>
       <div id="search-degraded-banner" class="degraded-banner"></div>
       <div id="search-results" style="margin-top:10px;"></div>
@@ -247,19 +251,23 @@
     <!-- ── Filename Search panel ────────────────────────────────────────────── -->
     <div id="panel-filename" style="display:none;padding:14px 20px;">
       <div class="search-input-row">
-        <input id="filename-input" type="text" placeholder="File or folder name... (space-separated tokens all match)"
+        <input id="filename-input" type="text"
+          data-i18n-placeholder="search.filename.placeholder"
+          placeholder="File or folder name... (space-separated tokens all match)"
           class="lc-input"
           onkeydown="if(event.key==='Enter') doFilenameSearch()">
-        <button onclick="doFilenameSearch()" class="lc-btn lc-btn-primary">Search</button>
+        <button onclick="doFilenameSearch()" class="lc-btn lc-btn-primary" data-i18n="search.filename.search_btn">Search</button>
       </div>
       <div class="search-filter-row">
-        <span class="search-filter-label">Filters:</span>
-        <input id="filename-filter-type" type="text" placeholder="File type (pdf, docx...)"
+        <span class="search-filter-label" data-i18n="search.filter.label">Filters:</span>
+        <input id="filename-filter-type" type="text"
+          data-i18n-placeholder="search.filter.type_placeholder"
+          placeholder="File type (pdf, docx...)"
           class="search-filter-input" style="width:130px;">
         <input id="filename-filter-from" type="date" class="search-filter-input">
         <span style="color:var(--c-label-dim);font-size:11px;">&#8594;</span>
         <input id="filename-filter-to" type="date" class="search-filter-input">
-        <button onclick="clearFilters('filename')" class="search-filter-clear">&#10005; Clear</button>
+        <button onclick="clearFilters('filename')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
       </div>
       <div id="filename-results" style="margin-top:10px;"></div>
     </div>
@@ -268,25 +276,29 @@
     <div id="panel-ask" style="display:none;padding:14px 20px;">
       <div class="chat-container">
         <div class="chat-header">
-          <span class="chat-header-title">Ask a question about your documents</span>
-          <button onclick="clearChat()" class="lc-btn lc-btn-sm lc-btn-danger">Clear chat</button>
+          <span class="chat-header-title" data-i18n="search.ask.header">Ask a question about your documents</span>
+          <button onclick="clearChat()" class="lc-btn lc-btn-sm lc-btn-danger" data-i18n="search.ask.clear">Clear chat</button>
         </div>
         <div id="chat-thread" class="chat-thread"></div>
         <div class="chat-input-area">
           <div class="search-filter-row" style="margin-top:0;margin-bottom:8px;">
-            <span class="search-filter-label">Filters:</span>
-            <input id="chat-filter-type" type="text" placeholder="File type (pdf, docx...)"
+            <span class="search-filter-label" data-i18n="search.filter.label">Filters:</span>
+            <input id="chat-filter-type" type="text"
+              data-i18n-placeholder="search.filter.type_placeholder"
+              placeholder="File type (pdf, docx...)"
               class="search-filter-input" style="width:130px;">
             <input id="chat-filter-from" type="date" class="search-filter-input">
             <span style="color:var(--c-label-dim);font-size:11px;">&#8594;</span>
             <input id="chat-filter-to" type="date" class="search-filter-input">
-            <button onclick="clearFilters('chat')" class="search-filter-clear">&#10005; Clear</button>
+            <button onclick="clearFilters('chat')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
           </div>
           <div class="search-input-row">
-            <input id="query-input" type="text" placeholder="Ask anything about your documents..."
+            <input id="query-input" type="text"
+              data-i18n-placeholder="search.ask.placeholder"
+              placeholder="Ask anything about your documents..."
               class="lc-input"
               onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); doQuery(); }">
-            <button onclick="doQuery()" class="lc-btn lc-btn-primary">Ask</button>
+            <button onclick="doQuery()" class="lc-btn lc-btn-primary" data-i18n="search.ask.ask_btn">Ask</button>
           </div>
         </div>
       </div>
@@ -311,7 +323,7 @@
     function renderResults(results) {
       const el = document.getElementById('search-results');
       if (!results || !results.length) {
-        el.innerHTML = '<p class="no-results">No results found.</p>';
+        el.innerHTML = `<p class="no-results">${t('search.content.no_results')}</p>`;
         return;
       }
       el.innerHTML = results.map(r => {
@@ -325,9 +337,9 @@
               <span class="search-result-file" title="${escapeHtml(r.file_path || '')}">${escapeHtml(formatPath(r.file_path))}</span>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">Open</button>
-              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">Folder</button>
-              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">Inspect</button>
+              <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">${t('search.result.open')}</button>
+              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">${t('search.result.folder')}</button>
+              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">${t('search.result.inspect')}</button>
             </div>
           </div>
           <div class="search-result-snippet">${escapeHtml(r.snippet || r.chunk_text || '')}</div>
@@ -339,7 +351,7 @@
       const q = document.getElementById('search-input').value.trim();
       const mode = document.getElementById('search-mode').value;
       if (!q) return;
-      document.getElementById('search-results').innerHTML = '<p class="no-results">Searching...</p>';
+      document.getElementById('search-results').innerHTML = `<p class="no-results">${t('search.content.searching')}</p>`;
       const f = getFilters('search');
       let url = `/search?q=${encodeURIComponent(q)}&mode=${mode}`;
       if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
@@ -350,7 +362,7 @@
       const data = await api(url);
       const banner = document.getElementById('search-degraded-banner');
       if (data.degraded) {
-        banner.textContent = '\u26A0 ' + (data.degraded_reason || 'Qdrant unavailable \u2014 showing full-text results only');
+        banner.textContent = '\u26A0 ' + (data.degraded_reason || t('search.degraded_default'));
         banner.classList.add('visible');
       } else {
         banner.classList.remove('visible');
@@ -375,7 +387,7 @@
     function renderFilenameResults(results) {
       const el = document.getElementById('filename-results');
       if (!results || !results.length) {
-        el.innerHTML = '<p class="no-results">No files found.</p>';
+        el.innerHTML = `<p class="no-results">${t('search.filename.no_results')}</p>`;
         return;
       }
       el.innerHTML = results.map(r => {
@@ -403,9 +415,9 @@
               <div class="search-result-meta">${escapeHtml(meta)}</div>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">Open</button>
-              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">Folder</button>
-              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">Inspect</button>
+              <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">${t('search.result.open')}</button>
+              <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">${t('search.result.folder')}</button>
+              <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">${t('search.result.inspect')}</button>
             </div>
           </div>
         </div>`;
@@ -415,7 +427,7 @@
     async function doFilenameSearch() {
       const q = document.getElementById('filename-input').value.trim();
       if (!q) return;
-      document.getElementById('filename-results').innerHTML = '<p class="no-results">Searching...</p>';
+      document.getElementById('filename-results').innerHTML = `<p class="no-results">${t('search.filename.searching')}</p>`;
       const f = getFilters('filename');
       let url = `/search/filename?q=${encodeURIComponent(q)}`;
       if (f.file_type) url += `&file_type=${encodeURIComponent(f.file_type)}`;
@@ -499,7 +511,7 @@
       const id = 'loading-' + Date.now();
       const div = document.createElement('div');
       div.id = id;
-      div.innerHTML = `<div class="chat-msg-ai" style="color:var(--c-label-dim);">Thinking...</div>`;
+      div.innerHTML = `<div class="chat-msg-ai" style="color:var(--c-label-dim);">${t('search.ask.thinking')}</div>`;
       thread.appendChild(div);
       scrollChat();
       return id;
@@ -525,7 +537,7 @@
       const thinkHtml = thinking ? `
         <div style="margin-top:6px;">
           <button onclick="toggleThink('${tid}')" class="think-toggle">
-            <span id="${tid}-chevron">&#9654;</span> Model Thinking
+            <span id="${tid}-chevron">&#9654;</span> ${t('search.ask.model_thinking')}
           </button>
           <div id="${tid}" class="think-body" style="display:none;">
             ${escapeHtml(thinking)}
@@ -534,16 +546,16 @@
 
       const sourcesHtml = uniqueSources.length ? `
         <div class="chat-sources">
-          <div class="chat-sources-title">Sources</div>
+          <div class="chat-sources-title">${t('search.ask.sources')}</div>
           ${uniqueSources.map(s => {
             const safePath = (s.file_path || '').replace(/"/g, '&quot;');
             return `
             <div class="chat-source-row">
               <span class="chat-source-path" title="${escapeHtml(s.file_path)}">${escapeHtml(formatPath(s.file_path))}</span>
               <div style="display:flex;gap:4px;flex-shrink:0;">
-                <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">Open</button>
-                <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">Folder</button>
-                <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">Inspect</button>
+                <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">${t('search.result.open')}</button>
+                <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">${t('search.result.folder')}</button>
+                <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">${t('search.result.inspect')}</button>
               </div>
             </div>`;
           }).join('')}
@@ -605,10 +617,12 @@
 
     // ── Init ───────────────────────────────────────────────────────────────────
 
-    const _modeMap = { search: 'content', content: 'content', filename: 'filename', ask: 'ask' };
-    const _initialMode = _modeMap[window.location.hash.replace('#','')] || 'content';
-    switchMode(_initialMode);
-    loadVaultSelector();
+    document.addEventListener('lc:ready', () => {
+      const _modeMap = { search: 'content', content: 'content', filename: 'filename', ask: 'ask' };
+      const _initialMode = _modeMap[window.location.hash.replace('#','')] || 'content';
+      switchMode(_initialMode);
+      loadVaultSelector();
+    });
   </script>
   <script src="/static/lcars.js"></script>
 </body>
