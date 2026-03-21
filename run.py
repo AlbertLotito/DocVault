@@ -66,6 +66,54 @@ def _rollback_optimizer_snapshot():
         logger.error(f"Startup: optimizer snapshot rollback failed: {e}")
 
 
+def _watchdog(workers: list, interval: int = 30):
+    """
+    Monitor worker threads and restart any that have died.
+    Each entry in workers is (name, target_fn, args_tuple).
+    Runs as a daemon thread — never raises.
+    """
+    live = {}
+    for name, target, args in workers:
+        t = threading.Thread(target=target, args=args, daemon=True, name=name)
+        t.start()
+        live[name] = (t, target, args)
+        logger.info(f"Watchdog: started {name}")
+
+    while True:
+        time.sleep(interval)
+        for name, (t, target, args) in list(live.items()):
+            if not t.is_alive():
+                logger.error(f"Watchdog: {name} thread died — restarting")
+                # Reset any tasks the dead thread was holding in PROCESSING or EMBEDDING
+                try:
+                    n = manager.reset_stuck_tasks(DB_PATH)
+                    if n:
+                        logger.info(f"Watchdog: reset {n} orphaned task(s) after {name} death")
+                except Exception as e:
+                    logger.error(f"Watchdog: could not reset stuck tasks: {e}")
+                try:
+                    from core.alerts import send_alert
+                    send_alert(
+                        title=f"Worker restarted: {name}",
+                        message=f"DocVault watchdog detected that '{name}' died and restarted it automatically.",
+                        level='warning',
+                        source='watchdog',
+                    )
+                except Exception:
+                    pass
+                try:
+                    new_t = threading.Thread(target=target, args=args, daemon=True, name=name)
+                    new_t.start()
+                    live[name] = (new_t, target, args)
+                    logger.info(f"Watchdog: {name} restarted successfully")
+                except Exception as start_err:
+                    logger.error(
+                        f"Watchdog: could not restart {name}: {start_err}. "
+                        f"Will retry in {interval}s."
+                    )
+                    # Leave dead entry in live{} so we retry next interval
+
+
 def start():
     # Init DBs in order — settings.db first (survives resets), then main DB, then logs
     manager.init_settings_db()
@@ -83,40 +131,30 @@ def start():
     scan_dir = settings.get('paths:scan_directory')
     manager.bootstrap_default_vault(DB_PATH, scan_directory=scan_dir)
 
-    # 2. Register/Certify System Kernels
+    # Register/Certify System Kernels
     from core.registry import RegistryManager
     rm = RegistryManager()
     rm.register_system_kernels()
 
-    # Start resource governor daemon
+    # Start resource governor daemon (not under watchdog — it has its own safe loop)
     from core.monitor import HardwareMonitor
     monitor = HardwareMonitor()
     t_monitor = threading.Thread(target=monitor.run, daemon=True, name='monitor')
     t_monitor.start()
 
-    # Start ingestion worker in a daemon thread
-    t_ingest = threading.Thread(
-        target=ingestion_worker_run, args=(DB_PATH,), daemon=True
+    # Start all workers under the watchdog so dead threads are automatically restarted
+    watchdog_interval = int(settings.get('monitor:watchdog_interval') or 30)
+    managed_workers = [
+        ('ingestion',   ingestion_worker_run,        (DB_PATH,)),
+        ('extraction',  extraction_worker.run,        (DB_PATH, None)),
+        ('embedding',   embedding_worker.run,         (DB_PATH, None)),
+        ('art',         art_enrichment_worker.run,    (DB_PATH, None)),
+    ]
+    t_watchdog = threading.Thread(
+        target=_watchdog, args=(managed_workers, watchdog_interval),
+        daemon=True, name='watchdog'
     )
-    t_ingest.start()
-
-    # Start extraction worker in a daemon thread
-    t_extract = threading.Thread(
-        target=extraction_worker.run, args=(DB_PATH, None), daemon=True # Pass None for shutdown_event
-    )
-    t_extract.start()
-
-    # Start embedding worker in a daemon thread
-    t_embed = threading.Thread(
-        target=embedding_worker.run, args=(DB_PATH, None), daemon=True # Pass None for shutdown_event
-    )
-    t_embed.start()
-
-    # Start art enrichment worker (always; worker self-gates if nothing is configured)
-    t_art = threading.Thread(
-        target=art_enrichment_worker.run, args=(DB_PATH, None), daemon=True
-    )
-    t_art.start()
+    t_watchdog.start()
 
     # Start web server (blocking)
     logger.critical("Starting DocVault at http://localhost:8000")
