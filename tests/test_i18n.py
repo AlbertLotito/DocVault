@@ -41,6 +41,8 @@ def test_es_and_fr_match_en_keys():
             data = json.load(f)
         missing = set(en.keys()) - set(data.keys())
         assert not missing, f"{lang}.json missing keys: {missing}"
+        extra = set(data.keys()) - set(en.keys())
+        assert not extra, f"{lang}.json has extra keys not in en.json: {extra}"
 
 
 def test_ui_language_setting_in_schema():
