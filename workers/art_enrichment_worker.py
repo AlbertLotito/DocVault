@@ -715,59 +715,73 @@ def run(db_path: str, shutdown_event=None):
         bucket = _TokenBucket(rpm)
 
         for image_path in queue:
-            if shutdown_event and shutdown_event.is_set():
-                break
-
-            # Re-check throttle before each image
-            skip, state = should_pause_or_throttle()
-            if skip or state != 'normal':
-                logger.info("Art enrichment pausing — system no longer idle.", ext="art")
-                break
-
-            # Re-check backoff (may have been set during this batch)
-            if backoff_until and datetime.now(timezone.utc) < backoff_until:
-                break
-
-            # Skip if .nfo appeared since we built the queue (already processed)
-            if os.path.exists(_nfo_path(image_path)):
-                data = _read_nfo(image_path)
-                if data.get('renamed_to') != '(failed)':
-                    continue
-
-            logger.info(
-                f"Art enrichment: identifying {os.path.basename(image_path)}", ext="art"
-            )
-
-            # Rate limit
-            bucket.consume()
-
-            today = datetime.now().isoformat()[:10]
-
             try:
-                result = _identify_artwork(image_path)
-            except requests.HTTPError as e:
-                status_code = e.response.status_code if e.response is not None else 0
-                if status_code == 429:
-                    current_backoff = getattr(run, '_backoff_secs', 60)
-                    run._backoff_secs = min(current_backoff * 2, 3600)
-                    backoff_until = datetime.now(timezone.utc) + timedelta(
-                        seconds=run._backoff_secs
-                    )
-                    logger.warn(
-                        f"Art enrichment: 429 rate limit — backing off "
-                        f"{run._backoff_secs}s.", ext="art"
-                    )
-                    _write_nfo(image_path, {
-                        'artist': '', 'title': '', 'confidence': '0',
-                        'identified_at': today,
-                        'original_name': os.path.basename(image_path),
-                        'renamed_to': '(failed)',
-                        'error': f'HTTP {status_code} — rate limited',
-                    })
+                if shutdown_event and shutdown_event.is_set():
                     break
-                else:
+
+                # Re-check throttle before each image
+                skip, state = should_pause_or_throttle()
+                if skip or state != 'normal':
+                    logger.info("Art enrichment pausing — system no longer idle.", ext="art")
+                    break
+
+                # Re-check backoff (may have been set during this batch)
+                if backoff_until and datetime.now(timezone.utc) < backoff_until:
+                    break
+
+                # Skip if .nfo appeared since we built the queue (already processed)
+                if os.path.exists(_nfo_path(image_path)):
+                    data = _read_nfo(image_path)
+                    if data.get('renamed_to') != '(failed)':
+                        continue
+
+                logger.info(
+                    f"Art enrichment: identifying {os.path.basename(image_path)}", ext="art"
+                )
+
+                # Rate limit
+                bucket.consume()
+
+                today = datetime.now().isoformat()[:10]
+
+                try:
+                    result = _identify_artwork(image_path)
+                except requests.HTTPError as e:
+                    status_code = e.response.status_code if e.response is not None else 0
+                    if status_code == 429:
+                        current_backoff = getattr(run, '_backoff_secs', 60)
+                        run._backoff_secs = min(current_backoff * 2, 3600)
+                        backoff_until = datetime.now(timezone.utc) + timedelta(
+                            seconds=run._backoff_secs
+                        )
+                        logger.warn(
+                            f"Art enrichment: 429 rate limit — backing off "
+                            f"{run._backoff_secs}s.", ext="art"
+                        )
+                        _write_nfo(image_path, {
+                            'artist': '', 'title': '', 'confidence': '0',
+                            'identified_at': today,
+                            'original_name': os.path.basename(image_path),
+                            'renamed_to': '(failed)',
+                            'error': f'HTTP {status_code} — rate limited',
+                        })
+                        break
+                    else:
+                        logger.error(
+                            f"Art enrichment: API error {status_code} for "
+                            f"{os.path.basename(image_path)}: {e}", ext="art"
+                        )
+                        _write_nfo(image_path, {
+                            'artist': '', 'title': '', 'confidence': '0',
+                            'identified_at': today,
+                            'original_name': os.path.basename(image_path),
+                            'renamed_to': '(failed)',
+                            'error': str(e),
+                        })
+                        continue
+                except Exception as e:
                     logger.error(
-                        f"Art enrichment: API error {status_code} for "
+                        f"Art enrichment: unexpected error for "
                         f"{os.path.basename(image_path)}: {e}", ext="art"
                     )
                     _write_nfo(image_path, {
@@ -778,76 +792,70 @@ def run(db_path: str, shutdown_event=None):
                         'error': str(e),
                     })
                     continue
-            except Exception as e:
-                logger.error(
-                    f"Art enrichment: unexpected error for "
-                    f"{os.path.basename(image_path)}: {e}", ext="art"
-                )
-                _write_nfo(image_path, {
-                    'artist': '', 'title': '', 'confidence': '0',
+
+                if result is None:
+                    # No method produced a result (CLIP absent, no cloud keys, etc.)
+                    _write_nfo(image_path, {
+                        'artist': '', 'title': '', 'confidence': '0',
+                        'identified_at': today,
+                        'original_name': os.path.basename(image_path),
+                        'renamed_to': '(failed)',
+                        'error': 'no identification method available',
+                    })
+                    continue
+
+                # Reset backoff on success
+                run._backoff_secs = 60
+
+                artist     = result.get('artist', '')
+                title      = result.get('title', '')
+                confidence = result.get('confidence', 0.0)
+                source_url = result.get('source_url', '')
+                tier_used  = result.get('tier', 'unknown')
+
+                nfo_data = {
+                    'artist':        artist or '',
+                    'title':         title or '',
+                    'confidence':    str(round(confidence, 4)),
+                    'source':        tier_used,
+                    'source_url':    source_url or '',
                     'identified_at': today,
                     'original_name': os.path.basename(image_path),
-                    'renamed_to': '(failed)',
-                    'error': str(e),
-                })
-                continue
+                    'renamed_to':    '(low confidence — manual review)',
+                }
 
-            if result is None:
-                # No method produced a result (CLIP absent, no cloud keys, etc.)
-                _write_nfo(image_path, {
-                    'artist': '', 'title': '', 'confidence': '0',
-                    'identified_at': today,
-                    'original_name': os.path.basename(image_path),
-                    'renamed_to': '(failed)',
-                    'error': 'no identification method available',
-                })
-                continue
-
-            # Reset backoff on success
-            run._backoff_secs = 60
-
-            artist     = result.get('artist', '')
-            title      = result.get('title', '')
-            confidence = result.get('confidence', 0.0)
-            source_url = result.get('source_url', '')
-            tier_used  = result.get('tier', 'unknown')
-
-            nfo_data = {
-                'artist':        artist or '',
-                'title':         title or '',
-                'confidence':    str(round(confidence, 4)),
-                'source':        tier_used,
-                'source_url':    source_url or '',
-                'identified_at': today,
-                'original_name': os.path.basename(image_path),
-                'renamed_to':    '(low confidence — manual review)',
-            }
-
-            if confidence >= threshold and (artist or title):
-                ok, result_path = _transactional_rename(
-                    image_path, artist, title, db_path
-                )
-                if ok:
-                    nfo_data['renamed_to'] = os.path.basename(result_path)
-                    logger.info(
-                        f"Art enrichment: renamed → {os.path.basename(result_path)} "
-                        f"[{tier_used}] (confidence {confidence:.2f})", ext="art"
+                if confidence >= threshold and (artist or title):
+                    ok, result_path = _transactional_rename(
+                        image_path, artist, title, db_path
                     )
-                    _write_nfo(result_path, nfo_data)
+                    if ok:
+                        nfo_data['renamed_to'] = os.path.basename(result_path)
+                        logger.info(
+                            f"Art enrichment: renamed → {os.path.basename(result_path)} "
+                            f"[{tier_used}] (confidence {confidence:.2f})", ext="art"
+                        )
+                        _write_nfo(result_path, nfo_data)
+                    else:
+                        nfo_data['renamed_to'] = '(failed)'
+                        nfo_data['error']      = result_path
+                        logger.warn(
+                            f"Art enrichment: rename failed for "
+                            f"{os.path.basename(image_path)}: {result_path}", ext="art"
+                        )
+                        # _transactional_rename already wrote the .nfo
                 else:
-                    nfo_data['renamed_to'] = '(failed)'
-                    nfo_data['error']      = result_path
-                    logger.warn(
-                        f"Art enrichment: rename failed for "
-                        f"{os.path.basename(image_path)}: {result_path}", ext="art"
+                    _write_nfo(image_path, nfo_data)
+                    logger.info(
+                        f"Art enrichment: [{tier_used}] low confidence ({confidence:.2f}) for "
+                        f"{os.path.basename(image_path)} — .nfo written, file unchanged.", ext="art"
                     )
-                    # _transactional_rename already wrote the .nfo
-            else:
-                _write_nfo(image_path, nfo_data)
-                logger.info(
-                    f"Art enrichment: [{tier_used}] low confidence ({confidence:.2f}) for "
-                    f"{os.path.basename(image_path)} — .nfo written, file unchanged.", ext="art"
+            except Exception as _loop_err:
+                logger.error(
+                    f"Art enrichment: unhandled error for "
+                    f"{os.path.basename(image_path)} — skipping: {_loop_err}",
+                    ext="art"
                 )
+                continue
 
         # End of queue — sleep before next scan cycle
         time.sleep(300)
