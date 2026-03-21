@@ -143,6 +143,7 @@ async function lcInit() {
     toastEl.className = 'lc-toast';
     document.body.appendChild(toastEl);
   }
+  document.dispatchEvent(new CustomEvent('lc:ready'));
 }
 
 async function lcPollSensors() {

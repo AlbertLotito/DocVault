@@ -421,11 +421,11 @@
                 stateBadge +
               '</div>' +
               '<div class="lc-vault-path" title="' + escapeAttr(v.scan_directory) + '">' + _esc(v.scan_directory) + '</div>' +
-              '<div class="lc-vault-meta">Priority <span>' + v.priority + '</span></div>' +
+              '<div class="lc-vault-meta">' + t('vault.card.priority_label') + ' <span>' + v.priority + '</span></div>' +
               '<div style="display:flex;gap:10px;font-size:11px;margin-top:4px;">' +
-                '<a href="javascript:void(0)" onclick="setFilter(\'ALL\');setVaultFilter(\'' + v.vault_id + '\');scrollToLog();" style="color:var(--c-accent);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">View Files</a>' +
+                '<a href="javascript:void(0)" onclick="setFilter(\'ALL\');setVaultFilter(\'' + v.vault_id + '\');scrollToLog();" style="color:var(--c-accent);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">' + t('vault.card.view_files') + '</a>' +
                 '<span style="color:var(--c-border-str);">|</span>' +
-                '<a href="javascript:void(0)" onclick="openVaultManagement(\'' + v.vault_id + '\',\'' + escapeAttr(v.name) + '\')" style="color:var(--c-error);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">Manage</a>' +
+                '<a href="javascript:void(0)" onclick="openVaultManagement(\'' + v.vault_id + '\',\'' + escapeAttr(v.name) + '\')" style="color:var(--c-error);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">' + t('vault.card.manage') + '</a>' +
               '</div>' +
             '</div>';
         }).join('');
@@ -651,7 +651,7 @@
           item.extracted_text || item.error_log || t('vault.detail.no_content');
         document.getElementById('detail-overlay').style.display = '';
       } catch(e) {
-        lcToast('Could not load detail: ' + e.message, true);
+        lcToast(t('vault.toast.load_detail_failed', { error: e.message }), true);
       }
     }
 
@@ -707,10 +707,10 @@
       hideCtxMenu();
       try {
         await api('/catalog/' + hash + '/reprocess', { method: 'POST' });
-        lcToast('Reprocessing queued');
+        lcToast(t('vault.toast.reprocess_queued'));
         loadCatalog();
       } catch(e) {
-        lcToast('Reprocess failed: ' + e.message, true);
+        lcToast(t('vault.toast.reprocess_failed', { error: e.message }), true);
       }
     }
 
@@ -802,9 +802,9 @@
               '<input type="checkbox" class="v-kernel-check" data-name="' + k.name + '" ' + (vConfig.enabled ? 'checked' : '') + '>' +
               '<div style="flex:1;">' +
                 '<div class="v-kernel-name">' + k.name + '</div>' +
-                '<div class="v-kernel-meta">' + k.settings.length + ' configurable settings</div>' +
+                '<div class="v-kernel-meta">' + k.settings.length + ' ' + t('vault.card.configurable_settings') + '</div>' +
               '</div>' +
-              '<span style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">Pri:</span>' +
+              '<span style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">' + t('vault.card.priority_short') + '</span>' +
               '<input type="number" class="lc-input v-kernel-pri v-kernel-priority" data-name="' + k.name + '" value="' + vConfig.priority + '" min="1" max="99">' +
             '</div>';
         }).join('');
@@ -927,7 +927,7 @@
       loadCatalog();
     }
 
-    window.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('lc:ready', function() {
       // URL param handling
       var p = new URLSearchParams(location.search);
       if (p.get('status')) {
