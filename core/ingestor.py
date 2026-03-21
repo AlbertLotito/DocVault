@@ -92,13 +92,16 @@ def ingest(directory, db_path, vault_id=None):
         for ext, count in ext_counts.items():
             if count >= len(files) * 0.5 and get_folder_extractors(ext):
                 # This folder is a candidate for collection intelligence
-                if not manager.get_task(db_path, folder_hash):
-                    manager.insert_task(
-                        db_path, folder_hash, root_norm, f"directory/{ext}", 5,
-                        vault_id=vault_id
-                    )
-                    logger.info(f"  Added Directory Unit: {os.path.basename(root)} (type: {ext})")
-                    added += 1
+                try:
+                    if not manager.get_task(db_path, folder_hash):
+                        manager.insert_task(
+                            db_path, folder_hash, root_norm, f"directory/{ext}", 5,
+                            vault_id=vault_id
+                        )
+                        logger.info(f"  Added Directory Unit: {os.path.basename(root)} (type: {ext})")
+                        added += 1
+                except Exception as e:
+                    logger.warn(f"  Skipped directory {os.path.basename(root)}: {e}")
                 break
 
         # ── Part 2: File Intelligence ────────────────────────────────────────
@@ -141,7 +144,7 @@ def ingest(directory, db_path, vault_id=None):
 
                 # else: known file at known path — nothing to do
 
-            except (OSError, PermissionError) as e:
+            except Exception as e:
                 logger.warn(f"  Skipped {name}: {e}")
 
     logger.info(f"Ingestion complete. Added {added}, moved {moved} file(s).")
