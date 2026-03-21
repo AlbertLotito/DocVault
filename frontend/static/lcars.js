@@ -1,57 +1,147 @@
 /* frontend/static/lcars.js — Shared navbar + sensor rail for all DocVault pages */
 
+let _i18n    = {};
+let _locales = [];
+let _activeLang = 'en';
+
 /**
  * NAVBAR HTML injected into every .lc-nav container.
  * data-page attribute on <body> sets the active pill.
  * Sub-pages: lab, telemetry, optimizer → 'utilities' parent active.
  */
-const NAV_HTML = `
+function buildNavHTML() {
+  return `
 <div class="lc-nav-top">
   <a href="/" class="lc-elbow">DV</a>
   <a href="/" class="lc-brand">DocVault</a>
   <nav class="lc-nav-links">
-    <a href="/search"   class="lc-pill" data-nav="search">Search</a>
-    <a href="/vault"    class="lc-pill" data-nav="vault">Vault</a>
-    <a href="/identity" class="lc-pill" data-nav="identity">Identity</a>
-    <a href="/utils"    class="lc-pill" data-nav="utilities">Utilities</a>
-    <a href="/settings" class="lc-pill" data-nav="settings">Settings</a>
+    <a href="/search"   class="lc-pill" data-nav="search">${t('nav.search')}</a>
+    <a href="/vault"    class="lc-pill" data-nav="vault">${t('nav.vault')}</a>
+    <a href="/identity" class="lc-pill" data-nav="identity">${t('nav.identity')}</a>
+    <a href="/utils"    class="lc-pill" data-nav="utilities">${t('nav.utilities')}</a>
+    <a href="/settings" class="lc-pill" data-nav="settings">${t('nav.settings')}</a>
   </nav>
 </div>
 <div class="lc-nav-bot" id="lc-sensor-rail">
-  <span class="lc-sensor" id="lc-s-workers">Workers <span>—</span></span>
-  <span class="lc-sensor" id="lc-s-cpu">CPU <span>—</span></span>
-  <span class="lc-sensor" id="lc-s-gpu">GPU <span>—</span></span>
-  <span class="lc-sensor" id="lc-s-temp">Temp <span>—</span></span>
-  <span class="lc-sensor" id="lc-s-disk">Disk <span>—</span></span>
-  <span class="lc-sensor lc-sensor-push" id="lc-s-state">State <span>—</span></span>
+  <span class="lc-sensor" id="lc-s-workers">${t('sensor.workers')} <span>—</span></span>
+  <span class="lc-sensor" id="lc-s-cpu">${t('sensor.cpu')} <span>—</span></span>
+  <span class="lc-sensor" id="lc-s-gpu">${t('sensor.gpu')} <span>—</span></span>
+  <span class="lc-sensor" id="lc-s-temp">${t('sensor.temp')} <span>—</span></span>
+  <span class="lc-sensor" id="lc-s-disk">${t('sensor.disk')} <span>—</span></span>
+  <span class="lc-sensor lc-sensor-push" id="lc-s-state">${t('sensor.state')} <span>—</span></span>
 </div>`;
+}
 
 /** Pages that live under Utilities in the nav hierarchy */
 const UTILITIES_SUBPAGES = ['lab', 'telemetry', 'optimizer'];
 
-function lcInit() {
-  // 1. Inject navbar
+function t(key, vars = {}) {
+  let s = _i18n[key] ?? key;
+  for (const [k, v] of Object.entries(vars))
+    s = s.replaceAll(`{${k}}`, v);
+  return s;
+}
+
+async function lcI18nLoad() {
+  try {
+    const r = await fetch('/static/i18n/manifest.json');
+    if (r.ok) _locales = await r.json();
+  } catch (_) {}
+  if (!_locales.length) _locales = [{ code: 'en', label: 'EN' }];
+
+  let lang = '';
+  try {
+    const r = await fetch('/api/settings');
+    if (r.ok) {
+      const data = await r.json();
+      const entry = (data.settings || []).find(s => s.key === 'ui:language');
+      if (entry) lang = entry.value || '';
+    }
+  } catch (_) {}
+  if (!lang) lang = (navigator.language || 'en').split('-')[0];
+  if (!_locales.find(l => l.code === lang)) lang = 'en';
+  _activeLang = lang;
+
+  for (const candidate of lang === 'en' ? ['en'] : [lang, 'en']) {
+    try {
+      const r = await fetch(`/static/i18n/${candidate}.json`);
+      if (r.ok) { _i18n = await r.json(); return; }
+    } catch (_) {}
+  }
+}
+
+function lcApplyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const firstText = [...el.childNodes].find(n => n.nodeType === Node.TEXT_NODE);
+    if (firstText) {
+      firstText.textContent = t(el.dataset.i18n);
+    } else {
+      el.textContent = t(el.dataset.i18n);
+    }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+}
+
+function lcBuildLangPicker(navEl) {
+  const rail = navEl.querySelector('#lc-sensor-rail');
+  if (!rail) return;
+  const wrap = document.createElement('span');
+  wrap.className = 'lc-sensor lc-lang-picker';
+  wrap.id = 'lc-s-lang';
+  const sel = document.createElement('select');
+  sel.id = 'lc-lang-select';
+  sel.setAttribute('aria-label', 'Language');
+  _locales.forEach(loc => {
+    const opt = document.createElement('option');
+    opt.value = loc.code;
+    opt.textContent = loc.label;
+    if (loc.code === _activeLang) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', async () => {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'ui:language', value: sel.value }),
+      });
+    } catch (_) { /* best-effort; reload anyway */ }
+    location.reload();
+  });
+  wrap.appendChild(sel);
+  rail.appendChild(wrap);
+}
+
+async function lcInit() {
+  await lcI18nLoad();
   const navEl = document.querySelector('.lc-nav');
   if (navEl) {
-    navEl.innerHTML = NAV_HTML;
+    navEl.innerHTML = buildNavHTML();
 
-    // 2. Set active pill
+    // Set active pill
     const page = document.body.dataset.page || '';
     const activeKey = UTILITIES_SUBPAGES.includes(page) ? 'utilities' : page;
     const pill = navEl.querySelector(`[data-nav="${activeKey}"]`);
     if (pill) pill.classList.add('active');
+    lcBuildLangPicker(navEl);
   }
+  lcApplyI18n();
 
-  // 3. Start sensor rail polling
+  // Start sensor rail polling
   lcPollSensors();
   setInterval(lcPollSensors, 5000);
 
-  // 4. Init shared toast
+  // Init shared toast
   if (!document.getElementById('lc-toast')) {
-    const t = document.createElement('div');
-    t.id = 'lc-toast';
-    t.className = 'lc-toast';
-    document.body.appendChild(t);
+    const toastEl = document.createElement('div');
+    toastEl.id = 'lc-toast';
+    toastEl.className = 'lc-toast';
+    document.body.appendChild(toastEl);
   }
 }
 
@@ -106,15 +196,15 @@ function _diskClass(v) { return v > 90 ? 'err' : v > 75 ? 'warn' : 'ok'; }
 
 /** Shared toast helper — replaces per-page showToast() */
 function lcToast(msg, isErr = false) {
-  const t = document.getElementById('lc-toast');
-  if (!t) return;
-  t.textContent = msg;
-  t.className = 'lc-toast' + (isErr ? ' err' : '');
+  const toastEl = document.getElementById('lc-toast');
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.className = 'lc-toast' + (isErr ? ' err' : '');
   // force reflow
-  void t.offsetWidth;
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 2800);
+  void toastEl.offsetWidth;
+  toastEl.classList.add('show');
+  clearTimeout(toastEl._timer);
+  toastEl._timer = setTimeout(() => toastEl.classList.remove('show'), 2800);
 }
 
 /** Accordion toggle for bar badges used in settings + utilities */
@@ -139,4 +229,4 @@ function lcAccordion(badge) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', lcInit);
+document.addEventListener('DOMContentLoaded', () => lcInit());
