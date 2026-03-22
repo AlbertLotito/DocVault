@@ -307,6 +307,14 @@ class Settings:
                 'label': 'Benchmark samples per type', 'group': 'lab',
                 'description': 'Number of COMPLETED files per type sampled during benchmark runs and optimizer mini-benchmarks. Random selection, no fixed seed.',
             },
+            # UI
+            'ui:language': {
+                'type': 'string',
+                'default': '',
+                'label': 'Interface Language',
+                'group': 'ui',
+                'description': 'Override the interface language. Empty = use browser default.',
+            },
         }
 
     def get(self, key: str):

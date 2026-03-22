@@ -67,21 +67,21 @@
 
     <!-- == TOP: Vault Status ============================== -->
     <div class="lc-section-title" style="padding-top:14px;">
-      Vault Status
+      <span data-i18n="vault.header.title">Vault Status</span>
       <div class="vault-worker-controls">
-        <button class="lc-btn lc-btn-sm" onclick="openAddVaultWizard()">+ Add Vault</button>
-        <button class="lc-btn lc-btn-sm" onclick="pauseWorkers()">Pause</button>
-        <button class="lc-btn lc-btn-sm" onclick="resumeWorkers()">Resume</button>
-        <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="resetStuck()">Reset Stuck</button>
+        <button class="lc-btn lc-btn-sm" onclick="openAddVaultWizard()" data-i18n="vault.header.add">+ Add Vault</button>
+        <button class="lc-btn lc-btn-sm" onclick="pauseWorkers()" data-i18n="vault.header.pause">Pause</button>
+        <button class="lc-btn lc-btn-sm" onclick="resumeWorkers()" data-i18n="vault.header.resume">Resume</button>
+        <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="resetStuck()" data-i18n="vault.header.reset_stuck">Reset Stuck</button>
       </div>
     </div>
 
     <!-- Embedding progress card (hidden when idle) -->
     <div id="embed-progress-card" style="display:none;margin-bottom:12px;">
       <div class="lc-bar-badge" style="cursor:default;justify-content:space-between;align-items:center;padding:8px 14px;gap:12px;">
-        <span style="color:var(--c-accent);font-size:11px;font-weight:700;letter-spacing:.08em;white-space:nowrap;">EMBEDDING</span>
+        <span data-i18n="vault.embedding.label" style="color:var(--c-accent);font-size:11px;font-weight:700;letter-spacing:.08em;white-space:nowrap;">EMBEDDING</span>
         <span id="ep-filename" style="color:var(--c-accent);font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 12px;"></span>
-        <span style="font-size:11px;color:var(--c-label-dim);">ETA&nbsp;<span id="ep-eta" style="color:var(--c-value);">—</span></span>
+        <span style="font-size:11px;color:var(--c-label-dim);"><span data-i18n="vault.embedding.eta">ETA</span>&nbsp;<span id="ep-eta" style="color:var(--c-value);">—</span></span>
         <span id="ep-pct" style="color:var(--c-value);font-size:13px;font-weight:700;min-width:36px;text-align:right;"></span>
       </div>
       <div style="padding:6px 14px 10px;">
@@ -90,7 +90,7 @@
         </div>
         <div style="display:flex;justify-content:space-between;">
           <span id="ep-chunks" style="font-size:11px;color:var(--c-label-dim);"></span>
-          <span style="font-size:11px;color:var(--c-label-dim);">elapsed&nbsp;<span id="ep-elapsed" style="color:var(--c-value);">—</span></span>
+          <span style="font-size:11px;color:var(--c-label-dim);"><span data-i18n="vault.embedding.elapsed">elapsed</span>&nbsp;<span id="ep-elapsed" style="color:var(--c-value);">—</span></span>
         </div>
       </div>
     </div>
@@ -107,56 +107,56 @@
 
     <!-- Unknown file types strip -->
     <div id="unknowns-section" style="display:none;">
-      <div class="lc-section-title" style="font-size:10px;">Unknown File Types</div>
+      <div class="lc-section-title" style="font-size:10px;" data-i18n="vault.unknowns.heading">Unknown File Types</div>
       <div class="unknown-row" id="unknowns-row"></div>
     </div>
 
     <!-- == DIVIDER ======================================== -->
-    <div class="lc-divider"><div class="lc-divider-label">Vault Log</div></div>
+    <div class="lc-divider"><div class="lc-divider-label" data-i18n="vault.log.divider">Vault Log</div></div>
 
     <!-- == BOTTOM: Vault Log ============================== -->
     <div id="vault-log-section">
-      <div class="lc-section-title">Recent Files</div>
+      <div class="lc-section-title" data-i18n="vault.log.heading">Recent Files</div>
 
       <div class="lc-filters" id="filter-bar">
-        <div class="lc-filter-pill active" data-filter="ALL" onclick="setFilter('ALL',this)">All</div>
-        <div class="lc-filter-pill" data-filter="COMPLETED"  onclick="setFilter('COMPLETED',this)">Completed</div>
-        <div class="lc-filter-pill" data-filter="PROCESSING" onclick="setFilter('PROCESSING',this)">Processing</div>
-        <div class="lc-filter-pill" data-filter="PENDING"    onclick="setFilter('PENDING',this)">Pending</div>
-        <div class="lc-filter-pill" data-filter="ERROR"      onclick="setFilter('ERROR',this)">Error</div>
-        <div class="lc-filter-pill" data-filter="UNKNOWN"    onclick="setFilter('UNKNOWN',this)">Unknown</div>
+        <div class="lc-filter-pill active" data-filter="ALL" onclick="setFilter('ALL',this)" data-i18n="vault.filter.all">All</div>
+        <div class="lc-filter-pill" data-filter="COMPLETED"  onclick="setFilter('COMPLETED',this)" data-i18n="vault.filter.completed">Completed</div>
+        <div class="lc-filter-pill" data-filter="PROCESSING" onclick="setFilter('PROCESSING',this)" data-i18n="vault.filter.processing">Processing</div>
+        <div class="lc-filter-pill" data-filter="PENDING"    onclick="setFilter('PENDING',this)" data-i18n="vault.filter.pending">Pending</div>
+        <div class="lc-filter-pill" data-filter="ERROR"      onclick="setFilter('ERROR',this)" data-i18n="vault.filter.error">Error</div>
+        <div class="lc-filter-pill" data-filter="UNKNOWN"    onclick="setFilter('UNKNOWN',this)" data-i18n="vault.filter.unknown">Unknown</div>
         <!-- vault filter pills appended by loadVaultFilter() -->
       </div>
 
       <!-- Type filter input -->
       <div style="padding:0 20px 10px;">
-        <input id="filter-type" class="lc-input" style="max-width:220px;" placeholder="Filter by type (e.g. pdf)" onchange="g_currentPage=1;loadCatalog()">
+        <input id="filter-type" class="lc-input" style="max-width:220px;" placeholder="Filter by type (e.g. pdf)" data-i18n-placeholder="vault.filter.type_placeholder" onchange="g_currentPage=1;loadCatalog()">
       </div>
 
       <div class="lc-table-wrap">
         <table class="lc-table" id="catalog-table">
           <thead>
             <tr>
-              <th onclick="sortBy('file_path')">File <span id="sort-file_path"></span></th>
-              <th onclick="sortBy('file_type')">Type <span id="sort-file_type"></span></th>
-              <th onclick="sortBy('vault_id')">Vault <span id="sort-vault_id"></span></th>
-              <th onclick="sortBy('status')">Status <span id="sort-status"></span></th>
-              <th onclick="sortBy('file_size')">Size <span id="sort-file_size"></span></th>
-              <th onclick="sortBy('last_update')">Updated <span id="sort-last_update"></span></th>
+              <th onclick="sortBy('file_path')"><span data-i18n="vault.table.file">File</span> <span id="sort-file_path"></span></th>
+              <th onclick="sortBy('file_type')"><span data-i18n="vault.table.type">Type</span> <span id="sort-file_type"></span></th>
+              <th onclick="sortBy('vault_id')"><span data-i18n="vault.table.vault">Vault</span> <span id="sort-vault_id"></span></th>
+              <th onclick="sortBy('status')"><span data-i18n="vault.table.status">Status</span> <span id="sort-status"></span></th>
+              <th onclick="sortBy('file_size')"><span data-i18n="vault.table.size">Size</span> <span id="sort-file_size"></span></th>
+              <th onclick="sortBy('last_update')"><span data-i18n="vault.table.updated">Updated</span> <span id="sort-last_update"></span></th>
               <th></th>
             </tr>
           </thead>
           <tbody id="catalog-body">
-            <tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">Loading...</td></tr>
+            <tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;" data-i18n="vault.table.loading">Loading...</td></tr>
           </tbody>
         </table>
       </div>
 
       <!-- Pagination -->
       <div id="pagination" style="display:flex;gap:8px;padding:12px 20px;align-items:center;">
-        <button class="lc-btn lc-btn-sm" id="btn-prev" onclick="prevPage()">Prev</button>
+        <button class="lc-btn lc-btn-sm" id="btn-prev" onclick="prevPage()" data-i18n="vault.pagination.prev">Prev</button>
         <span id="page-info" style="font-size:11px;color:var(--c-label);">Page 1</span>
-        <button class="lc-btn lc-btn-sm" id="btn-next" onclick="nextPage()">Next</button>
+        <button class="lc-btn lc-btn-sm" id="btn-next" onclick="nextPage()" data-i18n="vault.pagination.next">Next</button>
       </div>
     </div>
 
@@ -167,7 +167,7 @@
     <div id="detail" style="max-width:680px;margin:40px auto;background:var(--c-surface);border:1px solid var(--c-border-str);border-top:3px solid var(--c-accent-dim);padding:24px;" onclick="event.stopPropagation()">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <span id="detail-title" style="color:var(--c-accent);font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;"></span>
-        <button onclick="closeDetail()" style="color:var(--c-label);font-size:18px;cursor:pointer;background:none;border:none;">&times;</button>
+        <button onclick="closeDetail()" style="color:var(--c-label);font-size:18px;cursor:pointer;background:none;border:none;" data-i18n="vault.modal.close">&times;</button>
       </div>
       <pre id="detail-text" style="font-size:11px;color:var(--c-label);background:var(--c-panel);padding:14px;white-space:pre-wrap;overflow-y:auto;max-height:60vh;border:1px solid var(--c-border);"></pre>
     </div>
@@ -175,62 +175,62 @@
 
   <!-- ctx-menu -->
   <div id="ctx-menu" class="lc-ctx-menu">
-    <div class="lc-ctx-item" onclick="ctxOpenFile()">Open File</div>
+    <div class="lc-ctx-item" onclick="ctxOpenFile()" data-i18n="vault.ctx_menu.open_file">Open File</div>
     <div class="lc-ctx-sep"></div>
-    <div class="lc-ctx-item" onclick="ctxOpenFolder()">Open Folder</div>
+    <div class="lc-ctx-item" onclick="ctxOpenFolder()" data-i18n="vault.ctx_menu.open_folder">Open Folder</div>
     <div class="lc-ctx-sep"></div>
-    <div class="lc-ctx-item" onclick="ctxInspect()">Inspect</div>
+    <div class="lc-ctx-item" onclick="ctxInspect()" data-i18n="vault.ctx_menu.inspect">Inspect</div>
     <div class="lc-ctx-sep"></div>
-    <div class="lc-ctx-item" onclick="ctxReprocess()">Reprocess</div>
+    <div class="lc-ctx-item" onclick="ctxReprocess()" data-i18n="vault.ctx_menu.reprocess">Reprocess</div>
   </div>
 
   <!-- stuck-banner -->
   <div id="stuck-banner" style="display:none;background:#220000;border-top:2px solid var(--c-error);padding:8px 20px;font-size:11px;color:var(--c-error);">
     <strong id="stuck-count"></strong>
-    <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="resetStuck()" style="margin-left:10px;">Reset</button>
+    <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="resetStuck()" style="margin-left:10px;" data-i18n="vault.stuck.reset">Reset</button>
   </div>
 
   <!-- Vault Config Modal (Add / Edit / Maintenance) -->
   <div id="vault-modal" class="lc-modal-backdrop">
     <div class="lc-modal" style="min-width:500px;max-width:640px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <div id="vault-modal-title" class="lc-modal-title" style="margin-bottom:0;">Add New Vault</div>
-        <button onclick="closeVaultModal()" style="color:var(--c-label);font-size:18px;cursor:pointer;background:none;border:none;">&times;</button>
+        <div id="vault-modal-title" class="lc-modal-title" style="margin-bottom:0;" data-i18n="vault.modal.title_add">Add New Vault</div>
+        <button onclick="closeVaultModal()" style="color:var(--c-label);font-size:18px;cursor:pointer;background:none;border:none;" data-i18n="vault.modal.close">&times;</button>
       </div>
 
       <!-- Tabs -->
       <div style="display:flex;gap:4px;border-bottom:1px solid var(--c-border);margin-bottom:14px;">
-        <button class="v-tab active" id="v-tab-identity" onclick="showVaultTab('identity')">1. Identity</button>
-        <button class="v-tab" id="v-tab-extractors" onclick="showVaultTab('extractors')">2. Kernels</button>
-        <button class="v-tab" id="v-tab-maintenance" onclick="showVaultTab('maintenance')">3. Maintenance</button>
+        <button class="v-tab active" id="v-tab-identity" onclick="showVaultTab('identity')" data-i18n="vault.modal.tab_identity">1. Identity</button>
+        <button class="v-tab" id="v-tab-extractors" onclick="showVaultTab('extractors')" data-i18n="vault.modal.tab_extractors">2. Kernels</button>
+        <button class="v-tab" id="v-tab-maintenance" onclick="showVaultTab('maintenance')" data-i18n="vault.modal.tab_maintenance">3. Maintenance</button>
       </div>
 
       <!-- Tab: Identity -->
       <div id="v-pane-identity" class="v-pane">
         <div class="v-field">
-          <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Vault Name</label>
-          <input type="text" id="v-input-name" class="lc-input" placeholder="e.g. Legal Documents">
+          <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;" data-i18n="vault.modal.label_name">Vault Name</label>
+          <input type="text" id="v-input-name" class="lc-input" placeholder="e.g. Legal Documents" data-i18n-placeholder="vault.modal.placeholder_name">
         </div>
         <div class="v-field">
-          <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Scan Directory</label>
+          <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;" data-i18n="vault.modal.label_path">Scan Directory</label>
           <div style="display:flex;gap:6px;">
-            <input type="text" id="v-input-path" class="lc-input" readonly placeholder="Select a folder..." style="flex:1;">
-            <button class="lc-btn lc-btn-sm" onclick="browseVaultPath()">Browse</button>
+            <input type="text" id="v-input-path" class="lc-input" readonly placeholder="Select a folder..." data-i18n-placeholder="vault.modal.placeholder_path" style="flex:1;">
+            <button class="lc-btn lc-btn-sm" onclick="browseVaultPath()" data-i18n="vault.modal.browse">Browse</button>
           </div>
         </div>
         <div class="v-field-row">
           <div>
-            <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Priority</label>
+            <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;" data-i18n="vault.modal.label_priority">Priority</label>
             <select id="v-input-priority" class="lc-input lc-select">
-              <option value="1">1 (Critical / Fast)</option>
-              <option value="3">3 (High)</option>
-              <option value="5" selected>5 (Standard)</option>
-              <option value="7">7 (Low)</option>
-              <option value="9">9 (Background / Slow)</option>
+              <option value="1" data-i18n="vault.modal.priority_1">1 (Critical / Fast)</option>
+              <option value="3" data-i18n="vault.modal.priority_3">3 (High)</option>
+              <option value="5" selected data-i18n="vault.modal.priority_5">5 (Standard)</option>
+              <option value="7" data-i18n="vault.modal.priority_7">7 (Low)</option>
+              <option value="9" data-i18n="vault.modal.priority_9">9 (Background / Slow)</option>
             </select>
           </div>
           <div>
-            <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;">Accent Color</label>
+            <label style="font-size:10px;color:var(--c-label);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;" data-i18n="vault.modal.label_color">Accent Color</label>
             <input type="color" id="v-input-color" value="#cc6600" style="width:100%;height:32px;background:var(--c-panel);border:1px solid var(--c-border-str);cursor:pointer;">
           </div>
         </div>
@@ -238,48 +238,49 @@
 
       <!-- Tab: Extractors -->
       <div id="v-pane-extractors" class="v-pane" style="display:none;">
-        <div style="font-size:11px;color:var(--c-label-dim);margin-bottom:10px;">Define which extraction kernels are active for this vault and their importance.</div>
+        <div style="font-size:11px;color:var(--c-label-dim);margin-bottom:10px;" data-i18n="vault.modal.extractor_desc">Define which extraction kernels are active for this vault and their importance.</div>
         <div id="v-extractor-list" style="max-height:340px;overflow-y:auto;">
-          <div style="color:var(--c-label-dim);font-size:11px;">Loading kernel registry...</div>
+          <div style="color:var(--c-label-dim);font-size:11px;" data-i18n="vault.modal.extractor_loading">Loading kernel registry...</div>
         </div>
       </div>
 
       <!-- Tab: Maintenance -->
       <div id="v-pane-maintenance" class="v-pane" style="display:none;">
-        <div id="v-maint-new-msg" style="font-size:11px;color:var(--c-label-dim);padding:14px;border:1px dashed var(--c-border-str);">Maintenance tools become available after the vault is created.</div>
+        <div id="v-maint-new-msg" style="font-size:11px;color:var(--c-label-dim);padding:14px;border:1px dashed var(--c-border-str);" data-i18n="vault.modal.maintenance_new">Maintenance tools become available after the vault is created.</div>
         <div id="v-maint-tools" style="display:none;">
           <button class="v-maint-btn" onclick="retryErrors()">
-            <div class="v-maint-title" style="color:var(--c-accent);">Retry Errors</div>
-            <div class="v-maint-desc">Resets all ERROR tasks back to PENDING so they are re-extracted.</div>
+            <div class="v-maint-title" style="color:var(--c-accent);" data-i18n="vault.modal.maint_retry">Retry Errors</div>
+            <div class="v-maint-desc" data-i18n="vault.modal.maint_retry_desc">Resets all ERROR tasks back to PENDING so they are re-extracted.</div>
           </button>
           <button class="v-maint-btn" onclick="confirmResetAction('reindex')">
-            <div class="v-maint-title" style="color:var(--c-accent);">Rebuild Vector Index</div>
-            <div class="v-maint-desc">Wipes embeddings and re-vectorizes all files.</div>
+            <div class="v-maint-title" style="color:var(--c-accent);" data-i18n="vault.modal.maint_reindex">Rebuild Vector Index</div>
+            <div class="v-maint-desc" data-i18n="vault.modal.maint_reindex_desc">Wipes embeddings and re-vectorizes all files.</div>
           </button>
           <button class="v-maint-btn" onclick="confirmResetAction('gut')">
-            <div class="v-maint-title" style="color:var(--c-warn);">Gut Vault (Full Reset)</div>
-            <div class="v-maint-desc">Deletes ALL extracted text and images.</div>
+            <div class="v-maint-title" style="color:var(--c-warn);" data-i18n="vault.modal.maint_gut">Gut Vault (Full Reset)</div>
+            <div class="v-maint-desc" data-i18n="vault.modal.maint_gut_desc">Deletes ALL extracted text and images.</div>
           </button>
           <button class="v-maint-btn" onclick="confirmResetAction('delete')">
-            <div class="v-maint-title" style="color:var(--c-error);">Delete Vault</div>
-            <div class="v-maint-desc">Removes this vault and all its data.</div>
+            <div class="v-maint-title" style="color:var(--c-error);" data-i18n="vault.modal.maint_delete">Delete Vault</div>
+            <div class="v-maint-desc" data-i18n="vault.modal.maint_delete_desc">Removes this vault and all its data.</div>
           </button>
         </div>
       </div>
 
       <!-- Confirm sub-pane -->
       <div id="confirm-step" class="v-confirm">
+        <div data-i18n="vault.modal.confirm_heading">WARNING</div>
         <p id="confirm-msg" style="font-size:12px;color:var(--c-error);font-weight:bold;margin-bottom:12px;"></p>
         <div style="display:flex;justify-content:flex-end;gap:8px;">
-          <button class="lc-btn lc-btn-sm" onclick="cancelReset()">Cancel</button>
-          <button id="btn-execute-reset" class="lc-btn lc-btn-sm lc-btn-danger">Yes, Proceed</button>
+          <button class="lc-btn lc-btn-sm" onclick="cancelReset()" data-i18n="vault.modal.cancel">Cancel</button>
+          <button id="btn-execute-reset" class="lc-btn lc-btn-sm lc-btn-danger" data-i18n="vault.modal.proceed">Yes, Proceed</button>
         </div>
       </div>
 
       <!-- Footer -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--c-border);">
-        <button class="lc-btn lc-btn-sm" onclick="closeVaultModal()">Cancel</button>
-        <button id="btn-vault-save" class="lc-btn lc-btn-primary" onclick="saveVaultConfig()">Save Vault</button>
+        <button class="lc-btn lc-btn-sm" onclick="closeVaultModal()" data-i18n="vault.modal.cancel">Cancel</button>
+        <button id="btn-vault-save" class="lc-btn lc-btn-primary" onclick="saveVaultConfig()" data-i18n="vault.modal.save">Save Vault</button>
       </div>
     </div>
   </div>
@@ -316,7 +317,7 @@
         document.getElementById('ep-eta').textContent      = fmtSecs(ep.eta_secs);
         document.getElementById('ep-elapsed').textContent  = fmtSecs(ep.elapsed_secs);
         const m = (ep.progress_text || '').match(/(\d+)\/(\d+)/);
-        document.getElementById('ep-chunks').textContent   = m ? `chunk ${m[1]} / ${m[2]}` : '';
+        document.getElementById('ep-chunks').textContent   = m ? t('vault.embedding.chunks', { current: m[1], total: m[2] }) : '';
       } catch (_) {}
     }
 
@@ -360,25 +361,25 @@
 
     // ── Stat tiles ──────────────────────────────────────────
     const STAT_TILES = [
-      { key: 'COMPLETED',  label: 'Completed',  color: 'var(--c-ok)'    },
-      { key: 'PROCESSING', label: 'Processing', color: 'var(--c-proc)'   },
-      { key: 'PENDING',    label: 'Pending',    color: 'var(--c-pend)'   },
-      { key: 'ERROR',      label: 'Error',      color: 'var(--c-error)'  },
-      { key: 'UNKNOWN',    label: 'Unknown',    color: 'var(--c-unk)'    },
-      { key: 'TOTAL',      label: 'Total',      color: 'var(--c-accent-dim)' },
+      { key: 'COMPLETED',  labelKey: 'vault.stats.completed',  color: 'var(--c-ok)'    },
+      { key: 'PROCESSING', labelKey: 'vault.stats.processing', color: 'var(--c-proc)'   },
+      { key: 'PENDING',    labelKey: 'vault.stats.pending',    color: 'var(--c-pend)'   },
+      { key: 'ERROR',      labelKey: 'vault.stats.error',      color: 'var(--c-error)'  },
+      { key: 'UNKNOWN',    labelKey: 'vault.stats.unknown',    color: 'var(--c-unk)'    },
+      { key: 'TOTAL',      labelKey: 'vault.stats.total',      color: 'var(--c-accent-dim)' },
     ];
 
     async function loadStats() {
       try {
         var s = await api('/stats');
         var grid = document.getElementById('stat-grid');
-        grid.innerHTML = STAT_TILES.map(function(t) {
-          var apiKey = t.key.toLowerCase();
+        grid.innerHTML = STAT_TILES.map(function(tile) {
+          var apiKey = tile.key.toLowerCase();
           var val = s[apiKey] || 0;
-          var filterVal = (t.key === 'TOTAL') ? 'ALL' : t.key;
-          return '<div class="lc-stat-tile" onclick="setFilter(\'' + filterVal + '\');scrollToLog();" style="border-left-color:' + t.color + '">' +
-            '<div class="lc-stat-val" style="color:' + t.color + '">' + val + '</div>' +
-            '<div class="lc-stat-lbl">' + t.label + '</div></div>';
+          var filterVal = (tile.key === 'TOTAL') ? 'ALL' : tile.key;
+          return '<div class="lc-stat-tile" onclick="setFilter(\'' + filterVal + '\');scrollToLog();" style="border-left-color:' + tile.color + '">' +
+            '<div class="lc-stat-val" style="color:' + tile.color + '">' + val + '</div>' +
+            '<div class="lc-stat-lbl">' + t(tile.labelKey) + '</div></div>';
         }).join('');
 
         // Check for stuck tasks
@@ -388,7 +389,7 @@
           var banner = document.getElementById('stuck-banner');
           if (stuckIssue) {
             document.getElementById('stuck-count').textContent =
-              stuckIssue.count + ' task' + (stuckIssue.count !== 1 ? 's' : '') + ' stuck (inactive >10 min).';
+              t('vault.stuck.message', { count: stuckIssue.count });
             banner.style.display = '';
           } else {
             banner.style.display = 'none';
@@ -420,16 +421,16 @@
                 stateBadge +
               '</div>' +
               '<div class="lc-vault-path" title="' + escapeAttr(v.scan_directory) + '">' + _esc(v.scan_directory) + '</div>' +
-              '<div class="lc-vault-meta">Priority <span>' + v.priority + '</span></div>' +
+              '<div class="lc-vault-meta">' + t('vault.card.priority_label') + ' <span>' + v.priority + '</span></div>' +
               '<div style="display:flex;gap:10px;font-size:11px;margin-top:4px;">' +
-                '<a href="javascript:void(0)" onclick="setFilter(\'ALL\');setVaultFilter(\'' + v.vault_id + '\');scrollToLog();" style="color:var(--c-accent);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">View Files</a>' +
+                '<a href="javascript:void(0)" onclick="setFilter(\'ALL\');setVaultFilter(\'' + v.vault_id + '\');scrollToLog();" style="color:var(--c-accent);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">' + t('vault.card.view_files') + '</a>' +
                 '<span style="color:var(--c-border-str);">|</span>' +
-                '<a href="javascript:void(0)" onclick="openVaultManagement(\'' + v.vault_id + '\',\'' + escapeAttr(v.name) + '\')" style="color:var(--c-error);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">Manage</a>' +
+                '<a href="javascript:void(0)" onclick="openVaultManagement(\'' + v.vault_id + '\',\'' + escapeAttr(v.name) + '\')" style="color:var(--c-error);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">' + t('vault.card.manage') + '</a>' +
               '</div>' +
             '</div>';
         }).join('');
       } catch(e) {
-        container.innerHTML = '<div style="color:var(--c-error);font-size:11px;padding:10px;">Could not load vaults.</div>';
+        container.innerHTML = '<div style="color:var(--c-error);font-size:11px;padding:10px;">' + t('vault.toast.could_not_load_vaults') + '</div>';
       }
     }
 
@@ -454,23 +455,23 @@
     // ── Worker controls ─────────────────────────────────────
     async function pauseWorkers() {
       await api('/workers/pause', { method: 'POST' });
-      lcToast('Workers paused');
+      lcToast(t('vault.toast.paused'));
     }
 
     async function resumeWorkers() {
       await api('/workers/resume', { method: 'POST' });
-      lcToast('Workers resumed');
+      lcToast(t('vault.toast.resumed'));
     }
 
     async function resetStuck() {
       try {
         var r = await api('/workers/reset_stuck', { method: 'POST' });
         document.getElementById('stuck-banner').style.display = 'none';
-        lcToast('Reset ' + r.reset + ' stuck task(s) back to PENDING.');
+        lcToast(t('vault.toast.reset', { count: r.reset }));
         loadStats();
         loadCatalog();
       } catch(e) {
-        lcToast('Reset failed: ' + e.message, true);
+        lcToast(t('vault.toast.reset_failed', { error: e.message }), true);
       }
     }
 
@@ -555,9 +556,9 @@
       var start = (g_currentPage - 1) * g_pageSize + 1;
       var end = Math.min(g_currentPage * g_pageSize, g_totalMatches);
       if (g_totalMatches === 0) {
-        info.textContent = 'No items found';
+        info.textContent = t('vault.pagination.no_items');
       } else {
-        info.textContent = 'Showing ' + start + '-' + end + ' of ' + g_totalMatches;
+        info.textContent = t('vault.pagination.showing', { start: start, end: end, total: g_totalMatches });
       }
       prev.disabled = (g_currentPage === 1);
       next.disabled = (end >= g_totalMatches);
@@ -581,11 +582,11 @@
         updatePaginationControls();
 
         if (!items) {
-          body.innerHTML = '<tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">Failed to load items.</td></tr>';
+          body.innerHTML = '<tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">' + t('vault.table.failed') + '</td></tr>';
           return;
         }
         if (items.length === 0) {
-          body.innerHTML = '<tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">No items match filters.</td></tr>';
+          body.innerHTML = '<tr><td colspan="7" style="color:var(--c-label-dim);text-align:center;padding:20px;">' + t('vault.table.no_match') + '</td></tr>';
           return;
         }
 
@@ -647,10 +648,10 @@
         document.getElementById('detail-title').textContent =
           formatPath(item.file_path) + ' [' + item.file_type + ']';
         document.getElementById('detail-text').textContent =
-          item.extracted_text || item.error_log || '(No content to display)';
+          item.extracted_text || item.error_log || t('vault.detail.no_content');
         document.getElementById('detail-overlay').style.display = '';
       } catch(e) {
-        lcToast('Could not load detail: ' + e.message, true);
+        lcToast(t('vault.toast.load_detail_failed', { error: e.message }), true);
       }
     }
 
@@ -706,10 +707,10 @@
       hideCtxMenu();
       try {
         await api('/catalog/' + hash + '/reprocess', { method: 'POST' });
-        lcToast('Reprocessing queued');
+        lcToast(t('vault.toast.reprocess_queued'));
         loadCatalog();
       } catch(e) {
-        lcToast('Reprocess failed: ' + e.message, true);
+        lcToast(t('vault.toast.reprocess_failed', { error: e.message }), true);
       }
     }
 
@@ -731,12 +732,12 @@
 
     function openAddVaultWizard() {
       activeVaultId = null;
-      document.getElementById('vault-modal-title').textContent = 'Add New Vault';
+      document.getElementById('vault-modal-title').textContent = t('vault.modal.title_add');
       document.getElementById('v-input-name').value = '';
       document.getElementById('v-input-path').value = '';
       document.getElementById('v-input-priority').value = '5';
       document.getElementById('v-input-color').value = '#cc6600';
-      document.getElementById('btn-vault-save').textContent = 'Create Vault';
+      document.getElementById('btn-vault-save').textContent = t('vault.modal.create');
 
       document.getElementById('v-maint-new-msg').style.display = '';
       document.getElementById('v-maint-tools').style.display = 'none';
@@ -750,12 +751,12 @@
       activeVaultId = id;
       try {
         var v = await api('/vaults/' + id);
-        document.getElementById('vault-modal-title').textContent = 'Manage: ' + v.name;
+        document.getElementById('vault-modal-title').textContent = t('vault.modal.manage', { name: v.name });
         document.getElementById('v-input-name').value = v.name;
         document.getElementById('v-input-path').value = v.scan_directory;
         document.getElementById('v-input-priority').value = v.priority;
         document.getElementById('v-input-color').value = v.color || '#cc6600';
-        document.getElementById('btn-vault-save').textContent = 'Save Changes';
+        document.getElementById('btn-vault-save').textContent = t('vault.modal.save_changes');
 
         document.getElementById('v-maint-new-msg').style.display = 'none';
         document.getElementById('v-maint-tools').style.display = '';
@@ -801,9 +802,9 @@
               '<input type="checkbox" class="v-kernel-check" data-name="' + k.name + '" ' + (vConfig.enabled ? 'checked' : '') + '>' +
               '<div style="flex:1;">' +
                 '<div class="v-kernel-name">' + k.name + '</div>' +
-                '<div class="v-kernel-meta">' + k.settings.length + ' configurable settings</div>' +
+                '<div class="v-kernel-meta">' + k.settings.length + ' ' + t('vault.card.configurable_settings') + '</div>' +
               '</div>' +
-              '<span style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">Pri:</span>' +
+              '<span style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">' + t('vault.card.priority_short') + '</span>' +
               '<input type="number" class="lc-input v-kernel-pri v-kernel-priority" data-name="' + k.name + '" value="' + vConfig.priority + '" min="1" max="99">' +
             '</div>';
         }).join('');
@@ -821,7 +822,7 @@
         color: document.getElementById('v-input-color').value
       };
       if (!payload.name || !payload.scan_directory) {
-        lcToast('Name and Path are required.', true);
+        lcToast(t('vault.toast.required'), true);
         return;
       }
       btn.disabled = true;
@@ -845,10 +846,10 @@
         await api('/vaults/' + activeVaultId + '/extractors', { method: 'POST', body: JSON.stringify(extractorConfig) });
 
         closeVaultModal();
-        lcToast('Vault saved');
+        lcToast(t('vault.toast.saved'));
         refreshAll();
       } catch(err) {
-        lcToast('Save failed: ' + err.message, true);
+        lcToast(t('vault.toast.save_failed', { error: err.message }), true);
       } finally {
         btn.disabled = false;
         btn.textContent = origText;
@@ -864,10 +865,10 @@
       if (!activeVaultId) return;
       try {
         var r = await api('/vaults/' + activeVaultId + '/retry_errors', { method: 'POST' });
-        lcToast('Reset ' + r.reset + ' error task(s) to PENDING.');
+        lcToast(t('vault.toast.reset', { count: r.reset }));
         refreshAll();
       } catch(err) {
-        lcToast('Retry failed: ' + err.message, true);
+        lcToast(t('vault.toast.reset_failed', { error: err.message }), true);
       }
     }
 
@@ -878,11 +879,11 @@
       var btn = document.getElementById('btn-execute-reset');
       step.classList.add('open');
       if (action === 'reindex') {
-        msg.textContent = 'WARNING: This will wipe all search vectors for this vault. Files will be re-embedded automatically. Extracted text remains safe.';
+        msg.textContent = t('vault.modal.confirm_reindex');
       } else if (action === 'gut') {
-        msg.textContent = 'DANGER: This will delete ALL extracted text, images, and history for this vault. DocVault will behave as if it has never seen these files.';
+        msg.textContent = t('vault.modal.confirm_gut');
       } else if (action === 'delete') {
-        msg.textContent = 'CRITICAL: This will permanently remove this vault and all its data from DocVault. (Your actual files on disk are never touched).';
+        msg.textContent = t('vault.modal.confirm_delete');
       }
       btn.onclick = executeVaultReset;
     }
@@ -905,10 +906,10 @@
         else if (activeResetAction === 'delete') endpoint = '/vaults/' + activeVaultId + '/delete';
         await api(endpoint, { method: 'POST' });
         closeVaultModal();
-        lcToast('Vault operation completed');
+        lcToast(t('vault.toast.operation_completed'));
         refreshAll();
       } catch(err) {
-        lcToast('Operation failed: ' + err.message, true);
+        lcToast(t('vault.toast.operation_failed', { error: err.message }), true);
       } finally {
         btn.disabled = false;
         btn.textContent = origText;
@@ -926,7 +927,7 @@
       loadCatalog();
     }
 
-    window.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('lc:ready', function() {
       // URL param handling
       var p = new URLSearchParams(location.search);
       if (p.get('status')) {

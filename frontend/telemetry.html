@@ -448,8 +448,8 @@
     <div class="lc-modal-backdrop" id="stuckModal">
         <div class="lc-modal" style="max-width: 800px; width: 90%;">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--c-border-str); padding-bottom:1rem; margin-bottom:1.5rem;">
-                <div class="lc-modal-title" style="margin-bottom:0;">Stuck Task Recovery</div>
-                <button class="lc-btn" onclick="closeModal()">CLOSE</button>
+                <div class="lc-modal-title" style="margin-bottom:0;" data-i18n="telemetry.stuck_modal_title">Stuck Task Recovery</div>
+                <button class="lc-btn" onclick="closeModal()" data-i18n="telemetry.stuck_modal_close">CLOSE</button>
             </div>
             <div id="modalBody">
                 <!-- Content injected here -->
@@ -466,12 +466,12 @@
                 <span id="updateTimer" style="font-size: 0.7rem; opacity: 0.6">SYNCING...</span>
             </div>
             <div class="controls">
-                <button class="lc-filter-pill active" id="btn-hw" onclick="showTab('hardware')">HW</button>
-                <button class="lc-filter-pill" id="btn-perf" onclick="showTab('perf')">PERF</button>
-                <button class="lc-filter-pill active" onclick="setHistoryHours(1)" id="btn1h">1H</button>
-                <button class="lc-filter-pill" onclick="setHistoryHours(24)" id="btn24h">24H</button>
-                <button class="lc-filter-pill" onclick="toggleFullScreen()">FULL</button>
-                <button class="lc-filter-pill" onclick="location.href='/utils'">EXIT</button>
+                <button class="lc-filter-pill active" id="btn-hw" onclick="showTab('hardware')" data-i18n="telemetry.tab_hw">HW</button>
+                <button class="lc-filter-pill" id="btn-perf" onclick="showTab('perf')" data-i18n="telemetry.tab_perf">PERF</button>
+                <button class="lc-filter-pill active" onclick="setHistoryHours(1)" id="btn1h" data-i18n="telemetry.btn_1h">1H</button>
+                <button class="lc-filter-pill" onclick="setHistoryHours(24)" id="btn24h" data-i18n="telemetry.btn_24h">24H</button>
+                <button class="lc-filter-pill" onclick="toggleFullScreen()" data-i18n="telemetry.btn_full">FULL</button>
+                <button class="lc-filter-pill" onclick="location.href='/utils'" data-i18n="telemetry.btn_exit">EXIT</button>
             </div>
         </header>
 
@@ -491,7 +491,7 @@
         <div class="sensor-grid">
             <!-- CPU -->
             <div class="sensor-card">
-                <div class="sensor-label">CPU CORE</div>
+                <div class="sensor-label" data-i18n="telemetry.cpu_label">CPU CORE</div>
                 <div class="sensor-value" id="cpu-val">--%</div>
                 <div class="gauge-container">
                     <svg class="gauge-ring" viewBox="0 0 120 120">
@@ -506,7 +506,7 @@
 
             <!-- GPU -->
             <div class="sensor-card">
-                <div class="sensor-label">GPU TEMP</div>
+                <div class="sensor-label" data-i18n="telemetry.gpu_label">GPU TEMP</div>
                 <div class="sensor-value" id="gpu-val">--°C</div>
                 <div class="gauge-container">
                     <svg class="gauge-ring" viewBox="0 0 120 120">
@@ -522,7 +522,7 @@
 
             <!-- RAM -->
             <div class="sensor-card">
-                <div class="sensor-label">RAM USAGE</div>
+                <div class="sensor-label" data-i18n="telemetry.ram_label">RAM USAGE</div>
                 <div class="sensor-value" id="ram-val">-- GB</div>
                 <div class="gauge-container">
                     <svg class="gauge-ring" viewBox="0 0 120 120">
@@ -537,7 +537,7 @@
 
             <!-- DISK -->
             <div class="sensor-card">
-                <div class="sensor-label">DISK FREE</div>
+                <div class="sensor-label" data-i18n="telemetry.disk_label">DISK FREE</div>
                 <div class="sensor-value" id="disk-val">-- GB</div>
                 <div class="gauge-container">
                     <svg class="gauge-ring" viewBox="0 0 120 120">
@@ -554,16 +554,16 @@
         <div class="runtime-section">
             <div class="runtime-card">
                 <div class="section-header">
-                    <span>Active Workers</span>
+                    <span data-i18n="telemetry.workers_title">Active Workers</span>
                     <span id="worker-count">0</span>
                 </div>
                 <div id="worker-list">
-                    <div style="font-size: 0.8rem; opacity: 0.4">No active processes.</div>
+                    <div style="font-size: 0.8rem; opacity: 0.4" data-i18n="telemetry.no_tasks">No active processes.</div>
                 </div>
             </div>
             <div class="runtime-card">
                 <div class="section-header">
-                    <span>Upcoming Tasks</span>
+                    <span data-i18n="telemetry.queue_title">Upcoming Tasks</span>
                     <span id="queue-count">0</span>
                 </div>
                 <div id="queue-list">
@@ -579,7 +579,7 @@
           <!-- Extractor bar chart -->
           <div class="runtime-card" style="margin-bottom: 2rem;">
             <div class="section-header">
-              <span>EXTRACTOR TIMINGS</span>
+              <span data-i18n="telemetry.extractor_timings">EXTRACTOR TIMINGS</span>
               <span id="perf-updated" style="font-size:0.65rem;opacity:0.4">—</span>
             </div>
             <div id="extractor-bars">
@@ -590,7 +590,7 @@
           <!-- Throughput trend -->
           <div class="runtime-card" style="margin-bottom: 2rem;">
             <div class="section-header">
-              <span>THROUGHPUT TREND</span>
+              <span data-i18n="telemetry.throughput_title">THROUGHPUT TREND</span>
               <div style="display:flex;gap:0.5rem">
                 <button class="lc-filter-pill active" id="tp-24h" onclick="setThroughputRange('24h')" style="font-size:10px;padding:0.2rem 0.5rem">24H</button>
                 <button class="lc-filter-pill" id="tp-7d" onclick="setThroughputRange('7d')" style="font-size:10px;padding:0.2rem 0.5rem">7D</button>
@@ -609,7 +609,7 @@
 
           <!-- Benchmark run history -->
           <div class="runtime-card">
-            <div class="section-header"><span>BENCHMARK RUN HISTORY</span></div>
+            <div class="section-header"><span data-i18n="telemetry.bench_title">BENCHMARK RUN HISTORY</span></div>
             <div id="bench-history">
               <div style="font-size:0.8rem;opacity:0.4">No benchmark runs recorded. Run: python tools/benchmark.py</div>
             </div>
@@ -619,6 +619,7 @@
     </div>
 
     <script src="static/app.js"></script>
+    <script src="/static/lcars.js"></script>
     <script>
         let historyHours = 1;
         let updateInterval = 15;
@@ -683,25 +684,25 @@
                 .filter(s => data.counts[s])
                 .map(s => `<a href="/vault?status=${s}" class="health-badge ${badgeClasses[s]}">${s} ${data.counts[s]}</a>`)
                 .join('');
-            
+
             // Qdrant Status
             const qColor = data.qdrant.ok ? 'badge-emerald' : 'badge-ruby';
             html += `<span class="health-badge ${qColor}">QDRANT ${data.qdrant.ok ? 'OK' : 'OFFLINE'}</span>`;
-            
+
             summaryEl.innerHTML = html;
 
             // Render Critical Alerts (Top 2)
             const criticalIssues = data.issues.filter(i => i.severity === 'error' || i.severity === 'warning').slice(0, 2);
             if (criticalIssues.length > 0) {
                 alertsEl.innerHTML = criticalIssues.map(i => `
-                    <div class="alert-item" style="${i.id === 'stuck_processing' ? 'cursor:pointer' : ''}" 
+                    <div class="alert-item" style="${i.id === 'stuck_processing' ? 'cursor:pointer' : ''}"
                          onclick="${i.id === 'stuck_processing' ? 'showStuckTasks()' : ''}">
                         <span style="font-size: 1.2rem">!</span>
                         <span>${i.title.toUpperCase()}</span>
                     </div>
                 `).join('');
             } else {
-                alertsEl.innerHTML = '<span style="color: var(--emerald); opacity: 0.5; font-size: 10px">DIAGNOSTICS CLEAR</span>';
+                alertsEl.innerHTML = `<span style="color: var(--emerald); opacity: 0.5; font-size: 10px">${t('telemetry.health_clear')}</span>`;
             }
         }
 
@@ -714,7 +715,7 @@
             try {
                 const tasks = await api('/utils/stuck_tasks');
                 if (tasks.length === 0) {
-                    body.innerHTML = '<div style="color:var(--emerald); padding:2rem">NO STUCK TASKS DETECTED.</div>';
+                    body.innerHTML = `<div style="color:var(--emerald); padding:2rem">${t('telemetry.stuck_none')}</div>`;
                     return;
                 }
 
@@ -722,22 +723,22 @@
                     <table class="stuck-table">
                         <thead>
                             <tr>
-                                <th>File Name</th>
-                                <th>Vault</th>
-                                <th>Status</th>
-                                <th>Last Activity</th>
-                                <th>Actions</th>
+                                <th>${t('telemetry.stuck_table_file')}</th>
+                                <th>${t('telemetry.stuck_table_vault')}</th>
+                                <th>${t('telemetry.stuck_table_status')}</th>
+                                <th>${t('telemetry.stuck_table_activity')}</th>
+                                <th>${t('telemetry.stuck_table_actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${tasks.map(t => `
+                            ${tasks.map(task => `
                                 <tr class="stuck-row">
-                                    <td style="color:#fff">${escapeHtml(t.file_path.split(/[/\\]/).pop())}</td>
-                                    <td>${escapeHtml(t.vault_name || '---')}</td>
-                                    <td><span class="health-badge ${t.status === 'PROCESSING' ? 'badge-amber' : 'badge-slate'}">${escapeHtml(t.status)}</span></td>
-                                    <td>${new Date(t.last_update).toLocaleTimeString()}</td>
+                                    <td style="color:#fff">${escapeHtml(task.file_path.split(/[/\\]/).pop())}</td>
+                                    <td>${escapeHtml(task.vault_name || '---')}</td>
+                                    <td><span class="health-badge ${task.status === 'PROCESSING' ? 'badge-amber' : 'badge-slate'}">${escapeHtml(task.status)}</span></td>
+                                    <td>${new Date(task.last_update).toLocaleTimeString()}</td>
                                     <td>
-                                        <button class="btn-action btn-retry" onclick="retryTask('${escapeHtml(t.file_hash)}')">RETRY</button>
+                                        <button class="btn-action btn-retry" onclick="retryTask('${escapeHtml(task.file_hash)}')">${t('telemetry.stuck_retry')}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -823,7 +824,7 @@
             const pct = Math.min(value / max, 1);
             const offset = 314 - (314 * pct);
             circle.style.strokeDashoffset = offset;
-            
+
             // Color logic
             if (id === 'gpu' && thresholds) {
                 circle.style.stroke = value >= thresholds.gpu_temp_cooldown ? 'var(--ruby)' : (value >= thresholds.gpu_temp_throttle ? 'var(--amber)' : 'var(--emerald)');
@@ -840,21 +841,21 @@
             count.textContent = tasks.length;
 
             if (tasks.length === 0) {
-                list.innerHTML = '<div style="font-size: 0.8rem; opacity: 0.4">No active processes.</div>';
+                list.innerHTML = `<div style="font-size: 0.8rem; opacity: 0.4">${t('telemetry.no_tasks')}</div>`;
                 return;
             }
 
-            list.innerHTML = tasks.map(t => `
+            list.innerHTML = tasks.map(task => `
                 <div class="worker-item">
                     <div class="worker-info">
-                        <span class="worker-name">${t.file_path.split(/[/\\]/).pop()}</span>
-                        <a href="/vault?status=${t.status}" class="worker-status" style="text-decoration: none; transition: opacity 0.2s" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">${t.status}</a>
+                        <span class="worker-name">${task.file_path.split(/[/\\]/).pop()}</span>
+                        <a href="/vault?status=${task.status}" class="worker-status" style="text-decoration: none; transition: opacity 0.2s" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">${task.status}</a>
                     </div>
                     <div style="font-size: 0.65rem; margin-bottom: 4px; color: var(--slate); opacity: 0.7">
-                        ${t.progress_text || 'Initializing...'}
+                        ${task.progress_text || 'Initializing...'}
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${t.progress_pct}%"></div>
+                        <div class="progress-fill" style="width: ${task.progress_pct}%"></div>
                     </div>
                 </div>
             `).join('');
@@ -866,14 +867,14 @@
             count.textContent = data.total_matches;
 
             if (data.tasks.length === 0) {
-                list.innerHTML = '<div style="font-size: 0.8rem; opacity: 0.4">Queue is empty.</div>';
+                list.innerHTML = `<div style="font-size: 0.8rem; opacity: 0.4">${t('telemetry.queue_empty')}</div>`;
                 return;
             }
 
-            list.innerHTML = data.tasks.map(t => `
+            list.innerHTML = data.tasks.map(task => `
                 <div class="queue-item">
-                    <div class="queue-name">${t.file_path.split(/[/\\]/).pop()}</div>
-                    <div class="queue-priority">P${t.priority}</div>
+                    <div class="queue-name">${task.file_path.split(/[/\\]/).pop()}</div>
+                    <div class="queue-priority">P${task.priority}</div>
                 </div>
             `).join('');
         }
@@ -895,11 +896,11 @@
             if (values.length < 2) return;
 
             const step = w / (values.length - 1);
-            
+
             // Gradient fill
             const grad = ctx.createLinearGradient(0, 0, 0, h);
             let color = '51, 238, 119'; // Emerald default
-            
+
             if (type === 'gpu' && thresholds) {
                 const latest = values[values.length-1];
                 if (latest >= thresholds.gpu_temp_cooldown) color = '255, 68, 68';
@@ -911,7 +912,7 @@
 
             ctx.beginPath();
             ctx.moveTo(0, h);
-            
+
             for (let i = 0; i < values.length; i++) {
                 const x = i * step;
                 const y = h - (Math.min(values[i] / max, 1) * h);
@@ -1047,8 +1048,7 @@
               </div>`).join('');
         }
 
-        window.onload = init;
+        document.addEventListener('lc:ready', init);
     </script>
-    <script src="/static/lcars.js"></script>
 </body>
 </html>

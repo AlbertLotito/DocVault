@@ -77,7 +77,7 @@
   <div class="lc-nav"></div>
 
   <div class="lc-page lc-page-pad">
-    <div class="lc-section-title">Settings</div>
+    <div class="lc-section-title" data-i18n="settings.heading">Settings</div>
 
     <div style="padding:0 20px;">
       <div class="lc-bar-badges" id="settings-badges">
@@ -87,18 +87,18 @@
 
     <!-- Danger Zone -->
     <div class="danger-zone" id="danger-zone">
-      <div class="danger-zone-title">Danger Zone</div>
-      <div class="danger-zone-desc">These actions are destructive and cannot be undone.</div>
+      <div class="danger-zone-title" data-i18n="settings.danger_zone">Danger Zone</div>
+      <div class="danger-zone-desc" data-i18n="settings.danger_desc">These actions are destructive and cannot be undone.</div>
       <div class="danger-row">
         <div class="danger-row-text">
-          <div class="danger-row-name">Rebuild Vector Index</div>
-          <div class="danger-row-desc">
+          <div class="danger-row-name" data-i18n="settings.reindex_title">Rebuild Vector Index</div>
+          <div class="danger-row-desc" data-i18n="settings.reindex_desc">
             Wipes the Qdrant vector store and re-queues all documents for embedding.
             Extracted text, FTS search, file metadata, and settings are preserved.
             Semantic search and Ask chat will be unavailable until re-embedding completes.
           </div>
         </div>
-        <button onclick="startReindex()" class="lc-btn lc-btn-danger lc-btn-sm" style="white-space:nowrap;">
+        <button onclick="startReindex()" class="lc-btn lc-btn-danger lc-btn-sm" style="white-space:nowrap;" data-i18n="settings.reindex_btn">
           Rebuild Index
         </button>
       </div>
@@ -109,8 +109,8 @@
   <div id="reindex-modal" class="lc-modal-backdrop">
     <div class="lc-modal">
       <div id="reindex-step-1">
-        <div class="lc-modal-title">Rebuild Vector Index?</div>
-        <p style="font-size:12px;color:var(--c-label);margin-bottom:10px;line-height:1.6;">
+        <div class="lc-modal-title" data-i18n="settings.modal_title">Rebuild Vector Index?</div>
+        <p data-i18n="settings.modal_step1_body" style="font-size:12px;color:var(--c-label);margin-bottom:10px;line-height:1.6;">
           This will permanently delete all vectors from the Qdrant store and re-queue
           every document for re-embedding. The process runs in the background —
           semantic search and the Ask chat will return no results until it completes.
@@ -120,8 +120,8 @@
           <strong style="color:var(--c-error);">Lost:</strong> all current vectors (rebuilt automatically).
         </p>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button onclick="closeReindex()" class="lc-btn lc-btn-sm">Cancel</button>
-          <button onclick="reindexStep2()" class="lc-btn lc-btn-sm" style="border-color:#661111;color:#ff7766;">I understand, continue</button>
+          <button onclick="closeReindex()" class="lc-btn lc-btn-sm" data-i18n="settings.modal_cancel">Cancel</button>
+          <button onclick="reindexStep2()" class="lc-btn lc-btn-sm" style="border-color:#661111;color:#ff7766;" data-i18n="settings.modal_continue">I understand, continue</button>
         </div>
       </div>
       <div id="reindex-step-2" style="display:none;">
@@ -131,12 +131,12 @@
           This cannot be undone. All semantic search results and Ask chat answers will be
           unavailable until re-embedding finishes.
         </p>
-        <p style="font-size:13px;font-weight:bold;color:var(--c-error);margin-bottom:18px;">
+        <p data-i18n="settings.modal_step2_body" style="font-size:13px;font-weight:bold;color:var(--c-error);margin-bottom:18px;">
           Pressing "Yes, Wipe and Rebuild" will immediately delete all vectors. There is no undo.
         </p>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button onclick="closeReindex()" class="lc-btn lc-btn-sm">Cancel</button>
-          <button onclick="confirmReindex()" class="lc-btn lc-btn-sm lc-btn-danger" style="background:#330000;font-weight:bold;">
+          <button onclick="closeReindex()" class="lc-btn lc-btn-sm" data-i18n="settings.modal_cancel">Cancel</button>
+          <button onclick="confirmReindex()" class="lc-btn lc-btn-sm lc-btn-danger" style="background:#330000;font-weight:bold;" data-i18n="settings.modal_yes">
             Yes, Wipe and Rebuild
           </button>
         </div>
@@ -145,7 +145,7 @@
         <div style="font-size:28px;color:var(--c-ok);margin-bottom:10px;">✓</div>
         <div class="lc-modal-title">Reindex Started</div>
         <p id="reindex-done-msg" style="font-size:12px;color:var(--c-label);margin-bottom:18px;line-height:1.6;"></p>
-        <button onclick="closeReindex()" class="lc-btn lc-btn-sm lc-btn-primary">Close</button>
+        <button onclick="closeReindex()" class="lc-btn lc-btn-sm lc-btn-primary" data-i18n="settings.modal_close">Close</button>
       </div>
     </div>
   </div>
@@ -164,20 +164,21 @@
   <script src="/static/lcars.js"></script>
   <script>
     const GROUPS = [
-      { id: 'general',      label: 'General' },
-      { id: 'ollama',       label: 'Ollama' },
-      { id: 'qdrant',       label: 'Qdrant' },
-      { id: 'pdf',          label: 'PDF' },
-      { id: 'embeddings',   label: 'Embeddings' },
-      { id: 'search',       label: 'Search' },
-      { id: 'vision',       label: 'Vision' },
-      { id: 'video',        label: 'Video' },
-      { id: 'google',       label: 'Google' },
-      { id: 'bing',         label: 'Bing' },
-      { id: 'huggingface',  label: 'HuggingFace' },
-      { id: 'art',          label: 'Art' },
-      { id: 'monitor',      label: 'Monitor' },
-      { id: 'lab',          label: 'Lab' },
+      { id: 'general',      label: () => t('settings.group.general') },
+      { id: 'ollama',       label: () => t('settings.group.ollama') },
+      { id: 'qdrant',       label: () => t('settings.group.qdrant') },
+      { id: 'pdf',          label: () => t('settings.group.pdf') },
+      { id: 'embeddings',   label: () => t('settings.group.embeddings') },
+      { id: 'search',       label: () => t('settings.group.search') },
+      { id: 'vision',       label: () => t('settings.group.vision') },
+      { id: 'video',        label: () => t('settings.group.video') },
+      { id: 'google',       label: () => t('settings.group.google') },
+      { id: 'bing',         label: () => t('settings.group.bing') },
+      { id: 'huggingface',  label: () => t('settings.group.huggingface') },
+      { id: 'art',          label: () => t('settings.group.art') },
+      { id: 'monitor',      label: () => t('settings.group.monitor') },
+      { id: 'lab',          label: () => t('settings.group.lab') },
+      { id: 'ui',           label: () => t('settings.group.ui') },
     ];
 
     const GROUP_COLORS = {
@@ -209,7 +210,7 @@
         badge.innerHTML = `
           <div class="lc-bar-tab" style="background:${color};">${icon}</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">${escapeHtml(g.label)}</div>
+            <div class="lc-bar-name">${escapeHtml(g.label())}</div>
             <div class="lc-bar-desc" id="desc-count-${g.id}">Loading…</div>
             <div class="lc-bar-arrow">▶</div>
           </div>`;
@@ -240,10 +241,10 @@
         if (!expand) continue;
 
         const n = items.length;
-        if (countEl) countEl.textContent = `${n} setting${n !== 1 ? 's' : ''}`;
+        if (countEl) countEl.textContent = n === 1 ? t('settings.settings_count_one') : t('settings.settings_count_many', { n });
 
         if (n === 0) {
-          expand.innerHTML = '<div style="font-size:11px;color:var(--c-label-dim);">No settings in this group.</div>';
+          expand.innerHTML = `<div style="font-size:11px;color:var(--c-label-dim);">${t('settings.no_settings')}</div>`;
           continue;
         }
 
@@ -272,7 +273,7 @@
                 ${escapeHtml(s.label)}
                 ${hasDesc ? `<span class="desc-btn" onclick="showDesc(event,'${escapeAttr(s.label)}','${escapeAttr(s.description)}','${escapeAttr(s.key)}')">?</span>` : ''}
               </label>
-              <button class="lc-btn lc-btn-sm" onclick="saveSetting('${escapeAttr(s.key)}')">Save</button>
+              <button class="lc-btn lc-btn-sm" onclick="saveSetting('${escapeAttr(s.key)}')">${t('settings.save')}</button>
             </div>
             ${inputHtml}
             <div class="settings-key">${escapeHtml(s.key)}</div>
@@ -293,7 +294,7 @@
           body: JSON.stringify({ key, value }),
         });
         if (result.ok) {
-          lcToast('Saved.');
+          lcToast(t('settings.save_success'));
         } else {
           let detail = `HTTP ${result.status}`;
           try { detail = (await result.json()).detail; } catch (_) {}
@@ -321,7 +322,7 @@
       try {
         const result = await api('/utils/reindex', { method: 'POST' });
         document.getElementById('reindex-done-msg').textContent =
-          `Vector store wiped. ${result.reset_tasks} document(s) queued for re-embedding. The embedding worker will process them automatically.`;
+          t('settings.reindex_done', { count: result.reset_tasks });
       } catch (err) {
         document.getElementById('reindex-done-msg').textContent = `Error: ${err.message}`;
       }
@@ -361,7 +362,9 @@
       return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
-    loadSettings();
+    document.addEventListener('lc:ready', () => {
+      loadSettings();
+    });
   </script>
 </body>
 </html>

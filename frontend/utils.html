@@ -9,7 +9,7 @@
 <body data-page="utilities">
   <div class="lc-nav"></div>
   <div class="lc-page lc-page-pad">
-    <div class="lc-section-title">Utilities</div>
+    <div class="lc-section-title" data-i18n="utils.heading">Utilities</div>
     <div style="padding:0 20px;">
       <div class="lc-bar-badges">
 
@@ -17,8 +17,8 @@
         <a href="/lab" class="lc-bar-badge">
           <div class="lc-bar-tab" style="background:#cc6600;">&#9879;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Extractor Lab</div>
-            <div class="lc-bar-desc">Test kernels, certify extractors, simulate pipelines</div>
+            <div class="lc-bar-name" data-i18n="utils.lab_title">Extractor Lab</div>
+            <div class="lc-bar-desc" data-i18n="utils.lab_desc">Test kernels, certify extractors, simulate pipelines</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </a>
@@ -26,8 +26,8 @@
         <a href="/telemetry" class="lc-bar-badge">
           <div class="lc-bar-tab" style="background:#886600;">&#128225;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Telemetry</div>
-            <div class="lc-bar-desc">Live hardware gauges, worker timings, system health</div>
+            <div class="lc-bar-name" data-i18n="utils.telemetry_title">Telemetry</div>
+            <div class="lc-bar-desc" data-i18n="utils.telemetry_desc">Live hardware gauges, worker timings, system health</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </a>
@@ -35,8 +35,8 @@
         <a href="/optimizer" class="lc-bar-badge">
           <div class="lc-bar-tab" style="background:#664400;">&#9881;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Optimizer</div>
-            <div class="lc-bar-desc">Tune extraction parameters for maximum throughput</div>
+            <div class="lc-bar-name" data-i18n="utils.optimizer_title">Optimizer</div>
+            <div class="lc-bar-desc" data-i18n="utils.optimizer_desc">Tune extraction parameters for maximum throughput</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </a>
@@ -45,27 +45,27 @@
         <div class="lc-bar-badge" onclick="lcAccordion(this)">
           <div class="lc-bar-tab" style="background:#443300;">&#129657;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Health Check</div>
-            <div class="lc-bar-desc">Verify Ollama, Tesseract, Poppler connectivity</div>
+            <div class="lc-bar-name" data-i18n="utils.health_title">Health Check</div>
+            <div class="lc-bar-desc" data-i18n="utils.health_desc">Verify Ollama, Tesseract, Poppler connectivity</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
         <div class="lc-bar-expand" id="health-expand">
-          <button class="lc-btn lc-btn-sm" onclick="runHealthCheck()">Run Check</button>
+          <button class="lc-btn lc-btn-sm" onclick="runHealthCheck()" data-i18n="utils.health_run">Run Check</button>
           <div id="health-results" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
         </div>
 
         <div class="lc-bar-badge" onclick="lcAccordion(this)">
           <div class="lc-bar-tab" style="background:#334400;">&#9729;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Google Drive</div>
+            <div class="lc-bar-name" data-i18n="utils.gdrive_title">Google Drive</div>
             <div class="lc-bar-desc" id="gdrive-status-desc">Loading...</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
         <div class="lc-bar-expand" id="gdrive-expand">
           <div style="display:flex;gap:8px;align-items:center;">
-            <button class="lc-btn lc-btn-sm" id="gdrive-auth-btn" onclick="authoriseGDrive()">Authorise</button>
+            <button class="lc-btn lc-btn-sm" id="gdrive-auth-btn" onclick="authoriseGDrive()" data-i18n="utils.gdrive_auth">Authorise</button>
             <span id="gdrive-auth-status" style="font-size:11px;color:var(--c-label);"></span>
           </div>
           <div id="gdrive-content" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
@@ -74,26 +74,26 @@
         <div class="lc-bar-badge" onclick="lcAccordion(this)">
           <div class="lc-bar-tab" style="background:#2a3300;">&#11041;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Qdrant</div>
-            <div class="lc-bar-desc">Vector store health and collection info</div>
+            <div class="lc-bar-name" data-i18n="utils.qdrant_title">Qdrant</div>
+            <div class="lc-bar-desc" data-i18n="utils.qdrant_desc">Vector store health and collection info</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
         <div class="lc-bar-expand" id="qdrant-expand">
-          <button class="lc-btn lc-btn-sm" onclick="runQdrantCheck()">Check Qdrant</button>
+          <button class="lc-btn lc-btn-sm" onclick="runQdrantCheck()" data-i18n="utils.qdrant_check">Check Qdrant</button>
           <div id="qdrant-results" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
         </div>
 
         <div class="lc-bar-badge" onclick="lcAccordion(this)">
           <div class="lc-bar-tab" style="background:#332200;">&#128465;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name">Diagnostics</div>
-            <div class="lc-bar-desc">Clear logs database (task timings, worker errors, system stats)</div>
+            <div class="lc-bar-name" data-i18n="utils.diag_title">Diagnostics</div>
+            <div class="lc-bar-desc" data-i18n="utils.diag_desc">Clear logs database (task timings, worker errors, system stats)</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
         <div class="lc-bar-expand" id="diag-expand">
-          <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="clearLogs()">Clear Logs Database</button>
+          <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="clearLogs()" data-i18n="utils.diag_clear">Clear Logs Database</button>
           <div id="clear-logs-result" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
         </div>
 
@@ -109,41 +109,41 @@
         const data = await api('/utils/gdrive_status');
         const desc = document.getElementById('gdrive-status-desc');
         if (data.authorized) {
-          desc.textContent = 'Authorised — ready for Google Drive extraction';
+          desc.textContent = t('utils.gdrive_authorized');
           desc.style.color = 'var(--c-ok)';
         } else {
-          desc.textContent = 'Not authorised — click to set up';
+          desc.textContent = t('utils.gdrive_unauthorized');
           desc.style.color = 'var(--c-label)';
         }
       } catch (_) {
-        document.getElementById('gdrive-status-desc').textContent = 'Status unavailable';
+        document.getElementById('gdrive-status-desc').textContent = t('utils.gdrive_status_unavailable');
       }
     }
 
     async function authoriseGDrive() {
       const btn = document.getElementById('gdrive-auth-btn');
       const status = document.getElementById('gdrive-auth-status');
-      btn.disabled = true; btn.textContent = 'Opening...';
+      btn.disabled = true; btn.textContent = t('utils.gdrive_opening');
       try {
         const data = await api('/utils/gdrive_authorize', { method: 'POST' });
         if (data.ok) {
-          status.textContent = 'Success';
+          status.textContent = t('utils.gdrive_success');
           status.style.color = 'var(--c-ok)';
         } else {
-          status.textContent = 'Error: ' + data.detail;
+          status.textContent = t('utils.gdrive_error', { error: data.detail });
           status.style.color = 'var(--c-error)';
         }
       } catch (err) {
-        status.textContent = err.message;
+        status.textContent = t('utils.gdrive_error', { error: err.message });
         status.style.color = 'var(--c-error)';
       }
-      btn.disabled = false; btn.textContent = 'Authorise';
+      btn.disabled = false; btn.textContent = t('utils.gdrive_auth');
       loadGDriveStatus();
     }
 
     async function runHealthCheck() {
       const res = document.getElementById('health-results');
-      res.innerHTML = '<span style="color:var(--c-warn);">Checking...</span>';
+      res.innerHTML = `<span style="color:var(--c-warn);">${t('utils.health_checking')}</span>`;
       try {
         const data = await api('/utils/health');
         let html = '';
@@ -155,20 +155,20 @@
           html += '</div>';
         }
         if (!data.issues || !data.issues.length) {
-          html += '<div style="color:var(--c-ok);">Healthy — all checks passed.</div>';
+          html += `<div style="color:var(--c-ok);">${t('utils.health_healthy')}</div>`;
         } else {
           for (const issue of data.issues) {
             html += `<div style="border-left:3px solid var(--c-warn);padding:6px 10px;margin-bottom:6px;background:var(--c-surface);">
               <div style="font-size:10px;color:var(--c-label-dim);text-transform:uppercase;">${issue.severity}</div>
               <div style="font-size:12px;color:var(--c-accent);font-weight:bold;">${issue.title}</div>
               <div style="font-size:11px;color:var(--c-label);">${issue.detail}</div>
-              ${issue.action ? `<button class="lc-btn lc-btn-sm" style="margin-top:4px;" onclick="doHealthFix('${issue.action}', '${issue.action_label}', this)">FIX</button>` : ''}
+              ${issue.action ? `<button class="lc-btn lc-btn-sm" style="margin-top:4px;" onclick="doHealthFix('${issue.action}', '${issue.action_label}', this)">${t('utils.health_fix')}</button>` : ''}
             </div>`;
           }
         }
         res.innerHTML = html;
       } catch (err) {
-        res.innerHTML = '<span style="color:var(--c-error);">Error running health check.</span>';
+        res.innerHTML = `<span style="color:var(--c-error);">${t('utils.health_check_failed')}</span>`;
       }
     }
 
@@ -180,7 +180,7 @@
 
     async function runQdrantCheck() {
       const res = document.getElementById('qdrant-results');
-      res.innerHTML = '<span style="color:var(--c-warn);">Running...</span>';
+      res.innerHTML = `<span style="color:var(--c-warn);">${t('utils.qdrant_running')}</span>`;
       try {
         const result = await api('/utils/qdrant_check');
         if (result.status === 'ok') {
@@ -189,22 +189,22 @@
           res.innerHTML = `<span style="color:var(--c-error);">${result.message}</span>`;
         }
       } catch (err) {
-        res.innerHTML = '<span style="color:var(--c-error);">Failed to reach Qdrant.</span>';
+        res.innerHTML = `<span style="color:var(--c-error);">${t('utils.qdrant_failed')}</span>`;
       }
     }
 
     async function clearLogs() {
-      if (!confirm('Clear all logs?')) return;
+      if (!confirm(t('utils.diag_confirm'))) return;
       const res = document.getElementById('clear-logs-result');
       try {
         await api('/utils/clear_logs', { method: 'POST' });
-        res.innerHTML = '<span style="color:var(--c-ok);">Cleared.</span>';
+        res.innerHTML = `<span style="color:var(--c-ok);">${t('utils.diag_cleared')}</span>`;
       } catch(err) {
         res.innerHTML = `<span style="color:var(--c-error);">${err.message}</span>`;
       }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('lc:ready', () => {
       loadGDriveStatus();
     });
   </script>
