@@ -230,4 +230,8 @@ function lcAccordion(badge) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => lcInit());
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => lcInit());
+} else {
+  lcInit();
+}

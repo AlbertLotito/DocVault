@@ -8,7 +8,7 @@ I18N_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'static', '
 def test_manifest_exists_and_valid():
     path = os.path.join(I18N_DIR, 'manifest.json')
     assert os.path.exists(path), "manifest.json not found"
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         data = json.load(f)
     assert isinstance(data, list)
     assert len(data) >= 3
@@ -21,7 +21,7 @@ def test_manifest_exists_and_valid():
 def test_en_json_exists_and_valid():
     path = os.path.join(I18N_DIR, 'en.json')
     assert os.path.exists(path), "en.json not found"
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         data = json.load(f)
     assert isinstance(data, dict)
     assert len(data) > 50, "en.json should have at least 50 keys"
@@ -37,7 +37,7 @@ def test_es_and_fr_match_en_keys():
     for lang in ['es', 'fr']:
         path = os.path.join(I18N_DIR, f'{lang}.json')
         assert os.path.exists(path), f"{lang}.json not found"
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             data = json.load(f)
         missing = set(en.keys()) - set(data.keys())
         assert not missing, f"{lang}.json missing keys: {missing}"
