@@ -70,3 +70,7 @@ def telemetry_page():
 @app.get("/identity", include_in_schema=False)
 def identity_page():
     return FileResponse(os.path.join(FRONTEND, 'identity.html'))
+
+@app.get("/theme", include_in_schema=False)
+def theme_page():
+    return FileResponse(os.path.join(FRONTEND, 'theme.html'))
