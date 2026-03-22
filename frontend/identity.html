@@ -81,12 +81,12 @@
   <div class="lc-page lc-page-pad">
 
     <div class="lc-section-title" style="padding-top:14px;">
-      Identity Hub
-      <button onclick="loadRegistry()" class="lc-btn lc-btn-sm" style="margin-left:auto;">Refresh</button>
+      <span data-i18n="identity.heading">Identity Hub</span>
+      <button onclick="loadRegistry()" class="lc-btn lc-btn-sm" style="margin-left:auto;" data-i18n="identity.refresh">Refresh</button>
     </div>
 
     <div class="identity-grid" id="identity-grid">
-      <div style="color:var(--c-label-dim);font-size:11px;padding:20px;">Scanning for identities…</div>
+      <div style="color:var(--c-label-dim);font-size:11px;padding:20px;" data-i18n="identity.loading">Scanning for identities…</div>
     </div>
 
   </div>
@@ -94,13 +94,14 @@
   <!-- Rename Modal -->
   <div id="rename-modal" class="lc-modal-backdrop">
     <div class="lc-modal">
-      <div class="lc-modal-title">Rename Identity</div>
+      <div class="lc-modal-title" data-i18n="identity.modal_title">Rename Identity</div>
       <input type="text" id="new-name-input" class="lc-input" style="margin-bottom:16px;"
+             data-i18n-placeholder="identity.modal_placeholder"
              placeholder="Enter name…"
              onkeydown="if(event.key==='Enter')executeRename()">
       <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button onclick="closeRenameModal()" class="lc-btn lc-btn-sm">Cancel</button>
-        <button onclick="executeRename()" class="lc-btn lc-btn-sm lc-btn-primary">Save Name</button>
+        <button onclick="closeRenameModal()" class="lc-btn lc-btn-sm" data-i18n="identity.modal_cancel">Cancel</button>
+        <button onclick="executeRename()" class="lc-btn lc-btn-sm lc-btn-primary" data-i18n="identity.modal_save">Save Name</button>
       </div>
     </div>
   </div>
@@ -111,7 +112,7 @@
 
     async function loadRegistry() {
       const grid = document.getElementById('identity-grid');
-      grid.innerHTML = '<div style="color:var(--c-label-dim);font-size:11px;padding:20px;">Loading…</div>';
+      grid.innerHTML = `<div style="color:var(--c-label-dim);font-size:11px;padding:20px;">${t('identity.loading')}</div>`;
       try {
         const people = await api('/identity/registry');
 
@@ -119,9 +120,9 @@
           grid.innerHTML = `
             <div style="color:var(--c-label-dim);font-size:11px;text-align:center;padding:40px 20px;">
               <div style="font-size:32px;margin-bottom:10px;opacity:0.3;">👤</div>
-              <div>No identities discovered yet.</div>
+              <div>${t('identity.empty_text')}</div>
               <div style="margin-top:5px;color:var(--c-label-dim);">
-                Run the Face Identity Extractor in the Lab or scan a vault with images.
+                ${t('identity.empty_help')}
               </div>
             </div>`;
           return;
@@ -133,7 +134,7 @@
               ${p.thumbnail_path
                 ? `<img src="${p.thumbnail_path}" alt="${_esc(p.person_name)}">`
                 : `<span class="identity-thumb-placeholder">👤</span>`}
-              <div class="identity-sightings">${p.detection_count} sightings</div>
+              <div class="identity-sightings">${t('identity.sightings', { count: p.detection_count })}</div>
             </div>
             <div class="identity-info">
               <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
@@ -145,7 +146,7 @@
               <div class="identity-cluster-id">${_esc(p.cluster_id)}</div>
               <div class="identity-actions">
                 <a href="/vault?query=${encodeURIComponent(p.person_name)}"
-                   class="lc-btn lc-btn-sm" style="flex:1;text-align:center;">Find Photos</a>
+                   class="lc-btn lc-btn-sm" style="flex:1;text-align:center;">${t('identity.find_photos')}</a>
               </div>
             </div>
           </div>
@@ -183,7 +184,7 @@
       }
     }
 
-    window.onload = loadRegistry;
+    document.addEventListener('lc:ready', loadRegistry);
   </script>
 </body>
 </html>

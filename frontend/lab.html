@@ -58,7 +58,7 @@
         .control-group { display: flex; flex-direction: column; gap: 0.5rem; }
         .control-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate); }
         input[type="text"] { background: #000; border: 1px solid var(--terminal-gray); color: #fff; padding: 0.6rem 1rem; font-family: inherit; font-size: 0.8rem; width: 100%; outline: none; }
-        
+
         .btn-run { background: var(--indigo); color: #fff; border: none; padding: 0.8rem 2rem; font-family: inherit; font-size: 0.8rem; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.2s; }
         .btn-run:hover { filter: brightness(1.1); }
         .btn-run:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -92,83 +92,85 @@
     <div id="binaryModal" class="lc-modal-backdrop" style="display:none; z-index:3000;">
         <div class="lc-modal" style="max-width: 560px; width: 100%; overflow: hidden; display: flex; flex-direction: column;">
             <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-[#0d0d0d]">
-                <h3 class="text-sm font-bold text-orange-400 uppercase tracking-widest">Register External Binary Kernel</h3>
+                <h3 class="text-sm font-bold text-orange-400 uppercase tracking-widest" data-i18n="lab.binary_modal_title">Register External Binary Kernel</h3>
                 <button onclick="closeBinaryWizard()" class="text-gray-500 hover:text-white text-2xl">&times;</button>
             </div>
             <div class="p-6 space-y-4 overflow-y-auto" style="max-height: 70vh;">
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Kernel Unique ID</label>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1" data-i18n="lab.binary_id_label">Kernel Unique ID</label>
                     <input type="text" id="bin-id" placeholder="com.custom.vision.face" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Display Name</label>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1" data-i18n="lab.binary_name_label">Display Name</label>
                         <input type="text" id="bin-name" placeholder="Face AI Recognizer" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Extensions (CSV)</label>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1" data-i18n="lab.binary_exts_label">Extensions (CSV)</label>
                         <input type="text" id="bin-exts" placeholder="jpg, png, mp4" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Binary Path</label>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1" data-i18n="lab.binary_path_label">Binary Path</label>
                     <div class="flex gap-2">
                         <input type="text" id="bin-path" readonly placeholder="Pick executable..." class="flex-1 bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white outline-none">
-                        <button onclick="browseBinary()" class="bg-gray-800 text-white px-4 py-2 rounded text-xs font-bold">Browse</button>
+                        <button onclick="browseBinary()" class="bg-gray-800 text-white px-4 py-2 rounded text-xs font-bold" data-i18n="lab.binary_browse">Browse</button>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">CLI Arguments</label>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1" data-i18n="lab.binary_args_label">CLI Arguments</label>
                     <input type="text" id="bin-args" placeholder="--input {file_path} --output-json" class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none font-mono">
-                    <p class="text-[10px] text-gray-600 mt-1 italic">Use {file_path} as a placeholder for the target file.</p>
+                    <p class="text-[10px] text-gray-600 mt-1 italic" data-i18n="lab.binary_args_help">Use {file_path} as a placeholder for the target file.</p>
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Description</label>
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1" data-i18n="lab.binary_desc_label">Description</label>
                     <input type="text" id="bin-desc" placeholder="High-speed analysis written in Go." class="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none">
                 </div>
             </div>
             <div class="p-4 bg-[#0d0d0d] border-t border-gray-800 flex justify-end gap-3">
-                <button onclick="closeBinaryWizard()" class="px-4 py-2 text-xs font-bold text-gray-500 hover:text-white uppercase">Cancel</button>
-                <button id="btn-bin-save" onclick="saveBinaryKernel()" class="bg-orange-600 hover:bg-orange-700 text-white px-8 py-2 rounded text-xs font-bold shadow-lg transition-all uppercase tracking-widest">Sign & Register</button>
+                <button onclick="closeBinaryWizard()" class="px-4 py-2 text-xs font-bold text-gray-500 hover:text-white uppercase" data-i18n="lab.binary_cancel">Cancel</button>
+                <button id="btn-bin-save" onclick="saveBinaryKernel()" class="bg-orange-600 hover:bg-orange-700 text-white px-8 py-2 rounded text-xs font-bold shadow-lg transition-all uppercase tracking-widest" data-i18n="lab.binary_save">Sign &amp; Register</button>
             </div>
         </div>
     </div>
         <aside class="extractor-registry">
             <div class="registry-header">
-                <div class="registry-title">Kernel Registry</div>
+                <div class="registry-title" data-i18n="lab.registry_title">Kernel Registry</div>
                 <div class="mt-4">
-                    <input type="text" id="registrySearch" placeholder="SEARCH KERNELS..." 
+                    <input type="text" id="registrySearch"
+                           data-i18n-placeholder="lab.registry_search"
+                           placeholder="SEARCH KERNELS..."
                            oninput="renderList()"
                            style="background: #000; border: 1px solid #222; font-size: 0.65rem; padding: 0.4rem 0.8rem; letter-spacing: 0.1em;">
                 </div>
             </div>
             <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--terminal-gray)">
-                <button onclick="openBinaryWizard()" class="btn-run" style="width: 100%; background: var(--terminal-gray); font-size: 0.65rem">+ Register External Binary</button>
+                <button onclick="openBinaryWizard()" class="btn-run" style="width: 100%; background: var(--terminal-gray); font-size: 0.65rem" data-i18n="lab.register_binary">+ Register External Binary</button>
             </div>
             <ul class="extractor-list">
                 <div id="extractorList">
-                    <li class="p-6 text-center opacity-40 italic text-[10px] tracking-widest animate-pulse">
+                    <li class="p-6 text-center opacity-40 italic text-[10px] tracking-widest animate-pulse" data-i18n="lab.syncing">
                         SYNCING KERNEL REGISTRY...
                     </li>
                 </div>
                 <li class="extractor-item simulator" onclick="setLabMode('simulator')" id="item-simulator">
-                    <span class="extractor-name" style="color: var(--amber)">PIPELINE SIMULATOR</span>
-                    <span class="extractor-meta">Test routing & identification</span>
+                    <span class="extractor-name" style="color: var(--amber)" data-i18n="lab.simulator">PIPELINE SIMULATOR</span>
+                    <span class="extractor-meta" data-i18n="lab.simulator_desc">Test routing &amp; identification</span>
                 </li>
             </ul>
             <div style="margin-top: auto; padding: 1.5rem; border-top: 1px solid var(--terminal-gray)">
-                <button class="btn-run" style="width: 100%; background: transparent; border: 1px solid var(--terminal-gray)" onclick="location.href='/utils'">Exit Lab</button>
+                <button class="btn-run" style="width: 100%; background: transparent; border: 1px solid var(--terminal-gray)" onclick="location.href='/utils'" data-i18n="lab.exit">Exit Lab</button>
             </div>
         </aside>
 
         <main class="lab-bench">
             <div class="bench-header">
-                <div class="bench-title" id="activeTitle">CERTIFICATION SUITE <span style="font-size: 10px; opacity: 0.3; margin-left: 10px;">[ LAB_ENGINE_V1.3 ]</span></div>
+                <div class="bench-title" id="activeTitle" data-i18n="lab.heading">CERTIFICATION SUITE <span style="font-size: 10px; opacity: 0.3; margin-left: 10px;">[ LAB_ENGINE_V1.3 ]</span></div>
                 <div id="benchStats" style="font-size: 0.7rem; color: var(--slate)"></div>
             </div>
 
             <div class="bench-content" id="benchContent" style="display: none;">
-                
+
                 <!-- Mode: Certification & Diagnostics -->
                 <section id="pane-certify" class="flex flex-col gap-6">
                     <!-- Extractor Specifications Header -->
@@ -204,8 +206,8 @@
                                 <span id="stat-io" class="step-status status-pending">PENDING</span>
                             </div>
                             <div class="flex gap-2" style="margin-top: 1rem;">
-                                <button id="btn-activate" onclick="activateKernel()" disabled class="btn-run" style="flex: 1; opacity: 0.2">Activate Kernel</button>
-                                <button id="btn-decertify" onclick="decertifyKernel()" disabled class="btn-run hidden" style="flex: 1; background: var(--terminal-gray); opacity: 0.2">Decertify Kernel</button>
+                                <button id="btn-activate" onclick="activateKernel()" disabled class="btn-run" style="flex: 1; opacity: 0.2" data-i18n="lab.activate_kernel">Activate Kernel</button>
+                                <button id="btn-decertify" onclick="decertifyKernel()" disabled class="btn-run hidden" style="flex: 1; background: var(--terminal-gray); opacity: 0.2" data-i18n="lab.decertify_kernel">Decertify Kernel</button>
                             </div>
                         </div>
                     </div>
@@ -230,26 +232,26 @@
 
                 <!-- Shared Lab Bench Controls -->
                 <section class="test-controls">
-                    <div class="section-header" style="font-size: 0.7rem; color: var(--indigo)">[ LABORATORY CONTROLS ]</div>
-                    
+                    <div class="section-header" style="font-size: 0.7rem; color: var(--indigo)" data-i18n="lab.controls_title">[ LABORATORY CONTROLS ]</div>
+
                     <div class="control-group" id="vaultContextGroup">
-                        <label class="control-label">Vault Context (For Simulation)</label>
+                        <label class="control-label" data-i18n="lab.vault_context_label">Vault Context (For Simulation)</label>
                         <select id="vContext" class="bg-black border border-gray-800 text-white p-2 text-xs outline-none">
-                            <option value="">GLOBAL DEFAULT</option>
+                            <option value="" data-i18n="lab.vault_global">GLOBAL DEFAULT</option>
                         </select>
                     </div>
 
             <div class="control-group">
-                <label class="control-label">Target Sample Path</label>
+                <label class="control-label" data-i18n="lab.target_path_label">Target Sample Path</label>
                 <div style="display: flex; gap: 0.5rem">
                     <input type="text" id="targetPath" placeholder="Pick a sample to test behavioral contract..." readonly>
                     <button id="btnBrowse" class="btn-run btn-secondary" style="padding: 0.6rem 1rem; font-size: 0.65rem" onclick="browse(activeEntry ? activeEntry.target_type : 'file')">Browse File</button>
                 </div>
             </div>
                     <div class="flex gap-2">
-                        <button class="btn-run" id="btnRunTest" onclick="runAutomatedCert()">Execute Automated Cert</button>
-                        <button class="btn-run btn-secondary" id="btnKillTest" onclick="killActiveTest()" disabled style="background: var(--ruby); opacity: 0.2">Kill Test</button>
-                        <button class="btn-run hidden" id="btnRunSim" onclick="runPipelineTrace()" style="background: var(--amber)">Run Pipeline Simulation</button>
+                        <button class="btn-run" id="btnRunTest" onclick="runAutomatedCert()" data-i18n="lab.execute_cert">Execute Automated Cert</button>
+                        <button class="btn-run btn-secondary" id="btnKillTest" onclick="killActiveTest()" disabled style="background: var(--ruby); opacity: 0.2" data-i18n="lab.kill_test">Kill Test</button>
+                        <button class="btn-run hidden" id="btnRunSim" onclick="runPipelineTrace()" style="background: var(--amber)" data-i18n="lab.run_simulation">Run Pipeline Simulation</button>
                     </div>
                 </section>
             </div>
@@ -257,13 +259,14 @@
             <div id="benchEmpty" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; opacity: 0.2;">
                 <div style="text-align: center">
                     <div style="font-size: 3rem">🧬</div>
-                    <div style="margin-top: 1rem; letter-spacing: 0.3em">LAB_IDLE</div>
+                    <div style="margin-top: 1rem; letter-spacing: 0.3em" data-i18n="lab.lab_idle">LAB_IDLE</div>
                 </div>
             </div>
         </main>
     </div>
 
     <script src="static/app.js"></script>
+    <script src="/static/lcars.js"></script>
     <script>
         let registry = [];
         let activeEntry = null;
@@ -336,7 +339,7 @@
                 activeEntry = null;
                 document.querySelectorAll('.extractor-item').forEach(i => i.classList.remove('active'));
                 document.getElementById('item-simulator').classList.add('active');
-                document.getElementById('activeTitle').textContent = "PIPELINE SIMULATOR";
+                document.getElementById('activeTitle').textContent = t('lab.simulator');
             }
         }
 
@@ -351,10 +354,10 @@
 
             document.getElementById('activeTitle').textContent = `TESTER / CERTIFY: ${activeEntry.module_name.toUpperCase()}`;
             document.getElementById('btnBrowse').textContent = activeEntry.target_type === 'folder' ? 'Browse Folder' : 'Browse File';
-            
+
             // Populate Description & Settings
-            document.getElementById('extractorDoc').textContent = activeEntry.description || "No technical description available for this kernel.";
-            
+            document.getElementById('extractorDoc').textContent = activeEntry.description || t('lab.no_description');
+
             const settingsEl = document.getElementById('extractorSettings');
             const settings = activeEntry.settings || [];
             if (settings.length === 0) {
@@ -385,7 +388,7 @@
 
         async function decertifyKernel() {
             if (!activeEntry || !confirm(`Are you sure you want to decertify '${activeEntry.module_name}'? It will be disabled until re-certified.`)) return;
-            
+
             const btn = document.getElementById('btn-decertify');
             btn.disabled = true;
             btn.textContent = "DECERTIFYING...";
@@ -397,7 +400,7 @@
             } catch (err) {
                 alert("Decertification failed: " + err.message);
                 btn.disabled = false;
-                btn.textContent = "Decertify Kernel";
+                btn.textContent = t('lab.decertify_kernel');
             }
         }
 
@@ -415,23 +418,23 @@
 
         async function runAutomatedCert() {
             const path = document.getElementById('targetPath').value;
-            if (!path) return alert("Select a sample file for behavioral testing.");
+            if (!path) return alert(t('lab.no_sample'));
 
             const btn = document.getElementById('btnRunTest');
             const killBtn = document.getElementById('btnKillTest');
             const ioConsole = document.getElementById('ioConsole');
             const resultView = document.getElementById('resultView');
-            
+
             // ATOMIC UI UPDATE: V1.3
             resultView.style.display = 'grid';
             killBtn.disabled = false;
             killBtn.style.opacity = '1';
             killBtn.classList.remove('hidden');
-            
-            btn.disabled = true; 
-            btn.textContent = "CERTIFYING..."; 
+
+            btn.disabled = true;
+            btn.textContent = "CERTIFYING...";
             btn.classList.add('loading-text');
-            
+
             // Telemetry
             ioConsole.innerHTML = '<div class="sim-line"><span class="sim-tag">SYSTEM</span><span style="color:var(--amber)">JS_ENGINE_V1.3_ACTIVE</span></div>' +
                                   '<div class="sim-line"><span class="sim-tag">SYSTEM</span><span>INITIALIZING BEHAVIORAL SANDBOX...</span></div>' +
@@ -482,10 +485,10 @@
                 console.error(err);
                 ioConsole.innerHTML += `<div class="sim-line" style="color:var(--ruby)"><span class="sim-tag">ERROR</span><span>${_esc(err.message)}</span></div>`;
             } finally {
-                btn.disabled = false; 
-                btn.textContent = "Execute Automated Cert"; 
+                btn.disabled = false;
+                btn.textContent = t('lab.execute_cert');
                 btn.classList.remove('loading-text');
-                
+
                 // V1.3: Disable but don't hide
                 killBtn.disabled = true;
                 killBtn.style.opacity = '0.2';
@@ -515,9 +518,9 @@
             const resultView = document.getElementById('resultView');
             const ioConsole = document.getElementById('ioConsole');
             const resultText = document.getElementById('resultText');
-            
+
             resultView.style.display = 'grid';
-            
+
             // 1. Handle Errors inside the result object
             let errorMsg = "";
             if (res.errors && res.errors.length > 0) {
@@ -527,11 +530,11 @@
             // 2. Extracted Text
             resultText.textContent = res.text || (errorMsg ? `ERROR: ${errorMsg}` : "// NO TEXT RECOVERED");
             resultText.style.color = (res.status === 'failed') ? 'var(--ruby)' : 'var(--emerald)';
-            
+
             // 3. Console Telemetry
             let html = `<div class="sim-line"><span class="sim-tag">CONTRACT</span><span style="color:var(--emerald)">STRICT_TYPING_VERIFIED</span></div>`;
             html += `<div class="sim-line"><span class="sim-tag">STATUS</span><span style="color:${res.status === 'failed' ? 'var(--ruby)' : 'inherit'}">${res.status.toUpperCase()}</span></div>`;
-            
+
             if (errorMsg) {
                 html += `<div class="sim-line" style="color:var(--ruby)"><span class="sim-tag">ERROR</span><span>${_esc(errorMsg)}</span></div>`;
             }
@@ -543,7 +546,7 @@
         async function activateKernel() {
             const btn = document.getElementById('btn-activate');
             const originalText = btn.textContent;
-            
+
             btn.disabled = true;
             btn.textContent = "ACTIVATING...";
             btn.classList.add('loading-text');
@@ -552,8 +555,8 @@
                 await api(`/utils/certify/register?kernel_id=${activeEntry.kernel_id}`, { method: 'POST' });
                 alert("Kernel activated successfully.");
                 location.reload();
-            } catch (err) { 
-                alert(err.message); 
+            } catch (err) {
+                alert(err.message);
                 btn.disabled = false;
                 btn.textContent = originalText;
                 btn.classList.remove('loading-text');
@@ -571,25 +574,25 @@
             if (!path) return alert("Select target file.");
             const consoleEl = document.getElementById('simConsole');
             const killBtn = document.getElementById('btnKillTest');
-            
+
             consoleEl.innerHTML = '<div class="loading-text">TRACING KERNEL BUS...</div>';
             killBtn.classList.remove('hidden');
 
             try {
                 const res = await api('/utils/simulate_pipeline', { method: 'POST', body: JSON.stringify({ file_path: path, vault_id: vaultId || null }) });
-                let html = res.trace.map(t => `<div class="sim-line" style="border-left: 2px solid var(--amber); padding-left: 10px;"><span>${t}</span></div>`).join('');
+                let html = res.trace.map(tr => `<div class="sim-line" style="border-left: 2px solid var(--amber); padding-left: 10px;"><span>${tr}</span></div>`).join('');
                 html += `<div class="mt-4 pt-4 border-t border-gray-900">`;
                 res.kernels.forEach(k => { html += `<div class="sim-line"><span class="sim-tag" style="color:var(--emerald)">KERNEL</span><span>${k}</span></div>`; });
                 html += `</div>`;
                 consoleEl.innerHTML = html;
-            } catch (err) { 
-                consoleEl.innerHTML = err.message; 
+            } catch (err) {
+                consoleEl.innerHTML = err.message;
             } finally {
                 killBtn.classList.add('hidden');
             }
         }
 
-        window.onload = init;
+        document.addEventListener('lc:ready', init);
 
         // --- Binary Wizard Logic ---
 
@@ -635,7 +638,7 @@
             try {
                 const res = await api('/utils/register_binary', { method: 'POST', body: JSON.stringify(payload) });
                 if (res.status === 'error') throw new Error(res.message);
-                
+
                 alert("External kernel manifest created and signed.");
                 closeBinaryWizard();
                 location.reload(); // Refresh registry
@@ -643,10 +646,9 @@
                 alert("Registration failed: " + err.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = "Sign & Register";
+                btn.textContent = t('lab.binary_save');
             }
         }
     </script>
-    <script src="/static/lcars.js"></script>
 </body>
 </html>

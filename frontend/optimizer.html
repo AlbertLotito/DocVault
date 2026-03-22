@@ -191,14 +191,14 @@
   <div class="lc-nav"></div>
 
   <div class="lc-page lc-page-pad">
-    <div class="lc-section-title">Mission Control — Optimizer</div>
+    <div class="lc-section-title" data-i18n="optimizer.heading">Mission Control — Optimizer</div>
 
     <!-- Controls bar -->
     <div style="display:flex;gap:8px;padding:0 20px 12px;align-items:center;">
-      <button class="lc-btn lc-btn-primary" id="mc-start-btn" onclick="mcStartRun()">&#9654; Run</button>
-      <button class="lc-btn lc-btn-danger" id="mc-abort-btn" onclick="mcAbort()" style="display:none;">&#9632; Abort</button>
-      <button class="lc-btn" id="mc-apply-btn" onclick="mcApplyBest()" disabled style="opacity:0.35;cursor:not-allowed;">&#8595; Apply Best</button>
-      <span id="mc-run-label" style="font-size:11px;color:var(--c-label);">IDLE</span>
+      <button class="lc-btn lc-btn-primary" id="mc-start-btn" onclick="mcStartRun()" data-i18n="optimizer.run_btn">&#9654; Run</button>
+      <button class="lc-btn lc-btn-danger" id="mc-abort-btn" onclick="mcAbort()" style="display:none;" data-i18n="optimizer.abort_btn">&#9632; Abort</button>
+      <button class="lc-btn" id="mc-apply-btn" onclick="mcApplyBest()" disabled style="opacity:0.35;cursor:not-allowed;" data-i18n="optimizer.apply_btn">&#8595; Apply Best</button>
+      <span id="mc-run-label" style="font-size:11px;color:var(--c-label);" data-i18n="optimizer.idle">IDLE</span>
       <span id="mc-eta" style="font-size:11px;color:var(--c-warn);margin-left:auto;">—</span>
     </div>
 
@@ -207,7 +207,7 @@
 
       <!-- Q1 (TOP LEFT): Config + Throughput + Thermal -->
       <div class="mc-q1">
-        <div class="mc-panel-label">Config &amp; Throughput</div>
+        <div class="mc-panel-label" data-i18n="optimizer.config_title">Config &amp; Throughput</div>
 
         <!-- Meters row (compact) -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0;">
@@ -238,17 +238,17 @@
 
         <!-- Params / config (scrollable) -->
         <div style="flex:1;overflow-y:auto;min-height:0;" id="mc-params-pane">
-          <div class="mc-panel-label" style="margin-bottom:8px;">Parameters</div>
-          <div id="mc-params-rows" style="font-size:12px;color:var(--c-label);">Waiting for optimizer start...</div>
+          <div class="mc-panel-label" style="margin-bottom:8px;" data-i18n="optimizer.params_label">Parameters</div>
+          <div id="mc-params-rows" style="font-size:12px;color:var(--c-label);" data-i18n="optimizer.waiting">Waiting for optimizer start...</div>
           <div id="mc-profile-cards" style="display:none;flex-wrap:wrap;gap:10px;"></div>
         </div>
       </div>
 
       <!-- Q2/Q4 (RIGHT, spans both rows): System Log -->
       <div class="mc-q2">
-        <div class="mc-panel-label" style="margin-bottom:8px;">System Log</div>
+        <div class="mc-panel-label" style="margin-bottom:8px;" data-i18n="optimizer.log_title">System Log</div>
         <div id="mc-log" style="flex:1;overflow-y:auto;font-size:11px;padding-right:10px;">
-          <div style="color:var(--c-label-dim);">Awaiting start...</div>
+          <div style="color:var(--c-label-dim);" data-i18n="optimizer.awaiting">Awaiting start...</div>
         </div>
       </div>
 
@@ -325,22 +325,22 @@
       rows.style.display = '';
       const cards = document.getElementById('mc-profile-cards');
       cards.style.display = 'none';
-      const vOpts = ['<option value="">All Vaults</option>'].concat(_mcVaults.map(v => `<option value="${v.vault_id}">${v.name || v.vault_id}</option>`)).join('');
+      const vOpts = [`<option value="" data-i18n="optimizer.vault_all">${t('optimizer.vault_all')}</option>`].concat(_mcVaults.map(v => `<option value="${v.vault_id}">${v.name || v.vault_id}</option>`)).join('');
       rows.innerHTML = `
-        <div class="mc-cfg-section">Preset</div>
+        <div class="mc-cfg-section">${t('optimizer.params_label')}</div>
         <div class="mc-cfg-row" style="flex-wrap:wrap;gap:4px;">
-          <button class="mc-preset-btn inactive" id="mc-preset-quick"     onclick="mcSetPreset(3,  this)">Quick</button>
-          <button class="mc-preset-btn active"   id="mc-preset-standard"  onclick="mcSetPreset(5,  this)">Standard</button>
-          <button class="mc-preset-btn inactive" id="mc-preset-thorough"  onclick="mcSetPreset(10, this)">Thorough</button>
-          <button class="mc-preset-btn inactive" id="mc-preset-exhaustive"onclick="mcSetPreset(20, this)">Exhaustive</button>
+          <button class="mc-preset-btn inactive" id="mc-preset-quick"     onclick="mcSetPreset(3,  this)">${t('optimizer.preset_quick')}</button>
+          <button class="mc-preset-btn active"   id="mc-preset-standard"  onclick="mcSetPreset(5,  this)">${t('optimizer.preset_standard')}</button>
+          <button class="mc-preset-btn inactive" id="mc-preset-thorough"  onclick="mcSetPreset(10, this)">${t('optimizer.preset_thorough')}</button>
+          <button class="mc-preset-btn inactive" id="mc-preset-exhaustive"onclick="mcSetPreset(20, this)">${t('optimizer.preset_exhaustive')}</button>
         </div>
-        <div class="mc-cfg-section">Samples</div>
+        <div class="mc-cfg-section">${t('optimizer.samples_label')}</div>
         <div class="mc-cfg-row"><input class="mc-cfg-input" type="number" id="mc-samples" value="5" min="1" max="50"> <span style="font-size:11px;color:var(--c-label-dim);">benchmark runs</span></div>
-        <div class="mc-cfg-section">File Types</div>
+        <div class="mc-cfg-section">${t('optimizer.filetypes_label')}</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--c-label);margin:4px 0 2px;">
-          ${['text','pdf','image','audio','video'].map(t => `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="mc-type-${t}" checked> ${t}</label>`).join('')}
+          ${['text','pdf','image','audio','video'].map(tp => `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="mc-type-${tp}" checked> ${tp}</label>`).join('')}
         </div>
-        <div class="mc-cfg-section">Vault</div>
+        <div class="mc-cfg-section">${t('optimizer.vault_label')}</div>
         <div class="mc-cfg-row"><select class="mc-cfg-select" id="mc-vault-select" style="width:100%;">${vOpts}</select></div>`;
     }
 
@@ -354,7 +354,7 @@
 
     async function mcStartRun() {
       const samples = parseInt(document.getElementById('mc-samples')?.value || '5');
-      const types = ['text','pdf','image','audio','video'].filter(t => document.getElementById('mc-type-' + t)?.checked);
+      const types = ['text','pdf','image','audio','video'].filter(tp => document.getElementById('mc-type-' + tp)?.checked);
       try {
         await api('/utils/optimizer/start', { method: 'POST', body: JSON.stringify({ samples, types }) });
         mcLog('info', `[SYS] INITIALIZING SWEEP (SAMPLES=${samples}, TYPES=${types.join(',')})`);
@@ -463,7 +463,12 @@
       }
 
       // 5. Global Progress
-      document.getElementById('mc-run-label').textContent = s.state === 'running' ? `RUN ${s.run_index}/${s.total_runs}` : s.state.toUpperCase();
+      const runLabelEl = document.getElementById('mc-run-label');
+      if (s.state === 'running') {
+        runLabelEl.textContent = `RUN ${s.run_index}/${s.total_runs}`;
+      } else {
+        runLabelEl.textContent = s.state === 'idle' ? t('optimizer.idle') : s.state.toUpperCase();
+      }
 
       if (['running','starting'].includes(s.state) && s.current_params) {
         const rows = document.getElementById('mc-params-rows'); rows.innerHTML = '';
@@ -502,7 +507,7 @@
 
     async function mcApplyBest() { await mcApplyProfile(_mcSelectedProfile); }
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    document.addEventListener('lc:ready', async () => {
       _mcHist = { cpu: [], ram: [], gpu_temp: [], gpu_util: [], throughput: [] };
       _mcMaxThroughput = 0;
       _mcLastState = null;
