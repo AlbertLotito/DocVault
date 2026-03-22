@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from core.settings import settings
@@ -8,6 +9,16 @@ router = APIRouter()
 class SettingUpdate(BaseModel):
     key: str
     value: str
+
+
+@router.get("/settings/theme")
+def get_theme():
+    raw = settings.get("ui:theme") or "{}"
+    try:
+        theme = json.loads(raw)
+    except Exception:
+        theme = {}
+    return {"theme": theme}
 
 
 @router.get("/settings")
