@@ -200,19 +200,24 @@ New entry:
     'default': '{}',
     'label': 'UI Theme Overrides',
     'group': 'ui',
+    'hidden': True,
     'description': 'JSON map of CSS custom property overrides applied to every page.'
 }
 ```
+
+The `hidden: True` flag prevents this key from appearing in the Settings UI accordion as a raw JSON text field, since it is managed exclusively by the Theme editor. The `hidden` flag must be respected by the `get_all_configurable()` filter in `core/settings.py` (filter out entries where `hidden` is True).
 
 ---
 
 ## Navigation
 
-The Theme page is added to the LCARS nav in `lcars.js` (the `NAV_ITEMS` / `buildNavHTML()` section):
+The Theme page is added as a top-level nav pill in `lcars.js` inside `buildNavHTML()`. Nav items are hardcoded `<a>` elements in a template literal — there is no loop over an array. Add one line after the existing pills:
 
 ```js
-{ href: '/theme', label: () => t('nav.theme'), icon: '🎨' }
+<a href="/theme" class="lc-pill" data-nav="theme">${t('nav.theme')}</a>
 ```
+
+Position: after the Settings pill (last in the row).
 
 i18n key `nav.theme` added to all locale files (`en.json`: `"Theme"`, `es.json`: `"Tema"`, `fr.json`: `"Th\u00e8me"`).
 
@@ -245,6 +250,7 @@ i18n key `nav.theme` added to all locale files (`en.json`: `"Theme"`, `es.json`:
 - Preset: clicking Warm LCARS clears all overrides; Cold Blue applies all expected values
 - Save → reload: theme persists and is applied by `lcars.js` on next page load
 - Reset to defaults: saves `{}`, reloads, no `th-override` style injected
+- `lcThemeLoad()` fallback: simulated network error → no `th-override` injected, `lc:ready` still fires (non-fatal)
 
 ---
 
