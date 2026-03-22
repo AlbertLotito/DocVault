@@ -647,15 +647,19 @@
     // ── Reset to lcars.css defaults ────────────────────────────────────────────
     async function resetTheme() {
       try {
-        await fetch('/api/settings', {
+        const resp = await fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: 'ui:theme', value: '{}' }),
         });
-        _overrides = {};
-        applyTheme({});
-        syncInputsFromCSS();
-        lcToast('Reset to defaults');
+        if (resp.ok) {
+          _overrides = {};
+          applyTheme({});
+          syncInputsFromCSS();
+          lcToast('Reset to defaults');
+        } else {
+          lcToast('Reset failed', true);
+        }
       } catch (_) {
         lcToast('Reset failed', true);
       }
