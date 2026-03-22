@@ -4,6 +4,7 @@
   "nav.identity": "Identidad",
   "nav.utilities": "Utilidades",
   "nav.settings": "Ajustes",
+  "nav.theme": "Tema",
   "sensor.workers": "Procesos",
   "sensor.cpu": "CPU",
   "sensor.gpu": "GPU",
