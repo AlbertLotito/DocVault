@@ -20,6 +20,7 @@ function buildNavHTML() {
     <a href="/identity" class="lc-pill" data-nav="identity">${t('nav.identity')}</a>
     <a href="/utils"    class="lc-pill" data-nav="utilities">${t('nav.utilities')}</a>
     <a href="/settings" class="lc-pill" data-nav="settings">${t('nav.settings')}</a>
+    <a href="/theme"    class="lc-pill" data-nav="theme">${t('nav.theme')}</a>
   </nav>
 </div>
 <div class="lc-nav-bot" id="lc-sensor-rail">
@@ -40,6 +41,36 @@ function t(key, vars = {}) {
   for (const [k, v] of Object.entries(vars))
     s = s.replaceAll(`{${k}}`, v);
   return s;
+}
+
+/**
+ * Inject (or clear) CSS custom property overrides into a <style id="th-override"> tag.
+ * overrides = { '--c-accent': '#ff9900', ... }
+ * Pass an empty object to remove all overrides.
+ */
+function applyTheme(overrides) {
+  const vars = Object.entries(overrides)
+    .map(([k, v]) => `  ${k}: ${v};`)
+    .join('\n');
+  let el = document.getElementById('th-override');
+  if (!el) {
+    el = document.createElement('style');
+    el.id = 'th-override';
+    document.head.appendChild(el);
+  }
+  el.textContent = vars ? `:root {\n${vars}\n}` : '';
+}
+
+/**
+ * Fetch the saved theme from the server and apply it.
+ * Non-fatal: if the fetch fails or returns empty, lcars.css defaults remain untouched.
+ */
+async function lcThemeLoad() {
+  try {
+    const res = await fetch('/api/settings/theme');
+    const { theme } = await res.json();
+    if (theme && Object.keys(theme).length > 0) applyTheme(theme);
+  } catch (_) { /* non-fatal — lcars.css defaults remain */ }
 }
 
 async function lcI18nLoad() {
@@ -131,6 +162,9 @@ async function lcInit() {
     lcBuildLangPicker(navEl);
   }
   lcApplyI18n();
+
+  // Load and apply saved theme overrides before signalling ready
+  await lcThemeLoad();
 
   // Start sensor rail polling
   lcPollSensors();
