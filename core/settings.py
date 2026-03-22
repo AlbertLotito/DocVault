@@ -315,6 +315,14 @@ class Settings:
                 'group': 'ui',
                 'description': 'Override the interface language. Empty = use browser default.',
             },
+            'ui:theme': {
+                'type': 'string',
+                'default': '{}',
+                'label': 'UI Theme Overrides',
+                'group': 'ui',
+                'hidden': True,
+                'description': 'JSON map of CSS custom property overrides applied to every page.',
+            },
         }
 
     def get(self, key: str):
@@ -347,6 +355,8 @@ class Settings:
         """Returns a list of all UI-configurable settings with their current values."""
         all_settings = []
         for key, meta in self.schema.items():
+            if meta.get('hidden', False):
+                continue
             all_settings.append({
                 'key': key,
                 'label': meta['label'],
