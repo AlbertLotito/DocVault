@@ -58,9 +58,9 @@ def test_get_theme_returns_empty_on_corrupt_json(monkeypatch):
     assert resp.json()['theme'] == {}
 
 
-def test_theme_page_route_exists():
+def test_theme_page_serves_html():
     from api.main import app
     client = TestClient(app)
-    # Once theme.html exists this will return 200; before that it may return 404/500
     resp = client.get('/theme')
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code == 200
+    assert b'th-layout' in resp.content
