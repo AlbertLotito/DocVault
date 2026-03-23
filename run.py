@@ -157,8 +157,10 @@ def start():
     t_watchdog.start()
 
     # Start web server (blocking)
-    logger.critical("Starting DocVault at http://localhost:8000")
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=False)
+    host = settings.get('server:host') or '127.0.0.1'
+    port = int(settings.get('server:port') or 8000)
+    logger.critical(f"Starting DocVault at http://{host}:{port}")
+    uvicorn.run("api.main:app", host=host, port=port, reload=False)
 
 
 

@@ -307,6 +307,15 @@ class Settings:
                 'label': 'Benchmark samples per type', 'group': 'lab',
                 'description': 'Number of COMPLETED files per type sampled during benchmark runs and optimizer mini-benchmarks. Random selection, no fixed seed.',
             },
+            # Server
+            'server:host': {
+                'type': 'string', 'default': '127.0.0.1', 'label': 'Bind Address', 'group': 'server',
+                'description': 'IP address the web server listens on. Use 127.0.0.1 (default) to accept local connections only. Change to 0.0.0.0 only if you need LAN access and understand the security implications. Requires restart.',
+            },
+            'server:port': {
+                'type': 'int', 'default': 8000, 'label': 'Port', 'group': 'server',
+                'description': 'TCP port the web server listens on. Default is 8000. Requires restart.',
+            },
             # UI
             'ui:language': {
                 'type': 'string',
