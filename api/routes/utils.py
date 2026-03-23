@@ -5,6 +5,31 @@ from pydantic import BaseModel
 from utils.qdrant_check import check_qdrant_health
 from core import manager
 from core.settings import settings
+from core.vault_manager import VaultManager
+
+# Extensions that must never be opened via the API regardless of vault membership.
+_BLOCKED_EXTENSIONS = {
+    '.exe', '.com', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.wsf',
+    '.scr', '.pif', '.dll', '.sys', '.reg', '.hta', '.lnk', '.url',
+    '.cpl', '.inf', '.js', '.jse', '.vbe',
+}
+
+
+def _is_in_vault_root(path: str) -> bool:
+    """Return True iff *path* resolves to a location inside an active or
+    archived vault's scan_directory.  Uses realpath to block symlink escapes."""
+    try:
+        real = os.path.realpath(path)
+        vm = VaultManager(manager.get_db_path())
+        for vault in vm.list_vaults():
+            if vault['state'] not in ('active', 'archived'):
+                continue
+            vault_root = os.path.realpath(vault['scan_directory'])
+            if real.startswith(vault_root + os.sep) or real == vault_root:
+                return True
+        return False
+    except Exception:
+        return False
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
@@ -949,6 +974,13 @@ def browse_path(req: BrowseRequest):
 
 @router.post("/utils/open_path")
 def open_path(req: OpenRequest):
+    # Block dangerous file extensions
+    ext = os.path.splitext(req.path)[1].lower()
+    if ext in _BLOCKED_EXTENSIONS:
+        return {"status": "error", "detail": "File type not allowed"}
+    # Restrict to vault roots (prevent arbitrary filesystem access)
+    if not _is_in_vault_root(req.path):
+        return {"status": "error", "detail": "Path is outside vault boundaries"}
     if not os.path.exists(req.path):
         return {"status": "error", "detail": "Path not found"}
     try:
