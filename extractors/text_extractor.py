@@ -134,7 +134,10 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
 
         # Phase 1: native text layer
         for i, page in enumerate(reader.pages):
-            text = page.extract_text() or ''
+            raw = page.extract_text() or ''
+            # pypdf can produce lone surrogates from malformed PDF encodings;
+            # strip them before any downstream UTF-8 serialisation.
+            text = raw.encode('utf-8', errors='ignore').decode('utf-8')
             page_texts.append(text)
             if len(text.strip()) < threshold:
                 sparse_indices.append(i)
