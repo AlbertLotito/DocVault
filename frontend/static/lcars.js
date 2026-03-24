@@ -193,7 +193,9 @@ async function lcPollSensors() {
       _setSensor('lc-s-cpu',  `${mon.cpu_pct ?? '—'}%`, _cpuClass(mon.cpu_pct));
       _setSensor('lc-s-gpu',  `${mon.gpu_util_pct ?? '—'}%`, '');
       _setSensor('lc-s-temp', `${mon.gpu_temp ?? '—'}°C`, _tempClass(mon.gpu_temp));
-      _setSensor('lc-s-disk', `${mon.disk_free_pct ?? '—'}%`, _diskClass(mon.disk_free_pct));
+      const diskGb = mon.disk_free_gb != null ? `${mon.disk_free_gb.toFixed(1)}G` : '—';
+      const diskPct = mon.disk_free_pct != null ? `${Math.round(mon.disk_free_pct)}%` : '—';
+      _setSensor('lc-s-disk', `${diskGb} ${diskPct}`, _diskClass(mon.disk_free_pct));
       const state = mon.state ?? 'UNKNOWN';
       _setSensor('lc-s-state', `▐ ${state}`, state === 'READY' ? 'ok' : state === 'PAUSED' ? 'err' : 'warn');
     }
@@ -227,7 +229,8 @@ function _setSensor(id, val, cls) {
 }
 function _cpuClass(v)  { return v > 90 ? 'err' : v > 70 ? 'warn' : 'ok'; }
 function _tempClass(v) { return v > 85 ? 'err' : v > 70 ? 'warn' : 'ok'; }
-function _diskClass(v) { return v > 90 ? 'err' : v > 75 ? 'warn' : 'ok'; }
+// v is disk FREE percentage — low free = bad
+function _diskClass(v) { return v < 10 ? 'err' : v < 25 ? 'warn' : 'ok'; }
 
 /** Shared toast helper — replaces per-page showToast() */
 function lcToast(msg, isErr = false) {

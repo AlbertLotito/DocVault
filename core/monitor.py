@@ -49,13 +49,15 @@ class MonitorReading:
 @dataclass
 class ThrottleThresholds:
     """All thresholds configurable via settings. Defaults match design doc."""
-    gpu_temp_throttle:  float = 80.0
-    gpu_temp_cooldown:  float = 88.0
-    gpu_util_throttle:  float = 70.0
-    sustained_minutes:  int   = 3
-    cooldown_minutes:   int   = 10
-    ram_throttle_pct:   float = 85.0
-    cpu_temp_throttle:  float = 85.0
+    gpu_temp_throttle:    float = 80.0
+    gpu_temp_cooldown:    float = 88.0
+    gpu_util_throttle:    float = 70.0
+    sustained_minutes:    int   = 3
+    cooldown_minutes:     int   = 10
+    ram_throttle_pct:     float = 85.0
+    cpu_temp_throttle:    float = 85.0
+    disk_free_pct_throttle: float = 10.0  # throttle when free % drops below this
+    disk_free_gb_throttle:  float = 5.0   # throttle when free GB drops below this
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +258,10 @@ class ThrottleStateMachine:
             reasons.append(f"CPU Temp ({reading.cpu_temp}C)")
         if reading.ram_pct > thresholds.ram_throttle_pct:
             reasons.append(f"RAM Usage ({reading.ram_pct}%)")
+        # Disk: > 0 guard prevents dummy-sensor zeros from false-triggering
+        if (reading.disk_free_gb > 0 and reading.disk_free_gb < thresholds.disk_free_gb_throttle) or \
+           (reading.disk_free_pct > 0 and reading.disk_free_pct < thresholds.disk_free_pct_throttle):
+            reasons.append(f"Low Disk ({reading.disk_free_gb:.1f} GB / {reading.disk_free_pct:.0f}% free)")
 
         pressure = len(reasons) > 0
         pressure_text = "High " + ", ".join(reasons) if pressure else ""
@@ -420,13 +426,15 @@ def _load_thresholds() -> ThrottleThresholds:
     try:
         from core.settings import settings as s
         return ThrottleThresholds(
-            gpu_temp_throttle = float(s.get('monitor:gpu_temp_throttle')  or 80),
-            gpu_temp_cooldown = float(s.get('monitor:gpu_temp_cooldown')  or 88),
-            gpu_util_throttle = float(s.get('monitor:gpu_util_throttle')  or 70),
-            sustained_minutes = int(  s.get('monitor:sustained_minutes')  or 3),
-            cooldown_minutes  = int(  s.get('monitor:cooldown_minutes')   or 10),
-            ram_throttle_pct  = float(s.get('monitor:ram_throttle_pct')   or 85),
-            cpu_temp_throttle = float(s.get('monitor:cpu_temp_throttle')  or 85),
+            gpu_temp_throttle      = float(s.get('monitor:gpu_temp_throttle')       or 80),
+            gpu_temp_cooldown      = float(s.get('monitor:gpu_temp_cooldown')       or 88),
+            gpu_util_throttle      = float(s.get('monitor:gpu_util_throttle')       or 70),
+            sustained_minutes      = int(  s.get('monitor:sustained_minutes')       or 3),
+            cooldown_minutes       = int(  s.get('monitor:cooldown_minutes')        or 10),
+            ram_throttle_pct       = float(s.get('monitor:ram_throttle_pct')        or 85),
+            cpu_temp_throttle      = float(s.get('monitor:cpu_temp_throttle')       or 85),
+            disk_free_pct_throttle = float(s.get('monitor:disk_free_pct_throttle') or 10),
+            disk_free_gb_throttle  = float(s.get('monitor:disk_free_gb_throttle')  or 5),
         )
     except Exception:
         return ThrottleThresholds()
