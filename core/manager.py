@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import json
 import os
@@ -708,35 +709,114 @@ def fts_search(db_path, query, limit=20,
         return [dict(r) for r in rows]
 
 
+def _register_regexp(conn):
+    """Register a case-insensitive REGEXP function on a sqlite3 connection."""
+    def _regexp(pattern, text):
+        if text is None:
+            return False
+        try:
+            return bool(re.search(pattern, text, re.IGNORECASE))
+        except re.error:
+            return False
+    conn.create_function('REGEXP', 2, _regexp)
+
+
+def _wildcard_to_like(pattern: str) -> str:
+    """Convert shell-style wildcard (* ?) to SQL LIKE pattern (% _).
+
+    Existing SQL wildcard characters (% and _) in the pattern are escaped
+    so they match literally.
+    """
+    pattern = pattern.replace('%', r'\%').replace('_', r'\_')
+    pattern = pattern.replace('*', '%').replace('?', '_')
+    return pattern
+
+
+def _filename_filter_clauses(file_type, date_from, date_to):
+    """Return (where_fragments, params) for the common filename filter fields."""
+    where, params = [], []
+    if file_type:
+        where.append("LOWER(file_type) = LOWER(?)")
+        params.append(file_type.strip().lower())
+    if date_from:
+        where.append("DATE(COALESCE(file_modified, file_created)) >= ?")
+        params.append(date_from)
+    if date_to:
+        where.append("DATE(COALESCE(file_modified, file_created)) <= ?")
+        params.append(date_to)
+    return where, params
+
+
+_FILENAME_SELECT = ("SELECT file_hash, file_path, file_type, file_size, "
+                    "file_created, file_modified, status FROM tasks")
+
+
 def filename_search(db_path, query, limit=50, file_type=None, date_from=None, date_to=None):
-    """Search for files by name/path using multi-token substring matching."""
+    """Search for files by name/path.
+
+    Query shapes (auto-detected by search.query.detect_mode):
+      /pattern/  — regex match on file_path (case-insensitive)
+      word*/?    — wildcard: * → SQL %, ? → SQL _ (single LIKE pattern)
+      plain text — multi-token substring matching (all tokens must appear)
+    """
+    from search.query import detect_mode
+    mode, value = detect_mode(query)
+
+    if mode == 'regex':
+        try:
+            re.compile(value)
+        except re.error:
+            return []
+        with _connect(db_path) as conn:
+            _register_regexp(conn)
+            where = ["file_path REGEXP ?"]
+            params = [value]
+            extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to)
+            where += extra_where
+            params += extra_params
+            params.append(limit)
+            rows = conn.execute(
+                f"{_FILENAME_SELECT} WHERE {' AND '.join(where)}"
+                f" ORDER BY file_path COLLATE NOCASE LIMIT ?", params
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    if mode == 'wildcard':
+        like_pat = _wildcard_to_like(value)
+        # Wrap with % so the pattern matches anywhere in the path (substring),
+        # matching the same "contains" behaviour as plain multi-token search.
+        if not like_pat.startswith('%'):
+            like_pat = '%' + like_pat
+        if not like_pat.endswith('%'):
+            like_pat = like_pat + '%'
+        with _connect(db_path) as conn:
+            where = ["file_path LIKE ? ESCAPE '\\'"]
+            params = [like_pat]
+            extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to)
+            where += extra_where
+            params += extra_params
+            params.append(limit)
+            rows = conn.execute(
+                f"{_FILENAME_SELECT} WHERE {' AND '.join(where)}"
+                f" ORDER BY file_path COLLATE NOCASE LIMIT ?", params
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # plain — multi-token LIKE (all tokens must match anywhere in path)
     tokens = [t.strip() for t in query.split() if t.strip()]
     if not tokens:
         return []
     with _connect(db_path) as conn:
-        where = []
-        params = []
-        for token in tokens:
-            where.append("LOWER(file_path) LIKE LOWER(?)")
-            params.append(f'%{token}%')
-        if file_type:
-            where.append("LOWER(file_type) = LOWER(?)")
-            params.append(file_type.strip().lower())
-        if date_from:
-            where.append("DATE(COALESCE(file_modified, file_created)) >= ?")
-            params.append(date_from)
-        if date_to:
-            where.append("DATE(COALESCE(file_modified, file_created)) <= ?")
-            params.append(date_to)
+        where = [f"LOWER(file_path) LIKE LOWER(?)" for _ in tokens]
+        params = [f'%{t}%' for t in tokens]
+        extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to)
+        where += extra_where
+        params += extra_params
         params.append(limit)
-        sql = f"""
-            SELECT file_hash, file_path, file_type, file_size, file_created, file_modified, status
-            FROM tasks
-            WHERE {' AND '.join(where)}
-            ORDER BY file_path COLLATE NOCASE
-            LIMIT ?
-        """
-        rows = conn.execute(sql, params).fetchall()
+        rows = conn.execute(
+            f"{_FILENAME_SELECT} WHERE {' AND '.join(where)}"
+            f" ORDER BY file_path COLLATE NOCASE LIMIT ?", params
+        ).fetchall()
         return [dict(r) for r in rows]
 
 
