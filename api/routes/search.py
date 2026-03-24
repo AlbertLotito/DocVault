@@ -2,6 +2,7 @@ import asyncio
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from search import fts, semantic, hybrid
+from search.query import detect_mode
 from core import manager
 from core.settings import settings
 from core.monitor import notify_user_activity
@@ -29,15 +30,28 @@ async def search(q: str = Query(..., min_length=1),
     n = _limit(limit)
     db = get_db()
 
+    # Regex and wildcard queries can't be embedded — skip vector search
+    query_mode, _ = detect_mode(q)
+    vector_unsupported = query_mode in ('regex', 'wildcard')
+
+    if mode == 'fts' or vector_unsupported:
+        results = fts.search(db, q, n,
+                             file_type=file_type, date_from=date_from, date_to=date_to)
+        if vector_unsupported and mode != 'fts':
+            return JSONResponse(content={
+                'results': results,
+                'degraded': True,
+                'degraded_reason': (
+                    'Regex and wildcard queries use full-text search only — '
+                    'vector search is not available for this query shape'
+                ),
+            })
+        return JSONResponse(content={'results': results, 'degraded': False})
+
     # For semantic/hybrid: resolve SQLite hash filter once
     hash_filter = manager.get_filtered_hashes(
         db, file_type=file_type, date_from=date_from, date_to=date_to
     )
-
-    if mode == 'fts':
-        results = fts.search(db, q, n,
-                             file_type=file_type, date_from=date_from, date_to=date_to)
-        return JSONResponse(content={'results': results, 'degraded': False})
 
     if mode == 'semantic':
         results = await semantic.async_search(q, top_k=n, hash_filter=hash_filter)
