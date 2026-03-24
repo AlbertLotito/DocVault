@@ -16,6 +16,7 @@ Extractor type hierarchy:
 """
 
 from __future__ import annotations
+import re
 import threading
 import time
 import traceback
@@ -244,6 +245,43 @@ class BaseExtractor(ABC):
 
 
 # ---------------------------------------------------------------------------
+# Injection pattern detector
+# ---------------------------------------------------------------------------
+
+# Phrases commonly used in prompt injection / jailbreak attempts.
+_INJECTION_RE = re.compile(
+    r'ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?)'
+    r'|disregard\s+(all\s+)?(previous|prior|above|earlier)'
+    r'|you\s+are\s+now\s+(a\s+|an\s+)?'
+    r'|new\s+(instructions?|rules?|prompt)\s*:'
+    r'|forget\s+(everything|all\s+previous|what\s+you)'
+    r'|act\s+as\s+(a\s+|an\s+)?(?!user|assistant)'
+    r'|<\s*/?\s*system\s*>'
+    r'|\[\s*system\s*\]',
+    re.IGNORECASE,
+)
+
+
+def _check_injection_patterns(text: str, ctx: 'ExtractorContext') -> None:
+    """Scan extracted text for prompt-injection patterns.
+
+    Logs a WARNING to worker_errors via ctx.logger if any matches are found.
+    Best-effort — never raises.
+    """
+    if not text:
+        return
+    try:
+        match = _INJECTION_RE.search(text)
+        if not match:
+            return
+        ctx.logger.warning(
+            f"Possible prompt injection pattern in extracted text: {match.group(0)!r}"
+        )
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # LegacyExtractorAdapter — wraps old (result, err) extractors
 # ---------------------------------------------------------------------------
 
@@ -314,6 +352,7 @@ class LegacyExtractorAdapter(BaseExtractor):
 
         # str -> main text
         if isinstance(value, str) and value:
+            _check_injection_patterns(value, ctx)
             status = 'failed' if (err and not value) else 'success'
             return IngestResult(text=value, errors=errors, status=status, metadata=meta)
 

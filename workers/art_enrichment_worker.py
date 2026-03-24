@@ -525,6 +525,30 @@ def _call_bing_visual_search(image_path: str, api_key: str) -> dict:
     }
 
 
+# ── Result validation ─────────────────────────────────────────────────────────
+
+def _validate_art_result(result: dict) -> dict | None:
+    """Validate and sanitise an identification result dict.
+
+    Ensures all fields are the expected types and within safe bounds.
+    Returns a clean copy, or None if result is not a dict.
+    """
+    if not isinstance(result, dict):
+        return None
+    try:
+        confidence = float(result.get('confidence', 0.0) or 0.0)
+        confidence = max(0.0, min(1.0, confidence))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return {
+        'artist':     str(result.get('artist',     '') or '')[:200].strip(),
+        'title':      str(result.get('title',      '') or '')[:200].strip(),
+        'confidence': confidence,
+        'source_url': str(result.get('source_url', '') or '')[:500],
+        'tier':       str(result.get('tier', 'unknown') or 'unknown')[:50],
+    }
+
+
 # ── Identification orchestrator ───────────────────────────────────────────────
 
 def _identify_artwork(image_path: str) -> dict | None:
@@ -559,7 +583,7 @@ def _identify_artwork(image_path: str) -> dict | None:
                     f"[art-enrich] CLIP accepted {os.path.basename(image_path)} "
                     f"(conf {conf:.3f})", ext="art"
                 )
-                return clip_result
+                return _validate_art_result(clip_result)
             elif conf >= clip_accept and unknown_artist:
                 # High confidence but no named artist — keep as fallback candidate,
                 # still try cloud for a proper identification
@@ -634,11 +658,11 @@ def _identify_artwork(image_path: str) -> dict | None:
     if best_cloud and best_cloud.get('title'):
         # Prefer cloud over a weak CLIP candidate
         if clip_result is None or best_cloud['confidence'] >= clip_result['confidence']:
-            return best_cloud
+            return _validate_art_result(best_cloud)
 
     # Fall back to CLIP candidate (between thresholds) if cloud had nothing better
     if clip_result and clip_result.get('title'):
-        return clip_result
+        return _validate_art_result(clip_result)
 
     # Nothing found
     return None
