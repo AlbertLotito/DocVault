@@ -255,6 +255,14 @@ class Settings:
                 'type': 'float', 'default': 85.0, 'label': 'CPU temp throttle (°C)', 'group': 'monitor',
                 'description': 'CPU temperature at which workers throttle.',
             },
+            'monitor:disk_free_pct_throttle': {
+                'type': 'float', 'default': 10.0, 'label': 'Disk free % throttle', 'group': 'monitor',
+                'description': 'Throttle workers when disk free space falls below this percentage. Uses OR logic with the GB threshold — either condition triggers throttling.',
+            },
+            'monitor:disk_free_gb_throttle': {
+                'type': 'float', 'default': 5.0, 'label': 'Disk free GB throttle', 'group': 'monitor',
+                'description': 'Throttle workers when disk free space falls below this many gigabytes. Uses OR logic with the % threshold — either condition triggers throttling.',
+            },
             'monitor:search_throttle_duration': {
                 'type': 'int', 'default': 60, 'label': 'Search throttle (s)', 'group': 'monitor',
                 'description': 'How many seconds to throttle extractors after a user performs a search. This ensures the UI remains snappy during heavy background processing.',
