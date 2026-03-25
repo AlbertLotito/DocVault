@@ -169,6 +169,64 @@
       padding: 2px 0;
     }
     .chat-source-path { font-size: 11px; color: var(--c-label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Archive browse ──────────────────────────────────────────────────── */
+    .archive-badge {
+      background: #2a1400;
+      color: var(--c-warn);
+      border: 1px solid var(--c-warn);
+      font-size: 9px;
+      padding: 1px 5px;
+      font-family: var(--font);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .archive-browse-panel {
+      background: #110800;
+      border: 1px solid var(--c-border);
+      border-top: none;
+      padding: 10px 14px;
+      margin-bottom: 6px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    .archive-panel-header {
+      color: var(--c-label);
+      margin-bottom: 8px;
+    }
+    .archive-group-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .archive-group-pill {
+      background: #1a0d00;
+      color: var(--c-accent-dim);
+      border: 1px solid var(--c-border);
+      padding: 1px 7px;
+      font-size: 10px;
+      font-family: var(--font);
+    }
+    .archive-entry-row {
+      display: flex;
+      gap: 8px;
+      padding: 1px 0;
+      color: #cc9966;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .archive-entry-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .archive-entry-size { color: var(--c-label); min-width: 60px; text-align: right; }
+    .archive-entry-date { color: var(--c-label-dim); min-width: 80px; }
+    .archive-entry-enc  { color: var(--c-warn); }
+    .archive-more { color: var(--c-label-dim); margin-top: 6px; font-size: 10px; }
+    .archive-error { color: var(--c-error); }
   </style>
 </head>
 <body data-page="search">
@@ -333,20 +391,28 @@
       el.innerHTML = results.map(r => {
         const safePath = (r.file_path || '').replace(/"/g, '&quot;');
         const scoreBadge = scoreBadgeHtml(r.score);
+        const isArchive = isArchivePath(r.file_path);
+        const archiveBadge = isArchive ? `<span class="archive-badge">Archive</span>` : '';
+        const browseBtn = isArchive
+          ? `<button data-path="${safePath}" onclick="browseArchive(this.dataset.path, this)" class="search-action-btn">Browse &#9654;</button>`
+          : '';
+        const snippet = isArchive ? '' : `<div class="search-result-snippet">${escapeHtml(r.snippet || r.chunk_text || '')}</div>`;
         return `
         <div class="search-result">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap;">
               ${scoreBadge}
+              ${archiveBadge}
               <span class="search-result-file" title="${escapeHtml(r.file_path || '')}">${escapeHtml(formatPath(r.file_path))}</span>
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
               <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">${t('search.result.open')}</button>
               <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">${t('search.result.folder')}</button>
               <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">${t('search.result.inspect')}</button>
+              ${browseBtn}
             </div>
           </div>
-          <div class="search-result-snippet">${escapeHtml(r.snippet || r.chunk_text || '')}</div>
+          ${snippet}
         </div>`;
       }).join('');
     }
@@ -380,12 +446,82 @@
       if (bytes == null) return '';
       if (bytes < 1024) return `${bytes} B`;
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
     }
 
     function formatDate(iso) {
       if (!iso) return '';
       return iso.slice(0, 10);
+    }
+
+    const ARCHIVE_TYPES = new Set(['zip','tar','tgz','tbz2','gz','bz2','7z','rar']);
+
+    function isArchivePath(filePath) {
+      const ext = (filePath || '').split('.').pop().toLowerCase();
+      return ARCHIVE_TYPES.has(ext);
+    }
+
+    const _browsePanels = {};  // path → panel element
+
+    async function browseArchive(path, btn) {
+      // Toggle: close if already open
+      if (_browsePanels[path]) {
+        _browsePanels[path].remove();
+        delete _browsePanels[path];
+        btn.textContent = 'Browse \u25ba';
+        return;
+      }
+      btn.textContent = 'Browse \u25bc';
+
+      const panel = document.createElement('div');
+      panel.className = 'archive-browse-panel';
+      panel.innerHTML = `<span style="color:var(--c-label-dim);">Loading\u2026</span>`;
+      btn.closest('.search-result').after(panel);
+      _browsePanels[path] = panel;
+
+      let data;
+      try {
+        data = await api(`/catalog/archive?path=${encodeURIComponent(path)}`);
+      } catch (e) {
+        panel.innerHTML = `<span class="archive-error">Could not read archive.</span>`;
+        return;
+      }
+
+      if (data.password_protected) {
+        panel.innerHTML = `<span class="archive-error">Password protected \u2014 file listing unavailable.</span>`;
+        return;
+      }
+
+      const ratio = (data.total_uncompressed_bytes > 0)
+        ? Math.round((1 - data.total_compressed_bytes / data.total_uncompressed_bytes) * 100)
+        : null;
+      const ratioStr = ratio != null ? ` \u00b7 ${ratio}% compression` : '';
+
+      const headerHtml = `<div class="archive-panel-header">${escapeHtml(data.format)} \u00b7 ${data.file_count} files \u00b7 ${formatSize(data.total_uncompressed_bytes)} uncompressed${ratioStr}</div>`;
+
+      const pillsHtml = data.groups.length
+        ? `<div class="archive-group-pills">${data.groups.map(g =>
+            `<span class="archive-group-pill">${escapeHtml(g.name)} ${g.count}</span>`
+          ).join('')}</div>`
+        : '';
+
+      const shown = data.entries.slice(0, 500);
+      const more = data.file_count - shown.length;
+      const rowsHtml = shown.map(e => {
+        const encHtml = e.encrypted ? ` <span class="archive-entry-enc">[encrypted]</span>` : '';
+        return `<div class="archive-entry-row">
+          <span class="archive-entry-name" title="${escapeHtml(e.name)}">${escapeHtml(e.name.slice(0, 60))}</span>
+          <span class="archive-entry-size">${formatSize(e.size)}</span>
+          <span class="archive-entry-date">${escapeHtml(e.mtime || '')}</span>
+          ${encHtml}
+        </div>`;
+      }).join('');
+      const moreHtml = more > 0
+        ? `<div class="archive-more">[ ${more} more files not shown ]</div>`
+        : '';
+
+      panel.innerHTML = headerHtml + pillsHtml + rowsHtml + moreHtml;
     }
 
     function renderFilenameResults(results) {
@@ -398,6 +534,7 @@
         const safePath = (r.file_path || '').replace(/"/g, '&quot;');
         const fname = formatPath(r.file_path);
         const ext = (r.file_type || '').toLowerCase();
+        const isArchive = ARCHIVE_TYPES.has(ext) || isArchivePath(r.file_path);
         const size = formatSize(r.file_size);
         const date = formatDate(r.file_modified || r.file_created);
         const notDone = r.status && r.status !== 'COMPLETED';
@@ -406,22 +543,43 @@
               r.status === 'ERROR' ? 'lc-badge-err' : 'lc-badge-pend'
             }">${r.status}</span>`
           : '';
+        const archiveBadge = isArchive ? `<span class="archive-badge">Archive</span>` : '';
+        // Archive meta from metadata_json (set by extractor: format, file_count, total_size_bytes)
+        let archiveMetaHtml = '';
+        if (isArchive && r.metadata_json) {
+          try {
+            const m = typeof r.metadata_json === 'string'
+              ? JSON.parse(r.metadata_json) : r.metadata_json;
+            if (m && m.format) {
+              const parts = [m.format];
+              if (m.file_count) parts.push(`${m.file_count} files`);
+              if (m.total_size_bytes) parts.push(formatSize(m.total_size_bytes));
+              archiveMetaHtml = `<div class="search-result-meta">${escapeHtml(parts.join(' \u00b7 '))}</div>`;
+            }
+          } catch (e) { /* ignore malformed metadata */ }
+        }
         const meta = [ext, size, date].filter(Boolean).join(' \u00b7 ');
+        const browseBtn = isArchive
+          ? `<button data-path="${safePath}" onclick="browseArchive(this.dataset.path, this)" class="search-action-btn">Browse &#9654;</button>`
+          : '';
         return `
         <div class="search-result">
           <div style="display:flex;align-items:start;justify-content:space-between;gap:8px;">
             <div style="min-width:0;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                ${archiveBadge}
                 <span class="search-result-file">${escapeHtml(fname)}</span>
                 ${statusHtml}
               </div>
               <div class="search-result-meta" title="${escapeHtml(r.file_path || '')}">${escapeHtml(r.file_path || '')}</div>
               <div class="search-result-meta">${escapeHtml(meta)}</div>
+              ${archiveMetaHtml}
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0;">
               <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">${t('search.result.open')}</button>
               <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">${t('search.result.folder')}</button>
               <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">${t('search.result.inspect')}</button>
+              ${browseBtn}
             </div>
           </div>
         </div>`;
