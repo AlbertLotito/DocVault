@@ -480,48 +480,47 @@
       btn.closest('.search-result').after(panel);
       _browsePanels[path] = panel;
 
-      let data;
       try {
-        data = await api(`/catalog/archive?path=${encodeURIComponent(path)}`);
+        const data = await api(`/catalog/archive?path=${encodeURIComponent(path)}`);
+        if (!data || !data.entries) throw new Error('Invalid response');
+
+        if (data.password_protected) {
+          panel.innerHTML = `<span class="archive-error">Password protected \u2014 file listing unavailable.</span>`;
+          return;
+        }
+
+        const ratio = (data.total_uncompressed_bytes > 0)
+          ? Math.round((1 - data.total_compressed_bytes / data.total_uncompressed_bytes) * 100)
+          : null;
+        const ratioStr = ratio != null ? ` \u00b7 ${ratio}% compression` : '';
+
+        const headerHtml = `<div class="archive-panel-header">${escapeHtml(data.format)} \u00b7 ${String(data.file_count)} files \u00b7 ${formatSize(data.total_uncompressed_bytes)} uncompressed${ratioStr}</div>`;
+
+        const pillsHtml = data.groups.length
+          ? `<div class="archive-group-pills">${data.groups.map(g =>
+              `<span class="archive-group-pill">${escapeHtml(g.name)} ${g.count}</span>`
+            ).join('')}</div>`
+          : '';
+
+        const shown = data.entries.filter(e => !e.is_dir).slice(0, 500);
+        const more = data.file_count - shown.length;
+        const rowsHtml = shown.map(e => {
+          const encHtml = e.encrypted ? ` <span class="archive-entry-enc">[encrypted]</span>` : '';
+          return `<div class="archive-entry-row">
+            <span class="archive-entry-name" title="${escapeHtml(e.name)}">${escapeHtml(e.name.slice(0, 60))}</span>
+            <span class="archive-entry-size">${formatSize(e.size)}</span>
+            <span class="archive-entry-date">${escapeHtml(e.mtime || '')}</span>
+            ${encHtml}
+          </div>`;
+        }).join('');
+        const moreHtml = more > 0
+          ? `<div class="archive-more">[ ${more} more files not shown ]</div>`
+          : '';
+
+        panel.innerHTML = headerHtml + pillsHtml + rowsHtml + moreHtml;
       } catch (e) {
         panel.innerHTML = `<span class="archive-error">Could not read archive.</span>`;
-        return;
       }
-
-      if (data.password_protected) {
-        panel.innerHTML = `<span class="archive-error">Password protected \u2014 file listing unavailable.</span>`;
-        return;
-      }
-
-      const ratio = (data.total_uncompressed_bytes > 0)
-        ? Math.round((1 - data.total_compressed_bytes / data.total_uncompressed_bytes) * 100)
-        : null;
-      const ratioStr = ratio != null ? ` \u00b7 ${ratio}% compression` : '';
-
-      const headerHtml = `<div class="archive-panel-header">${escapeHtml(data.format)} \u00b7 ${data.file_count} files \u00b7 ${formatSize(data.total_uncompressed_bytes)} uncompressed${ratioStr}</div>`;
-
-      const pillsHtml = data.groups.length
-        ? `<div class="archive-group-pills">${data.groups.map(g =>
-            `<span class="archive-group-pill">${escapeHtml(g.name)} ${g.count}</span>`
-          ).join('')}</div>`
-        : '';
-
-      const shown = data.entries.filter(e => !e.is_dir).slice(0, 500);
-      const more = data.file_count - shown.length;
-      const rowsHtml = shown.map(e => {
-        const encHtml = e.encrypted ? ` <span class="archive-entry-enc">[encrypted]</span>` : '';
-        return `<div class="archive-entry-row">
-          <span class="archive-entry-name" title="${escapeHtml(e.name)}">${escapeHtml(e.name.slice(0, 60))}</span>
-          <span class="archive-entry-size">${formatSize(e.size)}</span>
-          <span class="archive-entry-date">${escapeHtml(e.mtime || '')}</span>
-          ${encHtml}
-        </div>`;
-      }).join('');
-      const moreHtml = more > 0
-        ? `<div class="archive-more">[ ${more} more files not shown ]</div>`
-        : '';
-
-      panel.innerHTML = headerHtml + pillsHtml + rowsHtml + moreHtml;
     }
 
     function renderFilenameResults(results) {
