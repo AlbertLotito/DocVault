@@ -392,7 +392,7 @@
         const safePath = (r.file_path || '').replace(/"/g, '&quot;');
         const scoreBadge = scoreBadgeHtml(r.score);
         const isArchive = isArchivePath(r.file_path);
-        const archiveBadge = isArchive ? `<span class="archive-badge">Archive</span>` : '';
+        const archiveBadge = isArchive ? `<span class="lc-badge archive-badge">Archive</span>` : '';
         const browseBtn = isArchive
           ? `<button data-path="${safePath}" onclick="browseArchive(this.dataset.path, this)" class="search-action-btn">Browse &#9654;</button>`
           : '';
@@ -506,7 +506,7 @@
           ).join('')}</div>`
         : '';
 
-      const shown = data.entries.slice(0, 500);
+      const shown = data.entries.filter(e => !e.is_dir).slice(0, 500);
       const more = data.file_count - shown.length;
       const rowsHtml = shown.map(e => {
         const encHtml = e.encrypted ? ` <span class="archive-entry-enc">[encrypted]</span>` : '';
@@ -543,7 +543,7 @@
               r.status === 'ERROR' ? 'lc-badge-err' : 'lc-badge-pend'
             }">${r.status}</span>`
           : '';
-        const archiveBadge = isArchive ? `<span class="archive-badge">Archive</span>` : '';
+        const archiveBadge = isArchive ? `<span class="lc-badge archive-badge">Archive</span>` : '';
         // Archive meta from metadata_json (set by extractor: format, file_count, total_size_bytes)
         let archiveMetaHtml = '';
         if (isArchive && r.metadata_json) {
