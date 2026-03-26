@@ -3,6 +3,7 @@ import socket
 import subprocess
 import time
 from core import manager, logger
+from core.settings import settings
 from embeddings import chunker, embedder
 from embeddings.vector_store import VectorStore
 from workers.utils import interruptible_sleep, should_pause_or_throttle, get_throttle_sleep
@@ -125,6 +126,78 @@ def process_task(db_path, task, vs):
     logger.info(f"  Embedded {len(batch)} chunk(s).")
 
 
+def process_task_batch(db_path, tasks, vs):
+    """Process a list of EMBEDDING tasks: chunk all → one embed call → upsert per doc."""
+    # Phase 1: chunk all documents
+    # each entry: (task, chunk_index, chunk_text, embed_input_string)
+    all_entries = []
+    empty_hashes = []
+
+    for task in tasks:
+        file_hash = task['file_hash']
+        file_path = task['file_path']
+        filename  = os.path.basename(file_path)
+        text = task.get('extracted_text') or ''
+        chunks = chunker.chunk(text)
+        if not chunks:
+            empty_hashes.append(file_hash)
+            continue
+        for i, chunk_text in enumerate(chunks):
+            all_entries.append((task, i, chunk_text, f"{filename}\n{chunk_text}"))
+
+    for fh in empty_hashes:
+        manager.update_task_status(db_path, fh, 'COMPLETED')
+
+    if not all_entries:
+        return
+
+    n_docs   = len({e[0]['file_hash'] for e in all_entries})
+    n_chunks = len(all_entries)
+    logger.info(f"Embedding batch: {n_docs} doc(s), {n_chunks} chunk(s)")
+
+    # Phase 2: one Ollama call for all chunks
+    inputs  = [e[3] for e in all_entries]
+    vectors = embedder.embed_batch(inputs)
+
+    # Phase 3: group vectors back by document
+    doc_batches: dict = {}
+    doc_tasks:   dict = {}
+    for (task, chunk_index, chunk_text, _), vector in zip(all_entries, vectors):
+        fh = task['file_hash']
+        doc_tasks[fh]  = task
+        if fh not in doc_batches:
+            doc_batches[fh] = []
+        if vector is not None:
+            doc_batches[fh].append({
+                'chunk_index': chunk_index,
+                'vector':      vector,
+                'payload': {
+                    'file_path':   task['file_path'],
+                    'chunk_text':  chunk_text,
+                    'chunk_index': chunk_index,
+                },
+            })
+
+    # Phase 4: upsert all, then mark complete.
+    # If any upsert fails, reset ALL non-empty docs to EXTRACTED before re-raising.
+    try:
+        for fh, batch in doc_batches.items():
+            if batch:
+                vs.upsert_batch(fh, batch)
+    except Exception as e:
+        logger.error(f"Qdrant upsert failed: {e}. Resetting batch to EXTRACTED.")
+        for fh in doc_batches:
+            try:
+                manager.update_task_status(db_path, fh, status='EXTRACTED')
+            except Exception as e2:
+                logger.error(f"Could not reset {fh[:8]} to EXTRACTED: {e2}")
+        raise
+
+    for fh in doc_batches:
+        manager.update_task_status(db_path, fh, status='COMPLETED')
+    logger.info(f"  Batch complete: {len(doc_batches)} doc(s).")
+
+
 def _record_timing(task: dict, extractor_name: str, elapsed: float):
     """Best-effort write to logs.db task_timings."""
     try:
@@ -187,18 +260,17 @@ def run(db_path, shutdown_event=None, worker_id=None):
             time.sleep(extra)
 
         try:
-            task = manager.claim_extracted_task(db_path, worker_id)
+            batch_size = int(settings.get('workers:embed_batch_size') or 8)
+            tasks = manager.claim_extracted_tasks(db_path, worker_id, limit=batch_size)
         except Exception as e:
             logger.warn(f"Embedding worker DB contention, retrying in 5s: {e}")
             time.sleep(5)
             continue
 
-        if task:
+        if tasks:
             try:
-                process_task(db_path, task, vs)
+                process_task_batch(db_path, tasks, vs)
             except Exception as e:
-                # process_task re-raises on Qdrant failure after resetting to EXTRACTED.
-                # Reset vs so next iteration re-connects.
                 logger.error(f"Qdrant connection lost. Will reconnect in 10s. Error: {e}")
                 vs = None
         else:
