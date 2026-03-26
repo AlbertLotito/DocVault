@@ -23,17 +23,30 @@ class VectorStore:
 
     def upsert(self, file_hash: str, chunk_index: int,
                vector: list[float], payload: dict):
-        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS,
-                                   f"{file_hash}:{chunk_index}"))
-        self.client.upsert(
-            collection_name=self.collection,
-            points=[models.PointStruct(
-                id=point_id,
-                vector=vector,
-                payload={**payload, 'file_hash': file_hash,
-                         'chunk_index': chunk_index}
-            )]
-        )
+        self.upsert_batch(file_hash, [{'chunk_index': chunk_index,
+                                       'vector': vector, 'payload': payload}])
+
+    def upsert_batch(self, file_hash: str, chunks: list[dict]) -> None:
+        """Batch-upsert multiple chunks in one Qdrant call.
+
+        Each element of *chunks* must have keys:
+            chunk_index: int
+            vector:      list[float]
+            payload:     dict  (file_path, chunk_text, chunk_index)
+        """
+        if not chunks:
+            return
+        points = [
+            models.PointStruct(
+                id=str(uuid.uuid5(uuid.NAMESPACE_DNS,
+                                  f"{file_hash}:{c['chunk_index']}")),
+                vector=c['vector'],
+                payload={**c['payload'], 'file_hash': file_hash,
+                         'chunk_index': c['chunk_index']},
+            )
+            for c in chunks
+        ]
+        self.client.upsert(collection_name=self.collection, points=points)
 
     def search(self, query_vector: list[float],
                top_k: int = 5, score_threshold: float = None,

@@ -82,33 +82,36 @@ def process_task(db_path, task, vs):
         logger.info("  No text to embed. Task marked as complete.")
         return
 
-    for i, chunk_text in enumerate(chunks):
-        prog_pct = int((i / len(chunks)) * 100)
-        manager.update_task_progress(db_path, file_hash, f"Embedding chunk {i+1}/{len(chunks)}...", prog_pct)
+    # Embed all chunks in a single batch call (one HTTP round-trip to Ollama).
+    # Prepend filename so the vector captures file identity as well as content;
+    # payload keeps the clean text for display and LLM context.
+    manager.update_task_progress(db_path, file_hash, f"Embedding {len(chunks)} chunk(s)...", 10)
+    inputs  = [f"{filename}\n{chunk_text}" for chunk_text in chunks]
+    vectors = embedder.embed_batch(inputs)
 
-        # Prepend the filename so vector captures file identity as well as content.
-        # Payload keeps the clean text for display and LLM context.
-        vector = embedder.embed(f"{filename}\n{chunk_text}")
-        if not vector:
-            # embedder already prints the error from ollama
-            continue
+    batch = [
+        {
+            'chunk_index': i,
+            'vector':      vector,
+            'payload': {
+                'file_path':   file_path,
+                'chunk_text':  chunk_text,
+                'chunk_index': i,
+            },
+        }
+        for i, (chunk_text, vector) in enumerate(zip(chunks, vectors))
+        if vector is not None
+    ]
 
+    if batch:
+        manager.update_task_progress(db_path, file_hash, f"Storing {len(batch)} vectors...", 80)
         try:
-            vs.upsert(
-                file_hash=file_hash,
-                chunk_index=i,
-                vector=vector,
-                payload={
-                    'file_path': file_path,
-                    'chunk_text': chunk_text,
-                    'chunk_index': i,
-                }
-            )
+            vs.upsert_batch(file_hash, batch)
         except Exception as e:
             # Qdrant connection failure — reset task to EXTRACTED so it is
             # retried automatically when Qdrant comes back. Never mark ERROR
             # for a transient infrastructure failure.
-            logger.error(f"Qdrant upsert failed on chunk {i}: {e}. Resetting task to EXTRACTED.")
+            logger.error(f"Qdrant upsert failed: {e}. Resetting task to EXTRACTED.")
             try:
                 manager.update_task_status(db_path, file_hash, status='EXTRACTED')
             except Exception as e2:
@@ -119,7 +122,26 @@ def process_task(db_path, task, vs):
             raise  # re-raise so outer loop detects connection loss and resets vs
 
     manager.update_task_status(db_path, file_hash, status='COMPLETED')
-    logger.info(f"  Embedded {len(chunks)} chunk(s).")
+    logger.info(f"  Embedded {len(batch)} chunk(s).")
+
+
+def _record_timing(task: dict, extractor_name: str, elapsed: float):
+    """Best-effort write to logs.db task_timings."""
+    try:
+        from datetime import datetime, timezone
+        from core.manager import get_logs_db_path, _connect
+        with _connect(get_logs_db_path()) as conn:
+            conn.execute(
+                """INSERT INTO task_timings
+                   (file_hash, vault_id, extractor, file_size, elapsed_secs, completed_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (task['file_hash'], task.get('vault_id'), extractor_name,
+                 task.get('file_size'), elapsed,
+                 datetime.now(timezone.utc).isoformat())
+            )
+            conn.commit()
+    except Exception:
+        pass
 
 
 def run(db_path, shutdown_event=None, worker_id=None):

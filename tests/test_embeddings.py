@@ -33,7 +33,9 @@ class TestEmbedder:
     @patch('embeddings.embedder.ollama.Client')
     def test_embed_returns_vector(self, mock_client_class):
         mock_client = MagicMock()
-        mock_client.embeddings.return_value = {'embedding': [0.1, 0.2, 0.3]}
+        mock_response = MagicMock()
+        mock_response.embeddings = [[0.1, 0.2, 0.3]]
+        mock_client.embed.return_value = mock_response
         mock_client_class.return_value = mock_client
         vec = embedder.embed("hello world")
         assert vec == [0.1, 0.2, 0.3]
@@ -41,10 +43,32 @@ class TestEmbedder:
     @patch('embeddings.embedder.ollama.Client')
     def test_embed_returns_none_on_error(self, mock_client_class):
         mock_client = MagicMock()
-        mock_client.embeddings.side_effect = Exception("Ollama unavailable")
+        mock_client.embed.side_effect = Exception("Ollama unavailable")
         mock_client_class.return_value = mock_client
         vec = embedder.embed("hello world")
         assert vec is None
+
+    @patch('embeddings.embedder.ollama.Client')
+    def test_embed_batch_returns_all_vectors(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.embeddings = [[0.1, 0.2], [0.3, 0.4]]
+        mock_client.embed.return_value = mock_response
+        mock_client_class.return_value = mock_client
+        vecs = embedder.embed_batch(["text one", "text two"])
+        assert len(vecs) == 2
+        assert vecs[0] == [0.1, 0.2]
+        assert vecs[1] == [0.3, 0.4]
+        # Single API call regardless of input count
+        mock_client.embed.assert_called_once()
+
+    @patch('embeddings.embedder.ollama.Client')
+    def test_embed_batch_returns_nones_on_error(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client.embed.side_effect = Exception("Ollama unavailable")
+        mock_client_class.return_value = mock_client
+        vecs = embedder.embed_batch(["a", "b", "c"])
+        assert vecs == [None, None, None]
 
 
 class TestVectorStore:
