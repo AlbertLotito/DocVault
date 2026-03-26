@@ -121,6 +121,20 @@ class Settings:
                 'type': 'float', 'default': 0.65, 'label': 'Search score threshold', 'group': 'embeddings',
                 'description': 'Minimum cosine similarity score (0.0–1.0) for a chunk to appear in search results on the Search page. Higher values return only strong matches and reduce noise. Does not affect the RAG chat threshold (see Search tab).',
             },
+            # Worker throughput
+            'workers:embed_batch_size': {
+                'type': 'int', 'default': 8, 'label': 'Embed batch size (docs)', 'group': 'embeddings',
+                'description': 'Number of documents whose chunks are accumulated into a single Ollama embedding call. '
+                               'Larger values keep the GPU busier between documents but use more memory. '
+                               'Recommended: 4–16. Has no effect when the queue is nearly empty.',
+            },
+            'workers:embed_concurrency': {
+                'type': 'int', 'default': 1, 'label': 'Embed worker threads', 'group': 'embeddings',
+                'description': 'Number of parallel embedding worker threads. Set to 2–4 only if Ollama is '
+                               'configured with OLLAMA_NUM_PARALLEL > 1 and you have sufficient VRAM. '
+                               'Increasing this without OLLAMA_NUM_PARALLEL > 1 adds SQLite contention '
+                               'with no throughput benefit. Requires restart.',
+            },
             # Search
             'search:rag_top_k': {
                 'type': 'int', 'default': 5, 'label': 'RAG chunks', 'group': 'search',
@@ -426,3 +440,6 @@ class SettingsResolver:
 # --- Global Settings Singleton ---
 _config_path = os.path.join(os.path.dirname(__file__), '..', 'config.ini')
 settings = Settings(config_path=_config_path)
+
+# Export the schema for tests and external introspection
+SETTINGS_SCHEMA = settings.schema
