@@ -104,6 +104,10 @@ class Settings:
                 'type': 'string', 'default': 'true', 'label': 'Describe images', 'group': 'vision',
                 'description': 'Set to "true" to enable vision-based description for image files and images embedded in PDFs. Set to "false" to disable — Tesseract OCR will still run as a fallback for standalone images. Disable to speed up extraction if you do not need image understanding.',
             },
+            'vision:timeout_secs': {
+                'type': 'int', 'default': 240, 'label': 'Vision timeout (s)', 'group': 'vision',
+                'description': 'Maximum seconds to wait for the Ollama vision model to respond. If the model takes longer (e.g. due to cold-start VRAM loading), the vision step is skipped and extraction continues with EXIF/OCR data only. Default: 240. Increase if you have a slow GPU or a very large model.',
+            },
             # Embeddings
             'embeddings:chunk_size': {
                 'type': 'int', 'default': 600, 'label': 'Chunk size (chars)', 'group': 'embeddings',

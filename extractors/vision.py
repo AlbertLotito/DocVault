@@ -52,6 +52,7 @@ def describe(pil_image, prompt: str = None) -> str:
     from core.monitor import ollama_governor
 
     model = settings.get('vision:model') or 'minicpm-v'
+    timeout = int(settings.get('vision:timeout_secs') or 240)
     if prompt is None:
         prompt = (
             'Describe this image in detail. '
@@ -61,10 +62,12 @@ def describe(pil_image, prompt: str = None) -> str:
     pil_image.save(buf, format='PNG')
     b64 = base64.b64encode(buf.getvalue()).decode()
 
+    client = ollama.Client(timeout=timeout)
+
     for attempt in range(_NO_SLOTS_RETRIES + 1):
         try:
             with ollama_governor():
-                response = ollama.chat(
+                response = client.chat(
                     model=model,
                     messages=[{'role': 'user', 'content': prompt, 'images': [b64]}],
                     options={'temperature': 0},
@@ -81,7 +84,10 @@ def describe(pil_image, prompt: str = None) -> str:
                 print(f"  [vision] Ollama busy (no slots), retry {attempt + 1}/{_NO_SLOTS_RETRIES} in {wait}s…")
                 time.sleep(wait)
                 continue
-            if 'connection' in err.lower():
+            if 'timed out' in err.lower() or 'timeout' in err.lower() or 'ReadTimeout' in err:
+                print(f"  [vision] Timed out after {timeout}s — skipping vision step. "
+                      f"Raise vision:timeout_secs (currently {timeout}) or check GPU load.")
+            elif 'connection' in err.lower():
                 print(f"  [vision] Connection error: Is Ollama running? {err}")
             elif '404' in err or 'not found' in err.lower():
                 print(f"  [vision] Model error: Have you run 'ollama pull {settings.get('vision:model') or 'minicpm-v'}'?")
