@@ -161,10 +161,8 @@ def process_task_batch(db_path, tasks, vs):
 
     # Phase 3: group vectors back by document
     doc_batches: dict = {}
-    doc_tasks:   dict = {}
     for (task, chunk_index, chunk_text, _), vector in zip(all_entries, vectors):
         fh = task['file_hash']
-        doc_tasks[fh]  = task
         if fh not in doc_batches:
             doc_batches[fh] = []
         if vector is not None:
