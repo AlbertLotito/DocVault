@@ -18,62 +18,12 @@ __description__ = (
     "and a full file listing with top-level README files prioritised."
 )
 
-import os
-import zipfile
-import tarfile
 import datetime
+import os
+import tarfile
 from collections import Counter, defaultdict
-
-try:
-    import py7zr as _py7zr
-    _HAS_7Z = True
-except ImportError:
-    _HAS_7Z = False
-
-try:
-    import rarfile as _rarfile
-    _HAS_RAR = True
-except ImportError:
-    _HAS_RAR = False
-
+from core.archive_reader import read_entries, _classify, _GROUP_ORDER
 from core.extractors.base import ExtractorContext
-
-# ---------------------------------------------------------------------------
-# File type grouping
-# ---------------------------------------------------------------------------
-_GROUPS = {
-    'Source Code': {
-        'py','js','ts','java','c','cpp','h','cs','go','rb','php','swift',
-        'kt','rs','sh','bat','ps1','lua','r','m','scala','clj','ex','exs',
-        'elm','vue','jsx','tsx','coffee','dart','nim','zig',
-    },
-    'Documents': {
-        'pdf','doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp',
-        'rtf','pages','numbers','key','epub','md','rst','tex','txt',
-    },
-    'Images': {
-        'jpg','jpeg','png','gif','bmp','tiff','tif','webp','svg','ico',
-        'raw','cr2','nef','arw','dng','heic','psd','ai',
-    },
-    'Audio': {'mp3','wav','flac','ogg','m4a','aac','opus','wma','aiff'},
-    'Video': {'mp4','mkv','avi','mov','wmv','webm','flv','m4v','mpg','mpeg'},
-    'Archives': {'zip','7z','rar','tar','gz','bz2','xz','tgz','tbz2'},
-    'Data': {
-        'json','xml','csv','yaml','yml','toml','sql','db','sqlite',
-        'sqlite3','parquet','h5','hdf5',
-    },
-}
-
-_GROUP_ORDER = ['Source Code', 'Documents', 'Images', 'Audio', 'Video',
-                'Archives', 'Data', 'Other']
-
-
-def _classify(filename: str) -> str:
-    ext = os.path.splitext(filename)[1].lstrip('.').lower()
-    for group, exts in _GROUPS.items():
-        if ext in exts:
-            return group
-    return 'Other'
 
 
 def _fmt_size(n: int | float) -> str:
@@ -177,130 +127,17 @@ def _build_output(archive_name: str, fmt: str, entries: list,
 
 
 # ---------------------------------------------------------------------------
-# Format readers
-# ---------------------------------------------------------------------------
-
-def _read_zip(file_path: str) -> tuple:
-    entries = []
-    total_compressed = 0
-    with zipfile.ZipFile(file_path, 'r') as zf:
-        for info in zf.infolist():
-            entries.append({
-                'name': info.filename,
-                'size': info.file_size,
-                'mtime': _fmt_date(info.date_time),
-                'is_dir': info.is_dir(),
-                'encrypted': bool(info.flag_bits & 0x1),
-            })
-            total_compressed += info.compress_size
-    return entries, total_compressed, 'ZIP'
-
-
-def _read_tar(file_path: str) -> tuple:
-    name_lower = file_path.lower()
-    if name_lower.endswith(('.tar.gz', '.tgz')):
-        fmt = 'TAR.GZ'
-    elif name_lower.endswith(('.tar.bz2', '.tbz2')):
-        fmt = 'TAR.BZ2'
-    elif name_lower.endswith('.tar.xz'):
-        fmt = 'TAR.XZ'
-    else:
-        fmt = 'TAR'
-
-    entries = []
-    with tarfile.open(file_path, 'r:*') as tf:
-        for member in tf.getmembers():
-            entries.append({
-                'name': member.name,
-                'size': member.size,
-                'mtime': _fmt_date(member.mtime),
-                'is_dir': member.isdir(),
-                'encrypted': False,
-            })
-
-    compressed = os.path.getsize(file_path)
-    return entries, compressed, fmt
-
-
-def _read_7z(file_path: str) -> tuple:
-    if not _HAS_7Z:
-        raise ImportError("py7zr is not installed — run: pip install py7zr")
-    entries = []
-    total_compressed = 0
-    try:
-        with _py7zr.SevenZipFile(file_path, mode='r') as zf:
-            if zf.needs_password():
-                raise PermissionError("Password protected")
-            for info in zf.list():
-                entries.append({
-                    'name': info.filename,
-                    'size': info.uncompressed or 0,
-                    'mtime': _fmt_date(info.creationtime) if info.creationtime else '',
-                    'is_dir': info.is_directory,
-                    'encrypted': False,
-                })
-                if info.compressed:
-                    total_compressed += info.compressed
-    except _py7zr.exceptions.PasswordRequired:
-        raise PermissionError("Password protected")
-    if not total_compressed:
-        total_compressed = os.path.getsize(file_path)
-    return entries, total_compressed, '7Z'
-
-
-def _read_rar(file_path: str) -> tuple:
-    if not _HAS_RAR:
-        raise ImportError("rarfile is not installed — run: pip install rarfile")
-    entries = []
-    total_compressed = 0
-    with _rarfile.RarFile(file_path) as rf:
-        if rf.needs_password():
-            raise PermissionError("Password protected")
-        for info in rf.infolist():
-            entries.append({
-                'name': info.filename,
-                'size': info.file_size,
-                'mtime': _fmt_date(info.date_time) if info.date_time else '',
-                'is_dir': info.is_dir(),
-                'encrypted': False,
-            })
-            total_compressed += info.compress_size
-    return entries, total_compressed, 'RAR'
-
-
-# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
 def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     archive_name = os.path.basename(file_path)
-    name_lower = archive_name.lower()
 
     try:
-        if name_lower.endswith('.zip'):
-            entries, total_compressed, fmt = _read_zip(file_path)
-
-        elif (name_lower.endswith('.tar')
-              or name_lower.endswith('.tar.gz')
-              or name_lower.endswith('.tar.bz2')
-              or name_lower.endswith('.tar.xz')
-              or name_lower.endswith('.tgz')
-              or name_lower.endswith('.tbz2')
-              or name_lower.endswith('.gz')
-              or name_lower.endswith('.bz2')):
-            try:
-                entries, total_compressed, fmt = _read_tar(file_path)
-            except tarfile.TarError:
-                return None, "Standalone compressed file — not a tar archive", None
-
-        elif name_lower.endswith('.7z'):
-            entries, total_compressed, fmt = _read_7z(file_path)
-
-        elif name_lower.endswith('.rar'):
-            entries, total_compressed, fmt = _read_rar(file_path)
-
-        else:
-            return None, f"Unsupported archive format: {archive_name}", None
+        try:
+            entries, total_compressed, fmt = read_entries(file_path)
+        except tarfile.TarError:
+            return None, "Standalone compressed file — not a tar archive", None
 
         meta = {
             'format': fmt,
@@ -310,7 +147,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         return _build_output(archive_name, fmt, entries, total_compressed), None, meta
 
     except PermissionError:
-        fmt_guess = name_lower.rsplit('.', 1)[-1].upper()
+        fmt_guess = os.path.splitext(archive_name)[1].lstrip('.').upper() or 'ARCHIVE'
         return (
             f"Archive: {archive_name}\n"
             f"Format: {fmt_guess}\n\n"

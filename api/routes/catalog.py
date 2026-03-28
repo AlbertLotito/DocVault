@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from fastapi import APIRouter, HTTPException, Query
 from core import manager
 import sqlite3
@@ -71,6 +73,83 @@ def inspect_file(path: str = Query(...)):
         pass
 
     return {'task': task, 'chunks': chunks, 'images': images}
+
+
+_ARCHIVE_EXTENSIONS = frozenset({
+    'zip', 'tar', 'tgz', 'tbz2', 'gz', 'bz2', '7z', 'rar'
+})
+
+
+@router.get("/catalog/archive")
+def browse_archive(path: str = Query(...)):
+    """Return structured archive listing without extracting content."""
+    import tarfile as _tarfile
+    from core.archive_reader import read_entries, _classify, _GROUP_ORDER
+
+    db = get_db()
+
+    # 1. Look up by file_path
+    with sqlite3.connect(db, timeout=10) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT file_type FROM tasks WHERE file_path = ?", (path,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="File not found in database")
+        file_type = (row['file_type'] or '').lower()
+
+    # 2. Validate archive type
+    if file_type not in _ARCHIVE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not an archive file type: {file_type!r}"
+        )
+
+    # 3. Read entries
+    try:
+        try:
+            entries, total_compressed, fmt = read_entries(path)
+        except _tarfile.TarError:
+            raise HTTPException(
+                status_code=400,
+                detail="Standalone compressed file — not a tar archive"
+            )
+    except HTTPException:
+        raise
+    except PermissionError:
+        return {
+            "format": file_type.upper(),
+            "file_count": 0,
+            "total_uncompressed_bytes": 0,
+            "total_compressed_bytes": 0,
+            "password_protected": True,
+            "groups": [],
+            "entries": [],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read archive: {e}")
+
+    # 4. Build response
+    files = [e for e in entries if not e['is_dir']]
+    group_counts: dict = defaultdict(int)
+    for e in files:
+        group_counts[_classify(e['name'])] += 1
+    groups = [
+        {"name": g, "count": group_counts[g]}
+        for g in _GROUP_ORDER
+        if g in group_counts
+    ]
+    total_uncompressed = sum(e['size'] for e in files)
+
+    return {
+        "format": fmt,
+        "file_count": len(files),
+        "total_uncompressed_bytes": total_uncompressed,
+        "total_compressed_bytes": total_compressed,
+        "password_protected": False,
+        "groups": groups,
+        "entries": files[:500],
+    }
 
 
 @router.get("/catalog/{file_hash}")
