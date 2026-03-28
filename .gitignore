@@ -29,6 +29,10 @@ bin/
 # Claude Code session data
 .claude/
 
+# AI tool state
+.gemini/
+.superpowers/
+
 # OS
 .DS_Store
 Thumbs.db
