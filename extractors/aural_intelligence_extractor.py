@@ -17,7 +17,7 @@ MANIFEST = {
     "id": "com.openai.whisper.large-v3",
     "version": "1.0.0",
     "name": "Aural Intelligence Engine",
-    "extensions": ["mp3", "wav", "m4a", "flac", "ogg"],
+    "extensions": ["mp3", "wav", "m4a", "flac", "ogg", "au"],
     "requires": ["torch", "openai-whisper"]
 }
 

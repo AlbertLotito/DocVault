@@ -134,7 +134,7 @@ def get_folder_extractors(extension_hint: str) -> list:
 def get_priority(file_type: str, vault_id: str = None) -> int:
     """Return the priority for a given file extension."""
     # Logic remains similar to before, can be moved to kernel MANIFEST in next phase
-    slow_types = {'mp3', 'wav', 'm4a', 'flac', 'ogg', 'mp4', 'mov', 'mkv', 'avi', 'webm'}
+    slow_types = {'mp3', 'wav', 'm4a', 'flac', 'ogg', 'au', 'mp4', 'mov', 'mkv', 'avi', 'webm'}
     fast_types = {'txt', 'md', 'csv', 'json', 'py', 'js', 'ts', 'html', 'xml', 'yaml', 'toml', 'log'}
     
     if file_type.lower() in fast_types: return 20

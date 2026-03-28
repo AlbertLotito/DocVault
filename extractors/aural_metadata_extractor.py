@@ -16,7 +16,7 @@ MANIFEST = {
     "id": "com.docvault.aural.metadata",
     "version": "1.0.0",
     "name": "Aural Metadata Extractor",
-    "extensions": ["mp3", "wav", "m4a", "flac", "ogg"],
+    "extensions": ["mp3", "wav", "m4a", "flac", "ogg", "au"],
     "requires": ["mutagen", "ffmpeg"]
 }
 
