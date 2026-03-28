@@ -421,6 +421,14 @@
                 <option value="Georgia, serif">Georgia (serif)</option>
               </select>
             </div>
+            <div class="th-font-row" style="margin-top:8px">
+              <label>--font-scale</label>
+              <div style="display:flex;align-items:center;gap:0;border:1px solid var(--c-border-str);border-radius:3px;overflow:hidden">
+                <button class="lc-btn lc-btn-sm" style="border-radius:0;border:none;border-right:1px solid var(--c-border-str)" onclick="onFontScaleChange(-1)">−</button>
+                <span id="th-scale-val" style="padding:3px 12px;font-size:12px;color:var(--c-label);background:var(--c-panel);min-width:46px;text-align:center">100%</span>
+                <button class="lc-btn lc-btn-sm" style="border-radius:0;border:none;border-left:1px solid var(--c-border-str)" onclick="onFontScaleChange(1)">+</button>
+              </div>
+            </div>
           </div>
         </details>
       </div>
@@ -588,6 +596,12 @@
           }
         }
       }
+      // Sync font scale stepper
+      const scaleEl = document.getElementById('th-scale-val');
+      if (scaleEl) {
+        const scaleVal = parseFloat(getCSSVar('--font-scale')) || 1;
+        scaleEl.textContent = Math.round(scaleVal * 100) + '%';
+      }
     }
 
     // ── Set a single variable ─────────────────────────────────────────────────
@@ -600,6 +614,15 @@
     function onFontChange(value) {
       _overrides['--font'] = value;
       applyTheme(_overrides);
+    }
+
+    function onFontScaleChange(direction) {
+      const current = parseFloat(getCSSVar('--font-scale')) || 1;
+      // Steps of 10% (0.1), clamped to 80%–140%
+      const next = Math.min(1.4, Math.max(0.8, Math.round((current + direction * 0.1) * 10) / 10));
+      _overrides['--font-scale'] = String(next);
+      applyTheme(_overrides);
+      syncInputsFromCSS();
     }
 
     // ── Apply a preset ────────────────────────────────────────────────────────
