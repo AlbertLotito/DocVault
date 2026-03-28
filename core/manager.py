@@ -634,6 +634,34 @@ def claim_extracted_task(db_path, worker_id):
         return task
 
 
+def claim_extracted_tasks(db_path, worker_id, limit=8):
+    """Claim up to *limit* EXTRACTED tasks in one transaction.
+
+    Returns a list of task dicts (same shape as claim_extracted_task).
+    Returns [] when the queue is empty.
+    """
+    with _connect(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = conn.execute(
+            """SELECT file_hash, file_path, file_type, extracted_text
+               FROM tasks WHERE status = 'EXTRACTED' ORDER BY last_update LIMIT ?""",
+            (limit,)
+        ).fetchall()
+        if not rows:
+            conn.commit()
+            return []
+        tasks = [dict(r) for r in rows]
+        hashes = [t['file_hash'] for t in tasks]
+        conn.execute(
+            f"""UPDATE tasks SET status = 'EMBEDDING', worker_id = ?,
+               last_update = CURRENT_TIMESTAMP
+               WHERE file_hash IN ({','.join('?' * len(hashes))})""",
+            [worker_id, *hashes]
+        )
+        conn.commit()
+        return tasks
+
+
 def get_stats(db_path):
     with _connect(db_path) as conn:
         rows = conn.execute(

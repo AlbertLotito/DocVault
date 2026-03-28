@@ -8,11 +8,20 @@ import time
 import uvicorn
 import configparser
 import os
+import socket
 from core import manager, ingestor, logger
 from core.settings import settings
 from workers import extraction_worker, embedding_worker, art_enrichment_worker
 
 DB_PATH = manager.get_db_path()
+
+def _make_embed_workers(db_path: str, concurrency: int) -> list:
+    """Return watchdog entries for N embedding worker threads."""
+    entries = []
+    for i in range(max(1, concurrency)):
+        wid = f"embed-{socket.gethostname()}-{os.getpid()}-{i}"
+        entries.append((f"embedding-{i}", embedding_worker.run, (db_path, None, wid)))
+    return entries
 
 def ingestion_worker_run(db_path, interval_seconds=60):
     """Periodically scans all active vaults."""
@@ -144,12 +153,13 @@ def start():
 
     # Start all workers under the watchdog so dead threads are automatically restarted
     watchdog_interval = int(settings.get('monitor:watchdog_interval') or 30)
+    embed_concurrency = max(1, int(settings.get('workers:embed_concurrency') or 1))
     managed_workers = [
         ('ingestion',   ingestion_worker_run,        (DB_PATH,)),
         ('extraction',  extraction_worker.run,        (DB_PATH, None)),
-        ('embedding',   embedding_worker.run,         (DB_PATH, None)),
         ('art',         art_enrichment_worker.run,    (DB_PATH, None)),
     ]
+    managed_workers.extend(_make_embed_workers(DB_PATH, embed_concurrency))
     t_watchdog = threading.Thread(
         target=_watchdog, args=(managed_workers, watchdog_interval),
         daemon=True, name='watchdog'
