@@ -96,6 +96,23 @@ def retry_errors(vault_id: str):
     return {"reset": reset_count}
 
 
+@router.post("/{vault_id}/retry_unsupported")
+def retry_unsupported(vault_id: str):
+    """Reset ERROR tasks whose error_log indicates unsupported format back to PENDING."""
+    from core.manager import get_db_path, _connect
+    db_path = get_db_path()
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            """UPDATE tasks SET status='PENDING', error_log=NULL
+               WHERE vault_id=? AND status='ERROR'
+               AND error_log LIKE 'Unsupported format:%'""",
+            (vault_id,)
+        )
+        reset_count = cur.rowcount
+        conn.commit()
+    return {"reset": reset_count}
+
+
 @router.post("/{vault_id}/gut")
 def gut_vault(vault_id: str):
     """Transition vault to gutted state (wipes data)."""

@@ -252,6 +252,10 @@
             <div class="v-maint-title" style="color:var(--c-accent);" data-i18n="vault.modal.maint_retry">Retry Errors</div>
             <div class="v-maint-desc" data-i18n="vault.modal.maint_retry_desc">Resets all ERROR tasks back to PENDING so they are re-extracted.</div>
           </button>
+          <button class="v-maint-btn" onclick="retryUnsupported()">
+            <div class="v-maint-title" style="color:var(--c-accent);">Retry Unsupported Formats</div>
+            <div class="v-maint-desc">Re-queues files that failed with "Unsupported format" — useful after adding support for a new file type.</div>
+          </button>
           <button class="v-maint-btn" onclick="confirmResetAction('reindex')">
             <div class="v-maint-title" style="color:var(--c-accent);" data-i18n="vault.modal.maint_reindex">Rebuild Vector Index</div>
             <div class="v-maint-desc" data-i18n="vault.modal.maint_reindex_desc">Wipes embeddings and re-vectorizes all files.</div>
@@ -869,6 +873,17 @@
         refreshAll();
       } catch(err) {
         lcToast(t('vault.toast.reset_failed', { error: err.message }), true);
+      }
+    }
+
+    async function retryUnsupported() {
+      if (!activeVaultId) return;
+      try {
+        var r = await api('/vaults/' + activeVaultId + '/retry_unsupported', { method: 'POST' });
+        lcToast(r.reset + ' unsupported-format task(s) re-queued.');
+        refreshAll();
+      } catch(err) {
+        lcToast('Failed: ' + err.message, true);
       }
     }
 
