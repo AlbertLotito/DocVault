@@ -23,7 +23,7 @@
     }
 
     .th-preview-label {
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       color: var(--c-label-dim);
       text-transform: uppercase;
       letter-spacing: 2px;
@@ -57,14 +57,14 @@
     .th-nav-brand {
       color: var(--c-accent);
       font-weight: bold;
-      font-size: 14px;
+      font-size: calc(14px * var(--font-scale));
       letter-spacing: 2px;
     }
     .th-nav-pill {
       padding: 3px 10px;
       border: 1px solid var(--c-border-str);
       border-radius: 3px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--c-label);
     }
     .th-nav-pill.active-demo {
@@ -77,7 +77,7 @@
       background: var(--c-nav);
       display: flex;
       gap: 14px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--c-label-dim);
       margin-bottom: 12px;
       border-radius: 3px;
@@ -100,8 +100,8 @@
       padding: 10px 14px;
       border-radius: 3px;
     }
-    .th-tile-val  { font-size: 22px; color: var(--c-accent); font-weight: bold; }
-    .th-tile-lbl  { font-size: 10px; color: var(--c-label-dim); text-transform: uppercase; }
+    .th-tile-val  { font-size: calc(22px * var(--font-scale)); color: var(--c-accent); font-weight: bold; }
+    .th-tile-lbl  { font-size: calc(10px * var(--font-scale)); color: var(--c-label-dim); text-transform: uppercase; }
 
     /* ── Card / table ────────────────────────────────── */
     .th-card {
@@ -115,13 +115,13 @@
       background: var(--c-surface);
       border-bottom: 1px solid var(--c-border-str);
       padding: 6px 12px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       font-weight: bold;
       color: var(--c-accent);
       text-transform: uppercase;
       letter-spacing: 1px;
     }
-    .th-card table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .th-card table { width: 100%; border-collapse: collapse; font-size: calc(12px * var(--font-scale)); }
     .th-card td { padding: 7px 12px; border-bottom: 1px solid var(--c-border); color: var(--c-label); }
     .th-card tr:last-child td { border-bottom: none; }
 
@@ -143,7 +143,7 @@
       border: 1px solid var(--c-border-str);
       color: var(--c-label);
       padding: 6px 10px;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-family: var(--font);
       border-radius: 3px;
       flex: 1;
@@ -153,7 +153,7 @@
     .th-status-row {
       display: flex;
       gap: 16px;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       padding: 8px 12px;
       background: var(--c-surface);
       border: 1px solid var(--c-border);
@@ -171,7 +171,7 @@
       border: 1px solid var(--c-border-str);
       border-left: 3px solid var(--c-ok);
       padding: 6px 12px;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       color: var(--c-label);
       border-radius: 3px;
     }
@@ -192,7 +192,7 @@
     }
 
     .th-insp-label {
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       color: var(--c-label-dim);
       text-transform: uppercase;
       letter-spacing: 2px;
@@ -207,7 +207,7 @@
       margin-bottom: 16px;
     }
     .th-presets .lc-btn {
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       padding: 4px 10px;
     }
 
@@ -221,7 +221,7 @@
     .th-group summary {
       padding: 7px 12px;
       background: var(--c-panel);
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       font-weight: bold;
       color: var(--c-accent);
       text-transform: uppercase;
@@ -231,7 +231,7 @@
       user-select: none;
     }
     .th-group summary::-webkit-details-marker { display: none; }
-    .th-group summary::before { content: '▶ '; font-size: 9px; }
+    .th-group summary::before { content: '▶ '; font-size: calc(9px * var(--font-scale)); }
     .th-group[open] summary::before { content: '▼ '; }
     .th-group-body { padding: 8px 12px; }
 
@@ -258,12 +258,12 @@
       border: 1px solid var(--c-border-str);
       color: var(--c-label);
       padding: 4px 8px;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-family: monospace;
       border-radius: 3px;
     }
     .th-var-name {
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--c-label-dim);
       flex: 1;
     }
@@ -275,13 +275,13 @@
       gap: 8px;
       margin-bottom: 7px;
     }
-    .th-font-row label { font-size: 11px; color: var(--c-label-dim); }
+    .th-font-row label { font-size: calc(11px * var(--font-scale)); color: var(--c-label-dim); }
     .th-font-row select {
       background: var(--c-panel);
       border: 1px solid var(--c-border-str);
       color: var(--c-label);
       padding: 4px 8px;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-family: var(--font);
       border-radius: 3px;
       flex: 1;
@@ -295,7 +295,7 @@
       gap: 8px;
       background: var(--c-panel);
     }
-    .th-footer .lc-btn { font-size: 11px; }
+    .th-footer .lc-btn { font-size: calc(11px * var(--font-scale)); }
 
     /* ── Responsive stack ────────────────────────────── */
     @media (max-width: 1000px) {
@@ -370,8 +370,8 @@
 
       <!-- Text / labels -->
       <div style="padding:8px 0;margin-bottom:10px" data-th-group="text">
-        <p style="color:var(--c-label);font-size:13px;margin-bottom:4px">Primary label text — readable body copy.</p>
-        <p style="color:var(--c-label-dim);font-size:11px">Secondary dim text — metadata, timestamps, descriptions.</p>
+        <p style="color:var(--c-label);font-size:calc(13px * var(--font-scale));margin-bottom:4px">Primary label text — readable body copy.</p>
+        <p style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale))">Secondary dim text — metadata, timestamps, descriptions.</p>
       </div>
 
       <!-- Status indicators -->
@@ -387,7 +387,7 @@
       <div class="th-toast-demo" data-th-group="status">✓ Theme saved successfully</div>
 
       <!-- Border demo -->
-      <div style="margin-top:12px;padding:10px 14px;border:1px solid var(--c-border);border-top:3px solid var(--c-border-str);background:var(--c-panel);border-radius:3px;font-size:12px;color:var(--c-label-dim)" data-th-group="borders">
+      <div style="margin-top:12px;padding:10px 14px;border:1px solid var(--c-border);border-top:3px solid var(--c-border-str);background:var(--c-panel);border-radius:3px;font-size:calc(12px * var(--font-scale));color:var(--c-label-dim)" data-th-group="borders">
         ← Border and divider colours shown here
       </div>
     </div>
@@ -425,7 +425,7 @@
               <label>--font-scale</label>
               <div style="display:flex;align-items:center;gap:0;border:1px solid var(--c-border-str);border-radius:3px;overflow:hidden">
                 <button class="lc-btn lc-btn-sm" style="border-radius:0;border:none;border-right:1px solid var(--c-border-str)" onclick="onFontScaleChange(-1)">−</button>
-                <span id="th-scale-val" style="padding:3px 12px;font-size:12px;color:var(--c-label);background:var(--c-panel);min-width:46px;text-align:center">100%</span>
+                <span id="th-scale-val" style="padding:3px 12px;font-size:calc(12px * var(--font-scale));color:var(--c-label);background:var(--c-panel);min-width:46px;text-align:center">100%</span>
                 <button class="lc-btn lc-btn-sm" style="border-radius:0;border:none;border-left:1px solid var(--c-border-str)" onclick="onFontScaleChange(1)">+</button>
               </div>
             </div>
