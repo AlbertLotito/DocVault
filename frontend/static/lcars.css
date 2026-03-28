@@ -19,6 +19,7 @@
   --c-pend:       #ccaa00;
   --c-unk:        #666666;
   --font:         'Arial Narrow', Arial, sans-serif;
+  --font-scale:   1;
 }
 
 /* ── Reset ─────────────────────────────────────────────── */
@@ -50,7 +51,7 @@ a:hover { color: var(--c-warn); }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: calc(16px * var(--font-scale));
   font-weight: 900;
   color: #000;
   letter-spacing: -1px;
@@ -61,7 +62,7 @@ a:hover { color: var(--c-warn); }
   align-items: center;
   padding: 0 16px;
   color: var(--c-accent);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   font-weight: bold;
   letter-spacing: 3px;
   text-transform: uppercase;
@@ -80,7 +81,7 @@ a:hover { color: var(--c-warn); }
   color: var(--c-accent);
   border-radius: 10px;
   padding: 3px 12px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   border: 1px solid #663300;
@@ -102,7 +103,7 @@ a:hover { color: var(--c-warn); }
   overflow: hidden;
 }
 .lc-sensor {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--c-label-dim);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -122,7 +123,7 @@ a:hover { color: var(--c-warn); }
   gap: 10px;
   padding: 14px 20px 10px;
   color: var(--c-accent-dim);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 3px;
 }
@@ -163,7 +164,7 @@ a:hover { color: var(--c-warn); }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: calc(20px * var(--font-scale));
   border-radius: 27px 0 0 27px;
 }
 .lc-bar-body {
@@ -177,7 +178,7 @@ a:hover { color: var(--c-warn); }
 }
 .lc-bar-name {
   color: var(--c-accent);
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
   font-weight: bold;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -186,7 +187,7 @@ a:hover { color: var(--c-warn); }
 }
 .lc-bar-desc {
   color: var(--c-label);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -194,7 +195,7 @@ a:hover { color: var(--c-warn); }
 }
 .lc-bar-arrow {
   color: var(--c-accent-dim);
-  font-size: 16px;
+  font-size: calc(16px * var(--font-scale));
   flex-shrink: 0;
 }
 .lc-bar-expand {
@@ -224,13 +225,13 @@ a:hover { color: var(--c-warn); }
 }
 .lc-stat-tile:hover { background: #110a00; }
 .lc-stat-val {
-  font-size: 22px;
+  font-size: calc(22px * var(--font-scale));
   font-weight: bold;
   color: var(--c-accent);
   line-height: 1;
 }
 .lc-stat-lbl {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--c-label);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -257,7 +258,7 @@ a:hover { color: var(--c-warn); }
 .lc-vault-card.archived { opacity: 0.5; border-top-color: #333; }
 .lc-vault-name {
   color: var(--c-accent);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   font-weight: bold;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -265,7 +266,7 @@ a:hover { color: var(--c-warn); }
 }
 .lc-vault-path {
   color: var(--c-label);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   margin-bottom: 7px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -274,7 +275,7 @@ a:hover { color: var(--c-warn); }
 .lc-vault-meta {
   display: flex;
   gap: 12px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--c-label);
   margin-bottom: 6px;
 }
@@ -285,7 +286,7 @@ a:hover { color: var(--c-warn); }
   display: inline-block;
   border-radius: 8px;
   padding: 2px 9px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   white-space: nowrap;
@@ -305,7 +306,7 @@ a:hover { color: var(--c-warn); }
   color: #dd8833;
   border-radius: 8px;
   padding: 3px 11px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   border: 1px solid #2a1400;
@@ -320,11 +321,11 @@ a:hover { color: var(--c-warn); }
 .lc-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
 }
 .lc-table th {
   color: var(--c-label);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   padding: 7px 10px;
@@ -364,7 +365,7 @@ a:hover { color: var(--c-warn); }
   background: var(--c-bg);
   padding: 0 12px;
   color: var(--c-label-dim);
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 2px;
 }
@@ -377,7 +378,7 @@ a:hover { color: var(--c-warn); }
   border-radius: 10px;
   padding: 5px 16px;
   font-family: var(--font);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   cursor: pointer;
@@ -388,7 +389,7 @@ a:hover { color: var(--c-warn); }
 .lc-btn-primary:hover { background: var(--c-accent); }
 .lc-btn-danger { border-color: #661111; color: var(--c-error); }
 .lc-btn-danger:hover { background: #330000; }
-.lc-btn-sm { padding: 3px 10px; font-size: 10px; }
+.lc-btn-sm { padding: 3px 10px; font-size: calc(10px * var(--font-scale)); }
 
 /* ── Input / Select ────────────────────────────────────── */
 .lc-input, .lc-select {
@@ -398,7 +399,7 @@ a:hover { color: var(--c-warn); }
   border-radius: 3px;
   padding: 6px 10px;
   font-family: var(--font);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   width: 100%;
 }
 .lc-input:focus, .lc-select:focus {
@@ -420,7 +421,7 @@ a:hover { color: var(--c-warn); }
   border-radius: 3px;
   padding: 10px 16px;
   color: var(--c-accent);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   max-width: 320px;
   opacity: 0;
   transform: translateX(20px);
@@ -455,7 +456,7 @@ a:hover { color: var(--c-warn); }
 }
 .lc-modal-title {
   color: var(--c-accent);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   font-weight: bold;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -480,7 +481,7 @@ a:hover { color: var(--c-warn); }
 .lc-ctx-menu.open { display: block; }
 .lc-ctx-item {
   padding: 8px 14px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--c-label);
   cursor: pointer;
   text-transform: uppercase;
