@@ -42,16 +42,16 @@ async def rag_query(req: QueryRequest):
     # Use Hybrid Search for RAG (FTS + Semantic)
     # Use keyword arguments to ensure correct parameter mapping
     try:
-        results = await hybrid.async_search(
-            db_path=get_db(), 
-            query=req.question, 
-            top_k=top_k, 
-            file_type=req.file_type, 
-            date_from=req.date_from, 
+        results, _ = await hybrid.async_search(
+            db_path=get_db(),
+            query=req.question,
+            top_k=top_k,
+            file_type=req.file_type,
+            date_from=req.date_from,
             date_to=req.date_to,
             hash_filter=hash_filter
         )
-        
+
         chunks  = [r.get('chunk_text', '') for r in results]
         sources = [{'file_path': r.get('file_path'), 'score': r.get('score'), 'combined_score': r.get('combined_score')}
                    for r in results]
