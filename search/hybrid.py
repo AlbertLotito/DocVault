@@ -68,8 +68,9 @@ async def async_search(db_path: str, query: str, top_k: int = 10,
     if isinstance(fts_r, Exception):
         fts_r = []
     if isinstance(sem_r, Exception):
-        sem_r = []
+        sem_r = None
 
-    qdrant_offline = len(sem_r) == 0  # heuristic: if no semantic results at all
-    merged = merge(fts_r, sem_r)
+    # None means Qdrant actually failed; [] means it worked but found nothing
+    qdrant_offline = sem_r is None
+    merged = merge(fts_r, sem_r or [])
     return merged[:top_k], qdrant_offline

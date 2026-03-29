@@ -72,9 +72,9 @@ async def async_search(query: str, top_k: int = 5,
         return [{'score': r.score, **r.payload} for r in response.points]
     except Exception as e:
         # Qdrant unavailable — degrade gracefully rather than propagating a 500.
-        # Callers (hybrid search, search route) will fall back to FTS-only.
+        # Return None (not []) so callers can distinguish failure from no results.
         from core import logger
         logger.warn(f"[semantic] Qdrant unavailable: {e}")
-        return []
+        return None
     finally:
         await async_client.close()
