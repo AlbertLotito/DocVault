@@ -235,7 +235,6 @@ def run(db_path, shutdown_event=None, worker_id=None):
                 connect_failures += 1
                 logger.error(f"Embedding worker could not connect to Qdrant (attempt {connect_failures}). Retrying in 10s... Error: {e}")
 
-                from core.settings import settings
                 threshold = int(settings.get('qdrant:restart_after_failures') or 3)
                 if connect_failures >= threshold:
                     last_restart_at = _try_restart_qdrant(last_restart_at)
