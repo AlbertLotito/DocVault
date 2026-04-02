@@ -51,3 +51,147 @@ def test_process_task_batch_records_timing():
     assert recorded[0][0] == 'abc123'
     assert recorded[0][1] == 'embedding'
     assert recorded[0][2] > 0
+
+
+import threading, time
+from datetime import datetime, timezone, timedelta
+
+
+def _make_monitor():
+    """Return a HardwareMonitor instance without starting its loop."""
+    from core.monitor import HardwareMonitor
+    with patch('core.monitor.PSUtilSensor') as m1, \
+         patch('core.monitor.NvidiaSensor') as m2, \
+         patch('core.monitor.WMICPUTempSensor') as m3, \
+         patch('core.monitor.DiskSensor') as m4:
+        for m in (m1, m2, m3, m4):
+            inst = m.return_value
+            inst.initialise.return_value = False
+        mon = HardwareMonitor()
+    return mon
+
+
+def test_embed_stall_no_extracted_queue():
+    """No EXTRACTED tasks → no stall."""
+    from core import monitor as mon_mod
+    mon_mod._set_embed_stall_state(False, 0)
+    monitor = _make_monitor()
+
+    # create=True because _connect is imported locally inside _check_embed_stall
+    with patch('core.manager._connect') as mock_conn:
+        mock_conn.return_value.__enter__.return_value.execute.return_value.fetchone.return_value = {'n': 0}
+        monitor._check_embed_stall()
+
+    stalled, mins = mon_mod.get_embed_stall_state()
+    assert stalled is False
+    assert mins == 0
+
+
+def test_embed_stall_recent_completion():
+    """EXTRACTED tasks exist + recent embedding completion → no stall."""
+    from core import monitor as mon_mod
+    mon_mod._set_embed_stall_state(False, 0)
+    monitor = _make_monitor()
+
+    recent = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+
+    call_count = [0]
+    def fake_connect(path):
+        ctx = MagicMock()
+        row = MagicMock()
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # docvault.db: EXTRACTED count
+            row.__getitem__ = lambda s, k: 5
+            ctx.__enter__.return_value.execute.return_value.fetchone.return_value = row
+        else:
+            # logs.db: last embedding completion
+            row.__getitem__ = lambda s, k: recent
+            ctx.__enter__.return_value.execute.return_value.fetchone.return_value = row
+        return ctx
+
+    # Patch _connect with create=True (locally imported); patch the real settings object's get method
+    with patch('core.manager._connect', side_effect=fake_connect), \
+         patch.object(__import__('core.settings', fromlist=['settings']).settings, 'get', return_value='5'):
+        monitor._check_embed_stall()
+
+    stalled, _ = mon_mod.get_embed_stall_state()
+    assert stalled is False
+
+
+def test_embed_stall_stale_completion():
+    """EXTRACTED tasks exist + stale embedding completion → stall fires."""
+    from core import monitor as mon_mod
+    mon_mod._set_embed_stall_state(False, 0)
+    monitor = _make_monitor()
+
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+
+    call_count = [0]
+    def fake_connect(path):
+        ctx = MagicMock()
+        row = MagicMock()
+        call_count[0] += 1
+        if call_count[0] == 1:
+            row.__getitem__ = lambda s, k: 10
+            ctx.__enter__.return_value.execute.return_value.fetchone.return_value = row
+        else:
+            row.__getitem__ = lambda s, k: stale
+            ctx.__enter__.return_value.execute.return_value.fetchone.return_value = row
+        return ctx
+
+    with patch('core.manager._connect', side_effect=fake_connect), \
+         patch.object(__import__('core.settings', fromlist=['settings']).settings, 'get', return_value='5'), \
+         patch('core.alerts.send_alert', create=True):
+        monitor._check_embed_stall()
+
+    stalled, mins = mon_mod.get_embed_stall_state()
+    assert stalled is True
+    assert mins >= 5
+
+
+def test_embed_stall_no_history():
+    """No embedding history ever → stall suppressed (matches _check_stall behavior)."""
+    from core import monitor as mon_mod
+    mon_mod._set_embed_stall_state(False, 0)
+    monitor = _make_monitor()
+
+    call_count = [0]
+    def fake_connect(path):
+        ctx = MagicMock()
+        row = MagicMock()
+        call_count[0] += 1
+        if call_count[0] == 1:
+            row.__getitem__ = lambda s, k: 5  # EXTRACTED count
+            ctx.__enter__.return_value.execute.return_value.fetchone.return_value = row
+        else:
+            row.__getitem__ = lambda s, k: None  # no completions
+            ctx.__enter__.return_value.execute.return_value.fetchone.return_value = row
+        return ctx
+
+    with patch('core.manager._connect', side_effect=fake_connect), \
+         patch.object(__import__('core.settings', fromlist=['settings']).settings, 'get', return_value='5'):
+        monitor._check_embed_stall()
+
+    stalled, _ = mon_mod.get_embed_stall_state()
+    assert stalled is False
+
+
+def test_embed_stall_clears_when_queue_empty():
+    """Stall clears when EXTRACTED queue drains to zero."""
+    from core import monitor as mon_mod
+    mon_mod._set_embed_stall_state(True, 10)
+    monitor = _make_monitor()
+
+    def fake_connect(path):
+        ctx = MagicMock()
+        row = MagicMock()
+        row.__getitem__ = lambda s, k: 0  # empty queue
+        ctx.__enter__.return_value.execute.return_value.fetchone.return_value = row
+        return ctx
+
+    with patch('core.manager._connect', side_effect=fake_connect):
+        monitor._check_embed_stall()
+
+    stalled, _ = mon_mod.get_embed_stall_state()
+    assert stalled is False

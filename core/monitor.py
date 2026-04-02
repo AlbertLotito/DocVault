@@ -331,6 +331,26 @@ def _set_stall_state(detected: bool, minutes: int):
         _stall_detected = detected
         _stall_minutes = minutes
 
+
+# Shared embedding stall state (set by HardwareMonitor, read by API)
+_embed_stall_detected: bool = False
+_embed_stall_minutes: int = 0
+_embed_stall_lock = threading.Lock()
+
+
+def get_embed_stall_state() -> tuple[bool, int]:
+    """Returns (stalled: bool, stall_minutes: int) for embedding pipeline."""
+    with _embed_stall_lock:
+        return _embed_stall_detected, _embed_stall_minutes
+
+
+def _set_embed_stall_state(detected: bool, minutes: int):
+    global _embed_stall_detected, _embed_stall_minutes
+    with _embed_stall_lock:
+        _embed_stall_detected = detected
+        _embed_stall_minutes = minutes
+
+
 # Ollama Governor State
 _ollama_semaphore: Optional[threading.Semaphore] = None
 _ollama_serial_lock = threading.Lock()
@@ -563,6 +583,74 @@ class HardwareMonitor:
         except Exception:
             pass
 
+    def _check_embed_stall(self):
+        """
+        Detect an embedding stall: EXTRACTED tasks exist but no embedding activity
+        for longer than monitor:embed_stall_threshold_mins.
+        Mirrors _check_stall() pattern. Best-effort; never raises.
+        """
+        try:
+            from core.settings import settings as s
+            threshold_mins = int(s.get('monitor:embed_stall_threshold_mins') or 5)
+
+            from core.manager import get_logs_db_path, get_db_path, _connect
+            from datetime import datetime, timezone
+
+            # Step 1: count EXTRACTED tasks (separate connection — docvault.db)
+            with _connect(get_db_path()) as dconn:
+                extracted = dconn.execute(
+                    "SELECT COUNT(*) as n FROM tasks WHERE status='EXTRACTED'"
+                ).fetchone()['n']
+
+            # Step 2: nothing waiting — no stall possible
+            if extracted == 0:
+                _set_embed_stall_state(False, 0)
+                return
+
+            # Step 3: last embedding completion from logs.db
+            with _connect(get_logs_db_path()) as lconn:
+                row = lconn.execute(
+                    "SELECT MAX(completed_at) as last FROM task_timings WHERE extractor='embedding'"
+                ).fetchone()
+                last_str = row['last'] if row else None
+
+            # Step 4: no history — suppress stall (matches _check_stall() behaviour)
+            # On first run the worker hasn't established a baseline yet.
+            if not last_str:
+                _set_embed_stall_state(False, 0)
+                return
+
+            last_dt = datetime.fromisoformat(last_str)
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            stall_mins = int((datetime.now(timezone.utc) - last_dt).total_seconds() // 60)
+            stalled = stall_mins >= threshold_mins
+
+            was_stalled, _ = get_embed_stall_state()
+            _set_embed_stall_state(stalled, stall_mins)
+
+            if stalled and not was_stalled:
+                logger.error(
+                    f"Embedding stall: {extracted:,} tasks in EXTRACTED queue, "
+                    f"no embedding activity for {stall_mins}m",
+                    ext="monitor"
+                )
+                try:
+                    from core.alerts import send_alert
+                    send_alert(
+                        title="DocVault embedding stalled",
+                        message=f"{extracted:,} tasks waiting in EXTRACTED queue but no embedding activity for {stall_mins} minutes.",
+                        level='error',
+                        source='monitor',
+                    )
+                except Exception:
+                    pass
+            elif not stalled and was_stalled:
+                logger.info("Embedding stall cleared — embedding activity resumed", ext="monitor")
+
+        except Exception:
+            pass
+
     def run(self):
         """Main daemon loop. Call from a daemon thread."""
         logger.info("Resource governor starting", ext="monitor")
@@ -575,6 +663,7 @@ class HardwareMonitor:
                     _set_throttle_state(self._sm.state, reading, self._sm.reason)
                     _record_sample(reading, self._sm.state)
                     self._check_stall()
+                    self._check_embed_stall()
             except Exception as e:
                 logger.error(f"Resource governor cycle error (continuing): {e}", ext="monitor")
             time.sleep(self._get_interval())
