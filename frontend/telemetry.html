@@ -436,6 +436,132 @@
         .bench-row { display: flex; justify-content: space-between; font-size: 0.75rem; padding: 0.4rem 0; border-bottom: 1px dashed rgba(148,163,184,0.05); }
         .hidden { display: none !important; }
 
+        /* Pipeline Health */
+        .pipeline-section {
+            margin: 1.5rem 0;
+        }
+        .pipeline-section-header {
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            color: var(--emerald);
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(51,238,119,0.1);
+            padding-bottom: 0.3rem;
+            margin-bottom: 0.75rem;
+        }
+        .ph-banner {
+            background: rgba(255,68,68,0.08);
+            border: 1px solid var(--ruby);
+            border-radius: 3px;
+            padding: 0.5rem 0.75rem;
+            color: var(--ruby);
+            font-size: 0.75rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .ph-banner .blink { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .ph-queue-chart {
+            background: var(--terminal-gray);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 3px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .ph-chart-label {
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            color: rgba(148,163,184,0.5);
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+        .ph-bars {
+            height: 60px;
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+        }
+        .ph-bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            gap: 1px;
+        }
+        .ph-bar {
+            border-radius: 1px 1px 0 0;
+            min-height: 1px;
+            transition: height 0.3s;
+        }
+        .ph-bar.extracted { background: #1d4ed8; }
+        .ph-bar.embedding { background: #7c3aed; }
+        .ph-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.4rem;
+        }
+        .ph-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.6rem;
+            color: rgba(148,163,184,0.6);
+        }
+        .ph-legend-dot {
+            width: 8px; height: 8px;
+            border-radius: 1px;
+        }
+        .ph-legend-dot.extracted { background: #1d4ed8; }
+        .ph-legend-dot.embedding { background: #7c3aed; }
+        .ph-stall-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .ph-stall-card {
+            background: var(--terminal-gray);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-left: 3px solid var(--emerald);
+            border-radius: 3px;
+            padding: 0.75rem;
+            transition: border-left-color 0.3s;
+        }
+        .ph-stall-card.warn { border-left-color: var(--amber); }
+        .ph-stall-card.stalled { border-left-color: var(--ruby); }
+        .ph-stall-label {
+            font-size: 0.6rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(148,163,184,0.5);
+            margin-bottom: 0.3rem;
+        }
+        .ph-stall-value {
+            font-size: 1.4rem;
+            color: var(--emerald);
+            font-weight: bold;
+            line-height: 1;
+        }
+        .ph-stall-value.warn { color: var(--amber); }
+        .ph-stall-value.stalled { color: var(--ruby); }
+        .ph-stall-sub {
+            font-size: 0.65rem;
+            color: rgba(148,163,184,0.4);
+            margin-top: 0.2rem;
+        }
+        .ph-stall-badge {
+            display: inline-block;
+            margin-top: 0.4rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 2px;
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+        }
+        .ph-stall-badge.ok { background: rgba(51,238,119,0.1); color: var(--emerald); }
+        .ph-stall-badge.warn { background: rgba(245,158,11,0.1); color: var(--amber); }
+        .ph-stall-badge.stalled { background: rgba(255,68,68,0.1); color: var(--ruby); }
+
     </style>
     <link rel="stylesheet" href="/static/lcars.css">
 </head>
@@ -571,6 +697,44 @@
                 </div>
             </div>
         </div>
+        <!-- Pipeline Health section -->
+        <div class="pipeline-section">
+            <div class="pipeline-section-header">Pipeline Health</div>
+
+            <!-- Stall alert banner (hidden by default) -->
+            <div id="ph-banner" class="ph-banner" style="display:none">
+                <span class="blink">◉</span>
+                <span id="ph-banner-text"></span>
+            </div>
+
+            <!-- Queue depth chart -->
+            <div class="ph-queue-chart">
+                <div class="ph-chart-label">Queue Depth — last 30 samples</div>
+                <div class="ph-bars" id="ph-bars">
+                    <div style="font-size:0.7rem;opacity:0.3;align-self:center">No data yet.</div>
+                </div>
+                <div class="ph-legend">
+                    <div class="ph-legend-item"><div class="ph-legend-dot extracted"></div>EXTRACTED</div>
+                    <div class="ph-legend-item"><div class="ph-legend-dot embedding"></div>EMBEDDING</div>
+                </div>
+            </div>
+
+            <!-- Stall sensor cards -->
+            <div class="ph-stall-cards">
+                <div class="ph-stall-card" id="ph-extract-card">
+                    <div class="ph-stall-label">Extraction Pipeline</div>
+                    <div class="ph-stall-value" id="ph-extract-val">—</div>
+                    <div class="ph-stall-sub" id="ph-extract-sub">waiting for data</div>
+                    <span class="ph-stall-badge ok" id="ph-extract-badge">UNKNOWN</span>
+                </div>
+                <div class="ph-stall-card" id="ph-embed-card">
+                    <div class="ph-stall-label">Embedding Pipeline</div>
+                    <div class="ph-stall-value" id="ph-embed-val">—</div>
+                    <div class="ph-stall-sub" id="ph-embed-sub">waiting for data</div>
+                    <span class="ph-stall-badge ok" id="ph-embed-badge">UNKNOWN</span>
+                </div>
+            </div>
+        </div>
         </div><!-- end tab-hardware -->
 
         <!-- Performance tab -->
@@ -647,11 +811,12 @@
 
         async function update() {
             try {
-                const [status, history, queue, health] = await Promise.all([
+                const [status, history, queue, health, workersStatus] = await Promise.all([
                     api('/monitor/status'),
                     api(`/monitor/history?hours=${historyHours}`),
                     api('/catalog?status=PENDING&limit=10'),
-                    api('/utils/health')
+                    api('/utils/health'),
+                    api('/workers/status'),
                 ]);
 
                 thresholds = status.thresholds;
@@ -659,6 +824,7 @@
                 renderHistory(history);
                 renderQueue(queue);
                 renderHealth(health);
+                renderPipelineHealth(status, history, workersStatus);
                 countdown = updateInterval;
             } catch (err) {
                 console.error("Update failed", err);
@@ -877,6 +1043,99 @@
                     <div class="queue-priority">P${task.priority}</div>
                 </div>
             `).join('');
+        }
+
+        function renderPipelineHealth(status, history, workersStatus) {
+            // --- Banner ---
+            const extractStalled = workersStatus && workersStatus.stalled;
+            const embedStalled   = status && status.embed_stall;
+            const banner = document.getElementById('ph-banner');
+            const bannerText = document.getElementById('ph-banner-text');
+
+            if (extractStalled || embedStalled) {
+                const parts = [];
+                if (extractStalled) parts.push(`Extraction stalled ${workersStatus.stall_minutes}m`);
+                if (embedStalled)   parts.push(`Embedding stalled ${status.embed_stall_minutes}m`);
+                bannerText.textContent = parts.join(' · ');
+                banner.style.display = 'flex';
+            } else {
+                banner.style.display = 'none';
+            }
+
+            // --- Queue depth chart ---
+            const window30 = (history || []).slice(-30);
+            const barsEl = document.getElementById('ph-bars');
+            if (window30.length === 0) {
+                barsEl.innerHTML = '<div style="font-size:0.7rem;opacity:0.3;align-self:center">No data yet.</div>';
+            } else {
+                const allVals = window30.flatMap(d => [d.extracted_queue ?? 0, d.embedding_queue ?? 0]);
+                const maxVal = Math.max(...allVals, 1);
+                barsEl.innerHTML = window30.map(d => {
+                    const eq = d.extracted_queue ?? 0;
+                    const emq = d.embedding_queue ?? 0;
+                    const eqH  = Math.max(1, Math.round((eq  / maxVal) * 56));
+                    const emqH = Math.max(1, Math.round((emq / maxVal) * 56));
+                    return `<div class="ph-bar-group">
+                        <div class="ph-bar embedding" style="height:${emqH}px" title="Embedding: ${emq}"></div>
+                        <div class="ph-bar extracted" style="height:${eqH}px" title="Extracted: ${eq}"></div>
+                    </div>`;
+                }).join('');
+            }
+
+            // --- Extraction stall card ---
+            const extractCard  = document.getElementById('ph-extract-card');
+            const extractVal   = document.getElementById('ph-extract-val');
+            const extractSub   = document.getElementById('ph-extract-sub');
+            const extractBadge = document.getElementById('ph-extract-badge');
+
+            if (workersStatus) {
+                if (extractStalled) {
+                    extractCard.className  = 'ph-stall-card stalled';
+                    extractVal.className   = 'ph-stall-value stalled';
+                    extractVal.textContent = `${workersStatus.stall_minutes}m`;
+                    extractSub.textContent = 'since last extraction';
+                    extractBadge.className = 'ph-stall-badge stalled';
+                    extractBadge.textContent = '◉ STALLED';
+                } else {
+                    extractCard.className  = 'ph-stall-card';
+                    extractVal.className   = 'ph-stall-value';
+                    extractVal.textContent = `${workersStatus.stall_minutes || 0}m`;
+                    extractSub.textContent = 'since last extraction';
+                    extractBadge.className = 'ph-stall-badge ok';
+                    extractBadge.textContent = 'ACTIVE';
+                }
+            }
+
+            // --- Embedding stall card ---
+            const embedCard  = document.getElementById('ph-embed-card');
+            const embedVal   = document.getElementById('ph-embed-val');
+            const embedSub   = document.getElementById('ph-embed-sub');
+            const embedBadge = document.getElementById('ph-embed-badge');
+
+            if (status) {
+                const embedThreshold = (status.thresholds && status.thresholds.embed_stall_threshold_mins) || 5;
+                const embedMins  = status.embed_stall_minutes || 0;
+                const isAmber    = !embedStalled && embedMins > embedThreshold * 0.5;
+
+                if (embedStalled) {
+                    embedCard.className  = 'ph-stall-card stalled';
+                    embedVal.className   = 'ph-stall-value stalled';
+                    embedBadge.className = 'ph-stall-badge stalled';
+                    embedBadge.textContent = '◉ STALLED';
+                } else if (isAmber) {
+                    embedCard.className  = 'ph-stall-card warn';
+                    embedVal.className   = 'ph-stall-value warn';
+                    embedBadge.className = 'ph-stall-badge warn';
+                    embedBadge.textContent = 'SLOWING';
+                } else {
+                    embedCard.className  = 'ph-stall-card';
+                    embedVal.className   = 'ph-stall-value';
+                    embedBadge.className = 'ph-stall-badge ok';
+                    embedBadge.textContent = 'ACTIVE';
+                }
+                embedVal.textContent = `${embedMins}m`;
+                embedSub.textContent = 'since last embedding';
+            }
         }
 
         function renderHistory(data) {
