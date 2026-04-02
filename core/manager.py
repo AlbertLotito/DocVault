@@ -116,6 +116,10 @@ def init_logs_db():
             conn.execute("ALTER TABLE system_stats ADD COLUMN disk_free_gb REAL")
         if 'disk_free_pct' not in columns:
             conn.execute("ALTER TABLE system_stats ADD COLUMN disk_free_pct REAL")
+        if 'extracted_queue' not in columns:
+            conn.execute("ALTER TABLE system_stats ADD COLUMN extracted_queue INTEGER")
+        if 'embedding_queue' not in columns:
+            conn.execute("ALTER TABLE system_stats ADD COLUMN embedding_queue INTEGER")
 
         conn.commit()
 
