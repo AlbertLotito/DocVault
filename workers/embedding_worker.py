@@ -128,6 +128,7 @@ def process_task(db_path, task, vs):
 
 def process_task_batch(db_path, tasks, vs):
     """Process a list of EMBEDDING tasks: chunk all → one embed call → upsert per doc."""
+    task_by_hash = {t['file_hash']: t for t in tasks}
     # Phase 1: chunk all documents
     # each entry: (task, chunk_index, chunk_text, embed_input_string)
     all_entries = []
@@ -155,6 +156,7 @@ def process_task_batch(db_path, tasks, vs):
     n_chunks = len(all_entries)
     logger.info(f"Embedding batch: {n_docs} doc(s), {n_chunks} chunk(s)")
 
+    batch_start = time.time()
     # Phase 2: one Ollama call for all chunks
     inputs  = [e[3] for e in all_entries]
     vectors = embedder.embed_batch(inputs)
@@ -194,6 +196,9 @@ def process_task_batch(db_path, tasks, vs):
     for fh in doc_batches:
         manager.update_task_status(db_path, fh, status='COMPLETED')
     logger.info(f"  Batch complete: {len(doc_batches)} doc(s).")
+    elapsed_per_doc = (time.time() - batch_start) / max(len(doc_batches), 1)
+    for fh in doc_batches:
+        _record_timing(task_by_hash[fh], 'embedding', elapsed_per_doc)
 
 
 def _record_timing(task: dict, extractor_name: str, elapsed: float):
