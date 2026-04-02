@@ -247,3 +247,48 @@ def test_record_sample_stores_queue_counts():
     import os; os.unlink(tmp_logs); os.unlink(tmp_tasks)
     assert row[0] == 2   # extracted_queue
     assert row[1] == 1   # embedding_queue
+
+
+# Task 6: API — embed stall fields in /api/monitor/status
+from fastapi.testclient import TestClient
+
+
+def test_monitor_status_has_embed_stall_fields():
+    """GET /api/monitor/status includes embed_stall, embed_stall_minutes, thresholds.embed_stall_threshold_mins."""
+    from unittest.mock import patch, MagicMock
+    from api.main import app
+
+    client = TestClient(app)
+
+    with patch('api.routes.monitor.get_embed_stall_state', return_value=(True, 12)):
+        resp = client.get('/api/monitor/status')
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert 'embed_stall' in data
+    assert 'embed_stall_minutes' in data
+    assert data['embed_stall'] is True
+    assert data['embed_stall_minutes'] == 12
+    assert 'thresholds' in data
+    assert 'embed_stall_threshold_mins' in data['thresholds']
+
+
+def test_monitor_history_includes_queue_keys():
+    """GET /api/monitor/history dicts include extracted_queue and embedding_queue."""
+    from unittest.mock import patch
+    from fastapi.testclient import TestClient
+    from api.main import app
+
+    client = TestClient(app)
+
+    fake_history = [
+        {'sampled_at': '2026-01-01T00:00:00', 'cpu_pct': 10, 'extracted_queue': 5, 'embedding_queue': 1},
+    ]
+    with patch('core.manager.get_system_stats_history', return_value=fake_history):
+        resp = client.get('/api/monitor/history?hours=1')
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert 'extracted_queue' in rows[0]
+    assert 'embedding_queue' in rows[0]
