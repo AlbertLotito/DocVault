@@ -463,19 +463,35 @@ def _load_thresholds() -> ThrottleThresholds:
 def _record_sample(reading: MonitorReading, state: str):
     """Write sample to logs.db system_stats. Best-effort."""
     try:
-        from core.manager import get_logs_db_path, _connect
+        from core.manager import get_logs_db_path, get_db_path, _connect
+
+        # Read queue counts from docvault.db (separate connection — different DB file)
+        extracted_q, embedding_q = 0, 0
+        try:
+            with _connect(get_db_path()) as task_conn:
+                extracted_q = task_conn.execute(
+                    "SELECT COUNT(*) as n FROM tasks WHERE status='EXTRACTED'"
+                ).fetchone()['n']
+                embedding_q = task_conn.execute(
+                    "SELECT COUNT(*) as n FROM tasks WHERE status='EMBEDDING'"
+                ).fetchone()['n']
+        except Exception:
+            pass  # queue counts are best-effort
+
         with _connect(get_logs_db_path()) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO system_stats
                    (sampled_at, cpu_pct, cpu_temp, ram_used_gb, ram_total_gb, ram_pct,
-                    gpu_temp, gpu_util_pct, vram_used_gb, vram_total_gb, 
-                    disk_free_gb, disk_free_pct, throttle_state)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    gpu_temp, gpu_util_pct, vram_used_gb, vram_total_gb,
+                    disk_free_gb, disk_free_pct, throttle_state,
+                    extracted_queue, embedding_queue)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (reading.sampled_at, reading.cpu_pct, reading.cpu_temp,
                  reading.ram_used_gb, reading.ram_total_gb, reading.ram_pct,
                  reading.gpu_temp, reading.gpu_util_pct,
                  reading.vram_used_gb, reading.vram_total_gb,
-                 reading.disk_free_gb, reading.disk_free_pct, state)
+                 reading.disk_free_gb, reading.disk_free_pct, state,
+                 extracted_q, embedding_q)
             )
             conn.commit()
     except Exception:

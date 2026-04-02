@@ -195,3 +195,55 @@ def test_embed_stall_clears_when_queue_empty():
 
     stalled, _ = mon_mod.get_embed_stall_state()
     assert stalled is False
+
+
+# Task 4: queue counts in _record_sample()
+import sqlite3 as _sqlite3_t4, tempfile as _tempfile_t4
+
+def test_record_sample_stores_queue_counts():
+    """_record_sample writes extracted_queue and embedding_queue to system_stats."""
+    import unittest.mock as mock
+    from core.monitor import MonitorReading, _record_sample
+
+    reading = MonitorReading(
+        sampled_at='2026-01-01T00:00:00',
+        cpu_pct=10, cpu_temp=40,
+        ram_used_gb=2, ram_total_gb=16, ram_pct=12,
+        gpu_temp=0, gpu_util_pct=0,
+        vram_used_gb=0, vram_total_gb=0,
+        disk_free_gb=100, disk_free_pct=50,
+    )
+
+    tmp_logs = _tempfile_t4.mktemp(suffix='.db')
+    tmp_tasks = _tempfile_t4.mktemp(suffix='.db')
+
+    # Bootstrap system_stats table (with new columns)
+    conn = _sqlite3_t4.connect(tmp_logs)
+    conn.execute("""CREATE TABLE system_stats (
+        sampled_at TEXT PRIMARY KEY, cpu_pct REAL, cpu_temp REAL,
+        ram_used_gb REAL, ram_total_gb REAL, ram_pct REAL,
+        gpu_temp REAL, gpu_util_pct REAL, vram_used_gb REAL, vram_total_gb REAL,
+        disk_free_gb REAL, disk_free_pct REAL, throttle_state TEXT,
+        extracted_queue INTEGER, embedding_queue INTEGER
+    )""")
+    conn.commit(); conn.close()
+
+    # Bootstrap tasks table
+    conn2 = _sqlite3_t4.connect(tmp_tasks)
+    conn2.execute("CREATE TABLE tasks (file_hash TEXT, status TEXT)")
+    conn2.execute("INSERT INTO tasks VALUES ('h1','EXTRACTED')")
+    conn2.execute("INSERT INTO tasks VALUES ('h2','EXTRACTED')")
+    conn2.execute("INSERT INTO tasks VALUES ('h3','EMBEDDING')")
+    conn2.commit(); conn2.close()
+
+    with mock.patch('core.manager.get_logs_db_path', return_value=tmp_logs), \
+         mock.patch('core.manager.get_db_path', return_value=tmp_tasks):
+        _record_sample(reading, 'normal')
+
+    conn = _sqlite3_t4.connect(tmp_logs)
+    row = conn.execute("SELECT extracted_queue, embedding_queue FROM system_stats").fetchone()
+    conn.close()
+
+    import os; os.unlink(tmp_logs); os.unlink(tmp_tasks)
+    assert row[0] == 2   # extracted_queue
+    assert row[1] == 1   # embedding_queue
