@@ -52,7 +52,8 @@ async def rag_query(req: QueryRequest):
             file_type=req.file_type,
             date_from=req.date_from,
             date_to=req.date_to,
-            hash_filter=hash_filter
+            hash_filter=hash_filter,
+            vault_ids=vault_id_list,
         )
 
         chunks  = [r.get('chunk_text', '') for r in results]

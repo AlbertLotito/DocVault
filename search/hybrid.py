@@ -51,14 +51,15 @@ def merge(fts_results: list[dict], semantic_results: list[dict],
 
 async def async_search(db_path: str, query: str, top_k: int = 10,
                        file_type: str = None, date_from: str = None, date_to: str = None,
-                       hash_filter: set[str] | None = None) -> tuple[list[dict], bool]:
+                       hash_filter: set[str] | None = None,
+                       vault_ids: list | None = None) -> tuple[list[dict], bool]:
     """
     Perform a hybrid search: FTS and Semantic in parallel, then RRF merge.
     Returns (results, qdrant_offline) where qdrant_offline=True means Qdrant was
     unreachable and results are FTS-only.
     """
     fts_task      = asyncio.to_thread(fts.search, db_path, query, top_k * 2,
-                                      file_type, date_from, date_to)
+                                      file_type, date_from, date_to, vault_ids)
     semantic_task = semantic.async_search(query, top_k=top_k * 2, hash_filter=hash_filter)
 
     fts_r, sem_r = await asyncio.gather(fts_task, semantic_task, return_exceptions=True)

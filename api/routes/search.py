@@ -65,7 +65,7 @@ async def search(q: str = Query(..., min_length=1),
     results, qdrant_offline = await hybrid.async_search(
         db_path=db, query=q, top_k=n,
         file_type=file_type, date_from=date_from, date_to=date_to,
-        hash_filter=hash_filter
+        hash_filter=hash_filter, vault_ids=vault_id_list
     )
     if qdrant_offline:
         # Qdrant offline — fall back to FTS-only and tell the UI
