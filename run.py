@@ -24,7 +24,7 @@ def _make_embed_workers(db_path: str, concurrency: int) -> list:
     return entries
 
 def ingestion_worker_run(db_path, interval_seconds=60):
-    """Periodically scans all active vaults."""
+    """Periodically scans all active vaults in parallel."""
     logger.info(f"Ingestion worker starting. Will scan every {interval_seconds}s.")
     while True:
         try:
@@ -32,11 +32,19 @@ def ingestion_worker_run(db_path, interval_seconds=60):
             vm = VaultManager(db_path)
             vaults = vm.list_vaults()
             active = [v for v in vaults if v['state'] == 'active']
-            for vault in active:
-                scan_dir = vault['scan_directory']
-                vault_id = vault['vault_id']
-                logger.info(f"Scanning vault '{vault['name']}': {scan_dir}")
-                ingestor.ingest(scan_dir, db_path, vault_id=vault_id)
+
+            def _scan_vault(vault):
+                try:
+                    logger.info(f"Scanning vault '{vault['name']}': {vault['scan_directory']}")
+                    ingestor.ingest(vault['scan_directory'], db_path, vault_id=vault['vault_id'])
+                except Exception as e:
+                    logger.error(f"Vault scan failed for '{vault['name']}': {e}")
+
+            threads = [threading.Thread(target=_scan_vault, args=(v,), daemon=True) for v in active]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
         except Exception as e:
             logger.error(f"Ingestion worker failed: {e}")
         time.sleep(interval_seconds)
