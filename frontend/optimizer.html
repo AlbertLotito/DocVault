@@ -23,7 +23,7 @@
       flex-direction: column;
     }
     .mc-gauge-label {
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       color: var(--c-label);
       text-transform: uppercase;
       letter-spacing: 0.08em;
@@ -66,14 +66,14 @@
       flex: 1;
     }
     .mc-profile-name {
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--c-label);
       text-transform: uppercase;
       letter-spacing: 0.1em;
       margin-bottom: 4px;
     }
     .mc-profile-val {
-      font-size: 20px;
+      font-size: calc(20px * var(--font-scale));
       font-weight: 700;
       color: var(--c-ok);
     }
@@ -82,7 +82,7 @@
       color: var(--c-accent);
       border: 1px solid var(--c-accent-dim);
       padding: 4px 12px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       font-weight: 700;
       cursor: pointer;
       margin-top: 8px;
@@ -93,7 +93,7 @@
       color: #000;
     }
     .mc-cfg-section {
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--c-label);
       text-transform: uppercase;
       letter-spacing: 0.1em;
@@ -103,7 +103,7 @@
     }
     .mc-preset-btn {
       padding: 3px 10px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       font-weight: 700;
       cursor: pointer;
       border-radius: 2px;
@@ -128,19 +128,19 @@
       background: var(--c-panel);
       border: 1px solid var(--c-border-str);
       color: var(--c-accent);
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       padding: 2px 6px;
       width: 52px;
     }
     .mc-cfg-check-label {
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       color: var(--c-label);
     }
     .mc-cfg-select {
       background: var(--c-panel);
       border: 1px solid var(--c-border-str);
       color: var(--c-accent);
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       padding: 2px 6px;
     }
     /* Q-panel borders */
@@ -169,20 +169,20 @@
       background: var(--c-panel);
     }
     .mc-panel-label {
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       color: var(--c-label);
       text-transform: uppercase;
       letter-spacing: 0.1em;
       margin-bottom: 4px;
     }
     .mc-big-val {
-      font-size: 20px;
+      font-size: calc(20px * var(--font-scale));
       font-weight: 900;
       line-height: 1;
       margin-bottom: 6px;
     }
     .mc-small-label {
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       color: var(--c-label-dim);
     }
   </style>

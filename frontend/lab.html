@@ -32,7 +32,7 @@
 
         .extractor-name { display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.2rem; }
         .extractor-meta { font-size: 0.65rem; opacity: 0.5; display: block; margin-bottom: 0.5rem; }
-        .status-pill { font-size: 10px; padding: 0.1rem 0.4rem; border-radius: 2px; font-weight: bold; text-transform: uppercase; display: inline-block; }
+        .status-pill { font-size: calc(10px * var(--font-scale)); padding: 0.1rem 0.4rem; border-radius: 2px; font-weight: bold; text-transform: uppercase; display: inline-block; }
         .pill-certified { color: var(--emerald); border: 1px solid var(--emerald); }
         .pill-unverified { color: var(--amber); border: 1px solid var(--amber); }
         .pill-tampered { color: var(--ruby); border: 1px solid var(--ruby); background: rgba(255, 68, 68, 0.1); }
@@ -165,7 +165,7 @@
 
         <main class="lab-bench">
             <div class="bench-header">
-                <div class="bench-title" id="activeTitle" data-i18n="lab.heading">CERTIFICATION SUITE <span style="font-size: 10px; opacity: 0.3; margin-left: 10px;">[ LAB_ENGINE_V1.3 ]</span></div>
+                <div class="bench-title" id="activeTitle" data-i18n="lab.heading">CERTIFICATION SUITE <span style="font-size: calc(10px * var(--font-scale)); opacity: 0.3; margin-left: 10px;">[ LAB_ENGINE_V1.3 ]</span></div>
                 <div id="benchStats" style="font-size: 0.7rem; color: var(--slate)"></div>
             </div>
 

@@ -868,7 +868,7 @@
                     </div>
                 `).join('');
             } else {
-                alertsEl.innerHTML = `<span style="color: var(--emerald); opacity: 0.5; font-size: 10px">${t('telemetry.health_clear')}</span>`;
+                alertsEl.innerHTML = `<span style="color: var(--emerald); opacity: 0.5; font-size: calc(10px * var(--font-scale))">${t('telemetry.health_clear')}</span>`;
             }
         }
 

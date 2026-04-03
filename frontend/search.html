@@ -14,11 +14,11 @@
       padding: 10px 14px;
       margin-bottom: 6px;
     }
-    .search-result-file { color: var(--c-accent); font-size: 13px; font-weight: bold; }
-    .search-result-meta { color: var(--c-label); font-size: 11px; margin-top: 3px; }
-    .search-result-snippet { color: #cc9966; font-size: 11px; margin-top: 6px; line-height: 1.5; }
-    .chat-msg-user { background: var(--c-panel); border-left: 3px solid var(--c-accent-dim); padding: 8px 12px; margin-bottom: 6px; color: var(--c-accent); font-size: 12px; }
-    .chat-msg-ai { background: var(--c-surface); padding: 8px 12px; margin-bottom: 6px; color: #cc9966; font-size: 12px; }
+    .search-result-file { color: var(--c-accent); font-size: calc(13px * var(--font-scale)); font-weight: bold; }
+    .search-result-meta { color: var(--c-label); font-size: calc(11px * var(--font-scale)); margin-top: 3px; }
+    .search-result-snippet { color: #cc9966; font-size: calc(11px * var(--font-scale)); margin-top: 6px; line-height: 1.5; }
+    .chat-msg-user { background: var(--c-panel); border-left: 3px solid var(--c-accent-dim); padding: 8px 12px; margin-bottom: 6px; color: var(--c-accent); font-size: calc(12px * var(--font-scale)); }
+    .chat-msg-ai { background: var(--c-surface); padding: 8px 12px; margin-bottom: 6px; color: #cc9966; font-size: calc(12px * var(--font-scale)); }
 
     .search-action-btn {
       background: #1a0d00;
@@ -26,7 +26,7 @@
       border: 1px solid var(--c-border);
       border-radius: 3px;
       padding: 2px 8px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       cursor: pointer;
       font-family: var(--font);
     }
@@ -39,7 +39,7 @@
       flex-wrap: wrap;
       margin-top: 8px;
     }
-    .search-filter-label { font-size: 11px; color: var(--c-label-dim); text-transform: uppercase; letter-spacing: 1px; }
+    .search-filter-label { font-size: calc(11px * var(--font-scale)); color: var(--c-label-dim); text-transform: uppercase; letter-spacing: 1px; }
     .search-filter-input {
       background: var(--c-panel);
       color: var(--c-accent);
@@ -47,7 +47,7 @@
       border-radius: 3px;
       padding: 4px 8px;
       font-family: var(--font);
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
     }
     .search-filter-input:focus { outline: none; border-color: var(--c-accent-dim); }
     .search-filter-input::placeholder { color: var(--c-label-dim); }
@@ -55,7 +55,7 @@
       background: none;
       border: none;
       color: var(--c-label-dim);
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       cursor: pointer;
       font-family: var(--font);
     }
@@ -75,7 +75,7 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       cursor: pointer;
       color: var(--c-label);
     }
@@ -83,14 +83,14 @@
     .search-input-row { display: flex; gap: 8px; align-items: center; }
     .search-input-row .lc-input { flex: 1; }
 
-    .no-results { color: var(--c-label-dim); font-size: 11px; padding: 14px 0; }
+    .no-results { color: var(--c-label-dim); font-size: calc(11px * var(--font-scale)); padding: 14px 0; }
 
     .degraded-banner {
       background: #221100;
       border: 1px solid var(--c-warn);
       color: var(--c-warn);
       padding: 8px 14px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       margin-bottom: 8px;
       display: none;
     }
@@ -98,7 +98,7 @@
 
     .score-badge {
       display: inline-block;
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       font-family: monospace;
       padding: 1px 6px;
       border-radius: 3px;
@@ -122,7 +122,7 @@
       border-bottom: 1px solid var(--c-border);
       margin-bottom: 8px;
     }
-    .chat-header-title { font-size: 12px; color: var(--c-accent-dim); text-transform: uppercase; letter-spacing: 1px; }
+    .chat-header-title { font-size: calc(12px * var(--font-scale)); color: var(--c-accent-dim); text-transform: uppercase; letter-spacing: 1px; }
     .chat-thread {
       flex: 1;
       overflow-y: auto;
@@ -139,7 +139,7 @@
       background: none;
       border: none;
       color: var(--c-warn);
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       cursor: pointer;
       font-family: var(--font);
       padding: 0;
@@ -149,7 +149,7 @@
       background: #110a00;
       border: 1px solid var(--c-border);
       padding: 8px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: #cc9966;
       font-family: monospace;
       white-space: pre-wrap;
@@ -160,7 +160,7 @@
 
     /* Sources in chat */
     .chat-sources { border-top: 1px solid var(--c-border); margin-top: 8px; padding-top: 6px; }
-    .chat-sources-title { font-size: 10px; color: var(--c-label-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .chat-sources-title { font-size: calc(10px * var(--font-scale)); color: var(--c-label-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
     .chat-source-row {
       display: flex;
       align-items: center;
@@ -168,14 +168,14 @@
       gap: 8px;
       padding: 2px 0;
     }
-    .chat-source-path { font-size: 11px; color: var(--c-label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-source-path { font-size: calc(11px * var(--font-scale)); color: var(--c-label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* ── Archive browse ──────────────────────────────────────────────────── */
     .archive-badge {
       background: #2a1400;
       color: var(--c-warn);
       border: 1px solid var(--c-warn);
-      font-size: 9px;
+      font-size: calc(9px * var(--font-scale));
       padding: 1px 5px;
       font-family: var(--font);
       letter-spacing: 1px;
@@ -189,7 +189,7 @@
       padding: 10px 14px;
       margin-bottom: 6px;
       font-family: monospace;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
     }
     .archive-panel-header {
       color: var(--c-label);
@@ -206,7 +206,7 @@
       color: var(--c-accent-dim);
       border: 1px solid var(--c-border);
       padding: 1px 7px;
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       font-family: var(--font);
     }
     .archive-entry-row {
@@ -225,7 +225,7 @@
     .archive-entry-size { color: var(--c-label); min-width: 60px; text-align: right; }
     .archive-entry-date { color: var(--c-label-dim); min-width: 80px; }
     .archive-entry-enc  { color: var(--c-warn); }
-    .archive-more { color: var(--c-label-dim); margin-top: 6px; font-size: 10px; }
+    .archive-more { color: var(--c-label-dim); margin-top: 6px; font-size: calc(10px * var(--font-scale)); }
     .archive-error { color: var(--c-error); }
   </style>
 </head>
@@ -297,9 +297,9 @@
           data-i18n-placeholder="search.filter.type_placeholder"
           placeholder="File type (pdf, docx...)"
           class="search-filter-input" style="width:130px;">
-        <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:11px;">from</span>
+        <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">from</span>
         <input id="search-filter-from" type="date" class="search-filter-input">
-        <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:11px;">to</span>
+        <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">to</span>
         <input id="search-filter-to" type="date" class="search-filter-input">
         <button onclick="clearFilters('search')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
       </div>
@@ -323,9 +323,9 @@
           data-i18n-placeholder="search.filter.type_placeholder"
           placeholder="File type (pdf, docx...)"
           class="search-filter-input" style="width:130px;">
-        <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:11px;">from</span>
+        <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">from</span>
         <input id="filename-filter-from" type="date" class="search-filter-input">
-        <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:11px;">to</span>
+        <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">to</span>
         <input id="filename-filter-to" type="date" class="search-filter-input">
         <button onclick="clearFilters('filename')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
       </div>
@@ -347,9 +347,9 @@
               data-i18n-placeholder="search.filter.type_placeholder"
               placeholder="File type (pdf, docx...)"
               class="search-filter-input" style="width:130px;">
-            <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:11px;">from</span>
+            <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">from</span>
             <input id="chat-filter-from" type="date" class="search-filter-input">
-            <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:11px;">to</span>
+            <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">to</span>
             <input id="chat-filter-to" type="date" class="search-filter-input">
             <button onclick="clearFilters('chat')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
           </div>

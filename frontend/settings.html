@@ -17,15 +17,15 @@
       display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px;
     }
     .settings-label {
-      font-size: 11px; color: var(--c-label); text-transform: uppercase;
+      font-size: calc(11px * var(--font-scale)); color: var(--c-label); text-transform: uppercase;
       letter-spacing: 1px; flex: 1;
     }
     .settings-key {
-      font-size: 10px; color: var(--c-label-dim); margin-top: 4px;
+      font-size: calc(10px * var(--font-scale)); color: var(--c-label-dim); margin-top: 4px;
       font-family: monospace; letter-spacing: 0;
     }
     .settings-desc {
-      font-size: 10px; color: var(--c-label-dim); margin-top: 5px; line-height: 1.5;
+      font-size: calc(10px * var(--font-scale)); color: var(--c-label-dim); margin-top: 5px; line-height: 1.5;
     }
     .danger-zone {
       margin: 20px 20px 0;
@@ -35,11 +35,11 @@
       padding: 14px 18px;
     }
     .danger-zone-title {
-      color: var(--c-error); font-size: 11px; text-transform: uppercase;
+      color: var(--c-error); font-size: calc(11px * var(--font-scale)); text-transform: uppercase;
       letter-spacing: 2px; margin-bottom: 8px;
     }
     .danger-zone-desc {
-      font-size: 11px; color: #aa5555; margin-bottom: 12px; line-height: 1.5;
+      font-size: calc(11px * var(--font-scale)); color: #aa5555; margin-bottom: 12px; line-height: 1.5;
     }
     .danger-row {
       display: flex; align-items: flex-start; gap: 16px;
@@ -47,8 +47,8 @@
       background: #0a0000;
     }
     .danger-row-text { flex: 1; }
-    .danger-row-name { font-size: 12px; color: #cc4444; font-weight: bold; margin-bottom: 4px; }
-    .danger-row-desc { font-size: 11px; color: #884444; line-height: 1.5; }
+    .danger-row-name { font-size: calc(12px * var(--font-scale)); color: #cc4444; font-weight: bold; margin-bottom: 4px; }
+    .danger-row-desc { font-size: calc(11px * var(--font-scale)); color: #884444; line-height: 1.5; }
     /* Description popup */
     #desc-popup {
       position: fixed; z-index: 5000;
@@ -60,14 +60,14 @@
       display: none;
     }
     #desc-popup.open { display: block; }
-    .desc-popup-label { font-size: 11px; color: var(--c-accent); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-    .desc-popup-text { font-size: 11px; color: var(--c-label); line-height: 1.6; }
-    .desc-popup-key { font-size: 10px; color: var(--c-label-dim); font-family: monospace; margin-top: 8px; }
+    .desc-popup-label { font-size: calc(11px * var(--font-scale)); color: var(--c-accent); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .desc-popup-text { font-size: calc(11px * var(--font-scale)); color: var(--c-label); line-height: 1.6; }
+    .desc-popup-key { font-size: calc(10px * var(--font-scale)); color: var(--c-label-dim); font-family: monospace; margin-top: 8px; }
     .desc-btn {
       display: inline-flex; align-items: center; justify-content: center;
       width: 14px; height: 14px; border-radius: 7px;
       background: #2a1400; border: 1px solid var(--c-border-str);
-      color: var(--c-label-dim); font-size: 9px; font-weight: bold;
+      color: var(--c-label-dim); font-size: calc(9px * var(--font-scale)); font-weight: bold;
       cursor: pointer; flex-shrink: 0; vertical-align: middle;
     }
     .desc-btn:hover { background: var(--c-accent-dim); color: #000; }
