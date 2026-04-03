@@ -22,13 +22,15 @@ class QueryRequest(BaseModel):
     file_type: str | None = None
     date_from: str | None = None
     date_to: str | None = None
+    vault_ids: str | None = None
 
 
 @router.post("/query")
 async def rag_query(req: QueryRequest):
     notify_user_activity()
     top_k      = req.top_k or int(settings.get('search:rag_top_k') or 5)
-    
+    vault_id_list = [v.strip() for v in req.vault_ids.split(',') if v.strip()] if req.vault_ids else None
+
     # We use a slightly lower threshold for RAG retrieval to give the LLM more context
     # but since RRF is a rank-based system, we rely on the top_k.
 
@@ -37,6 +39,7 @@ async def rag_query(req: QueryRequest):
         file_type=req.file_type,
         date_from=req.date_from,
         date_to=req.date_to,
+        vault_ids=vault_id_list,
     )
 
     # Use Hybrid Search for RAG (FTS + Semantic)

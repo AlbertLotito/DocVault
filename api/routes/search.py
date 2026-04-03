@@ -25,10 +25,12 @@ async def search(q: str = Query(..., min_length=1),
                  limit: int = None,
                  file_type: str = None,
                  date_from: str = None,
-                 date_to: str = None):
+                 date_to: str = None,
+                 vault_ids: str = None):
     notify_user_activity()
     n = _limit(limit)
     db = get_db()
+    vault_id_list = [v.strip() for v in vault_ids.split(',') if v.strip()] if vault_ids else None
 
     # Regex and wildcard queries can't be embedded — skip vector search
     query_mode, _ = detect_mode(q)
@@ -36,7 +38,8 @@ async def search(q: str = Query(..., min_length=1),
 
     if mode == 'fts' or vector_unsupported:
         results = fts.search(db, q, n,
-                             file_type=file_type, date_from=date_from, date_to=date_to)
+                             file_type=file_type, date_from=date_from, date_to=date_to,
+                             vault_ids=vault_id_list)
         if vector_unsupported and mode != 'fts':
             return JSONResponse(content={
                 'results': results,
@@ -50,7 +53,8 @@ async def search(q: str = Query(..., min_length=1),
 
     # For semantic/hybrid: resolve SQLite hash filter once
     hash_filter = manager.get_filtered_hashes(
-        db, file_type=file_type, date_from=date_from, date_to=date_to
+        db, file_type=file_type, date_from=date_from, date_to=date_to,
+        vault_ids=vault_id_list
     )
 
     if mode == 'semantic':
@@ -66,7 +70,8 @@ async def search(q: str = Query(..., min_length=1),
     if qdrant_offline:
         # Qdrant offline — fall back to FTS-only and tell the UI
         fts_results = fts.search(db, q, n,
-                                 file_type=file_type, date_from=date_from, date_to=date_to)
+                                 file_type=file_type, date_from=date_from, date_to=date_to,
+                                 vault_ids=vault_id_list)
         return JSONResponse(content={
             'results': fts_results,
             'degraded': True,
@@ -80,10 +85,13 @@ def search_filename(q: str = Query(..., min_length=1),
                     limit: int = None,
                     file_type: str = None,
                     date_from: str = None,
-                    date_to: str = None):
+                    date_to: str = None,
+                    vault_ids: str = None):
     """Search for files by name/path using multi-token substring matching."""
     notify_user_activity()
+    vault_id_list = [v.strip() for v in vault_ids.split(',') if v.strip()] if vault_ids else None
     return manager.filename_search(
         get_db(), q, _limit(limit),
         file_type=file_type, date_from=date_from, date_to=date_to,
+        vault_ids=vault_id_list,
     )

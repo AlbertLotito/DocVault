@@ -29,7 +29,8 @@ def _register_regexp(conn):
 
 
 def search(db_path: str, query: str, limit: int = 20,
-           file_type: str = None, date_from: str = None, date_to: str = None) -> list[dict]:
+           file_type: str = None, date_from: str = None, date_to: str = None,
+           vault_ids: list = None) -> list[dict]:
     """Full-text search via SQLite FTS5.
 
     Query shapes (auto-detected):
@@ -40,17 +41,19 @@ def search(db_path: str, query: str, limit: int = 20,
     mode, value = detect_mode(query)
 
     if mode == 'regex':
-        return _regex_search(db_path, value, limit, file_type, date_from, date_to)
+        return _regex_search(db_path, value, limit, file_type, date_from, date_to, vault_ids)
 
     safe_query = _sanitize_fts_query(query)
     if not safe_query:
         return []
     return manager.fts_search(db_path, safe_query, limit,
-                               file_type=file_type, date_from=date_from, date_to=date_to)
+                               file_type=file_type, date_from=date_from, date_to=date_to,
+                               vault_ids=vault_ids)
 
 
 def _regex_search(db_path: str, pattern: str, limit: int,
-                  file_type: str, date_from: str, date_to: str) -> list[dict]:
+                  file_type: str, date_from: str, date_to: str,
+                  vault_ids: list = None) -> list[dict]:
     """Scan fts_index chunks with a Python regex. Full table scan — use sparingly."""
     try:
         re.compile(pattern)  # validate before hitting DB
@@ -71,6 +74,9 @@ def _regex_search(db_path: str, pattern: str, limit: int,
         if date_to:
             where.append("tasks.file_modified <= ?")
             params.append(date_to + "T23:59:59")
+        if vault_ids:
+            where.append(f"tasks.vault_id IN ({','.join(['?']*len(vault_ids))})")
+            params.extend(vault_ids)
         clause = " AND ".join(where)
         rows = conn.execute(
             f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,

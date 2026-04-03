@@ -713,7 +713,7 @@ def insert_extracted_image(db_path, source_hash, img_meta):
 
 
 def fts_search(db_path, query, limit=20,
-               file_type=None, date_from=None, date_to=None):
+               file_type=None, date_from=None, date_to=None, vault_ids=None):
     with _connect(db_path) as conn:
         where = ["fts_index.content MATCH ?"]
         params = [query]
@@ -726,6 +726,9 @@ def fts_search(db_path, query, limit=20,
         if date_to:
             where.append("tasks.file_modified <= ?")
             params.append(date_to + "T23:59:59")
+        if vault_ids:
+            where.append(f"tasks.vault_id IN ({','.join(['?']*len(vault_ids))})")
+            params.extend(vault_ids)
         clause = " AND ".join(where)
         rows = conn.execute(
             f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,
@@ -764,7 +767,7 @@ def _wildcard_to_like(pattern: str) -> str:
     return pattern
 
 
-def _filename_filter_clauses(file_type, date_from, date_to):
+def _filename_filter_clauses(file_type, date_from, date_to, vault_ids=None):
     """Return (where_fragments, params) for the common filename filter fields."""
     where, params = [], []
     if file_type:
@@ -776,6 +779,9 @@ def _filename_filter_clauses(file_type, date_from, date_to):
     if date_to:
         where.append("DATE(COALESCE(file_modified, file_created)) <= ?")
         params.append(date_to)
+    if vault_ids:
+        where.append(f"vault_id IN ({','.join(['?']*len(vault_ids))})")
+        params.extend(vault_ids)
     return where, params
 
 
@@ -783,7 +789,7 @@ _FILENAME_SELECT = ("SELECT file_hash, file_path, file_type, file_size, "
                     "file_created, file_modified, status FROM tasks")
 
 
-def filename_search(db_path, query, limit=50, file_type=None, date_from=None, date_to=None):
+def filename_search(db_path, query, limit=50, file_type=None, date_from=None, date_to=None, vault_ids=None):
     """Search for files by name/path.
 
     Query shapes (auto-detected by search.query.detect_mode):
@@ -803,7 +809,7 @@ def filename_search(db_path, query, limit=50, file_type=None, date_from=None, da
             _register_regexp(conn)
             where = ["file_path REGEXP ?"]
             params = [value]
-            extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to)
+            extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to, vault_ids)
             where += extra_where
             params += extra_params
             params.append(limit)
@@ -824,7 +830,7 @@ def filename_search(db_path, query, limit=50, file_type=None, date_from=None, da
         with _connect(db_path) as conn:
             where = ["file_path LIKE ? ESCAPE '\\'"]
             params = [like_pat]
-            extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to)
+            extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to, vault_ids)
             where += extra_where
             params += extra_params
             params.append(limit)
@@ -852,9 +858,9 @@ def filename_search(db_path, query, limit=50, file_type=None, date_from=None, da
         return [dict(r) for r in rows]
 
 
-def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None):
+def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None, vault_ids=None):
     """Return list of file_hashes matching constraints, or None if no constraints active."""
-    if not any([file_type, date_from, date_to]):
+    if not any([file_type, date_from, date_to, vault_ids]):
         return None  # no filter — caller should not restrict Qdrant
     where, params = [], []
     if file_type:
@@ -866,6 +872,9 @@ def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None):
     if date_to:
         where.append("file_modified <= ?")
         params.append(date_to + "T23:59:59")
+    if vault_ids:
+        where.append(f"vault_id IN ({','.join(['?']*len(vault_ids))})")
+        params.extend(vault_ids)
     clause = "WHERE " + " AND ".join(where)
     with _connect(db_path) as conn:
         rows = conn.execute(
