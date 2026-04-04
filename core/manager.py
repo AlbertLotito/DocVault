@@ -430,6 +430,24 @@ def get_vault_paths(db_path, file_hashes, vault_id):
         return {}
 
 
+def substitute_vault_paths(db_path, results, vault_id_list):
+    """Replace file_path in results with vault-specific path when single vault selected.
+
+    Safe to call when Qdrant is the path source (semantic/hybrid results carry origin paths).
+    No-op when vault_id_list has != 1 entry, results is empty, or get_vault_paths fails.
+    """
+    if not (vault_id_list and len(vault_id_list) == 1 and results):
+        return
+    paths = get_vault_paths(
+        db_path,
+        {r.get('file_hash') for r in results if r.get('file_hash')},
+        vault_id_list[0]
+    )
+    for r in results:
+        if r.get('file_hash') in paths:
+            r['file_path'] = paths[r['file_hash']]
+
+
 def get_task_metadata(db_path, file_hash) -> dict:
     """Return the metadata_json dict for a task, or {} if absent."""
     with _connect(db_path) as conn:
@@ -790,6 +808,10 @@ def fts_search(db_path, query, limit=20,
         if vault_ids:
             # Vault-filtered: INNER JOIN file_vault; use fv.file_path in SELECT.
             # The old tasks.vault_id IN (...) clause is replaced by this JOIN.
+            # Known behaviour: when len(vault_ids) > 1 and a file belongs to multiple
+            # listed vaults, the JOIN produces one row per vault per chunk, so LIMIT
+            # applies to the expanded row count. The primary use case is single-vault
+            # filtering; multi-vault is bounded by top_k.
             placeholders = ','.join(['?'] * len(vault_ids))
             where = ["fts_index.content MATCH ?"]
             params = [*vault_ids, query]

@@ -282,20 +282,10 @@ def test_multi_vault_filter_no_path_substitution(vault_db):
     results = [{'file_hash': 'h1', 'file_path': path_a, 'score': 1.0}]
 
     # Single vault → substitute
-    vault_id_list = ['vault-b']
-    if vault_id_list and len(vault_id_list) == 1:
-        paths = manager.get_vault_paths(vault_db, {r['file_hash'] for r in results}, vault_id_list[0])
-        for r in results:
-            if r.get('file_hash') in paths:
-                r['file_path'] = paths[r['file_hash']]
+    manager.substitute_vault_paths(vault_db, results, ['vault-b'])
     assert results[0]['file_path'] == path_b
 
-    # Multi-vault → no substitution
+    # Multi-vault → no substitution (guard: len != 1)
     results = [{'file_hash': 'h1', 'file_path': path_a, 'score': 1.0}]
-    vault_id_list = ['vault-a', 'vault-b']
-    if vault_id_list and len(vault_id_list) == 1:
-        paths = manager.get_vault_paths(vault_db, {r['file_hash'] for r in results}, vault_id_list[0])
-        for r in results:
-            if r.get('file_hash') in paths:
-                r['file_path'] = paths[r['file_hash']]
+    manager.substitute_vault_paths(vault_db, results, ['vault-a', 'vault-b'])
     assert results[0]['file_path'] == path_a   # canonical unchanged
