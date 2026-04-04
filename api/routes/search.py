@@ -19,16 +19,6 @@ def _limit(override: int = None) -> int:
     return override or int(settings.get('search:result_limit') or 20)
 
 
-def _substitute_vault_paths(db, results, vault_id_list):
-    """Replace file_path in results with vault-specific path when single vault selected."""
-    if not (vault_id_list and len(vault_id_list) == 1 and results):
-        return
-    paths = manager.get_vault_paths(db, {r.get('file_hash') for r in results if r.get('file_hash')}, vault_id_list[0])
-    for r in results:
-        if r.get('file_hash') in paths:
-            r['file_path'] = paths[r['file_hash']]
-
-
 @router.get("/search")
 async def search(q: str = Query(..., min_length=1),
                  mode: str = Query('hybrid', pattern='^(fts|semantic|hybrid)$'),
@@ -69,7 +59,7 @@ async def search(q: str = Query(..., min_length=1),
 
     if mode == 'semantic':
         results = await semantic.async_search(q, top_k=n, hash_filter=hash_filter)
-        _substitute_vault_paths(db, results, vault_id_list)
+        manager.substitute_vault_paths(db, results, vault_id_list)
         # semantic already returns [] gracefully when Qdrant is down
         return JSONResponse(content={'results': results, 'degraded': False})
 
@@ -88,7 +78,7 @@ async def search(q: str = Query(..., min_length=1),
             'degraded': True,
             'degraded_reason': 'Qdrant unavailable — showing full-text results only',
         })
-    _substitute_vault_paths(db, results, vault_id_list)
+    manager.substitute_vault_paths(db, results, vault_id_list)
     return JSONResponse(content={'results': results, 'degraded': False})
 
 

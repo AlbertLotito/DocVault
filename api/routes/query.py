@@ -58,13 +58,10 @@ async def rag_query(req: QueryRequest):
         )
 
         # Substitute vault-specific file paths for single-vault RAG queries
-        if vault_id_list and len(vault_id_list) == 1 and results:
-            _paths = manager.get_vault_paths(
-                db, {r.get('file_hash') for r in results if r.get('file_hash')}, vault_id_list[0]
-            )
-            for r in results:
-                if r.get('file_hash') in _paths:
-                    r['file_path'] = _paths[r['file_hash']]
+        try:
+            manager.substitute_vault_paths(db, results, vault_id_list)
+        except Exception:
+            pass  # get_vault_paths already returns {} on error; belt-and-suspenders
 
         chunks  = [r.get('chunk_text', '') for r in results]
         sources = [{'file_path': r.get('file_path'), 'score': r.get('score'), 'combined_score': r.get('combined_score')}
