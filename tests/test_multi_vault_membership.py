@@ -97,6 +97,61 @@ def test_upsert_file_vault_path_update_preserves_added_at(vault_db):
 
 # ── Test 9 ─────────────────────────────────────────────────────────────────────
 
+# ── Test 6 ─────────────────────────────────────────────────────────────────────
+
+def test_get_filtered_hashes_multi_vault(vault_db):
+    # Use os.path.normpath so paths are consistent with what upsert_file_vault stores.
+    path_a = os.path.normpath('/docs/a.txt')
+    path_b = os.path.normpath('Z:/nas/a.txt')   # Z: prefix keeps normpath stable on Windows
+    with _connect(vault_db) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, vault_id) VALUES ('h1', ?, 'txt', 'vault-a')", (path_a,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-a', ?)", (path_a,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-b', ?)", (path_b,))
+        conn.commit()
+    hashes_a = manager.get_filtered_hashes(vault_db, vault_ids=['vault-a'])
+    hashes_b = manager.get_filtered_hashes(vault_db, vault_ids=['vault-b'])
+    assert 'h1' in hashes_a
+    assert 'h1' in hashes_b
+
+
+# ── Test 7 ─────────────────────────────────────────────────────────────────────
+
+def test_fts_search_vault_filter_returns_vault_path(vault_db):
+    path_a = os.path.normpath('/docs/a.txt')
+    path_b = os.path.normpath('Z:/nas/a.txt')
+    with _connect(vault_db) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, vault_id) VALUES ('h1', ?, 'txt', 'vault-a')", (path_a,))
+        conn.execute("INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES ('h1', 0, ?, 'hello world')", (path_a,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-a', ?)", (path_a,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-b', ?)", (path_b,))
+        conn.commit()
+    results = manager.fts_search(vault_db, 'hello', vault_ids=['vault-b'])
+    assert len(results) == 1
+    assert results[0]['file_path'] == path_b
+
+
+# ── Test 8 ─────────────────────────────────────────────────────────────────────
+
+def test_filename_search_vault_filter(vault_db):
+    path_photo_a = os.path.normpath('/docs/photo.jpg')
+    path_photo_b = os.path.normpath('Z:/nas/photo.jpg')
+    path_report  = os.path.normpath('/docs/report.pdf')
+    with _connect(vault_db) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, vault_id) VALUES ('h1', ?, 'jpg', 'vault-a')", (path_photo_a,))
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, vault_id) VALUES ('h2', ?, 'pdf', 'vault-a')", (path_report,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-a', ?)", (path_photo_a,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-b', ?)", (path_photo_b,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h2', 'vault-a', ?)", (path_report,))
+        conn.commit()
+    results = manager.filename_search(vault_db, 'photo', vault_ids=['vault-b'])
+    assert len(results) == 1
+    assert results[0]['file_hash'] == 'h1'
+    results_no_filter = manager.filename_search(vault_db, 'photo')
+    assert len(results_no_filter) == 1
+
+
+# ── Test 9 ─────────────────────────────────────────────────────────────────────
+
 def test_get_vault_paths(vault_db):
     path_b1 = os.path.normpath('Z:/nas/a.txt')
     path_b2 = os.path.normpath('Z:/nas/b.txt')

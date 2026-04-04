@@ -787,32 +787,60 @@ def insert_extracted_image(db_path, source_hash, img_meta):
 def fts_search(db_path, query, limit=20,
                file_type=None, date_from=None, date_to=None, vault_ids=None):
     with _connect(db_path) as conn:
-        where = ["fts_index.content MATCH ?"]
-        params = [query]
-        if file_type:
-            where.append("tasks.file_type LIKE ?")
-            params.append(f"%{file_type.strip()}%")
-        if date_from:
-            where.append("tasks.file_modified >= ?")
-            params.append(date_from)
-        if date_to:
-            where.append("tasks.file_modified <= ?")
-            params.append(date_to + "T23:59:59")
         if vault_ids:
-            where.append(f"tasks.vault_id IN ({','.join(['?']*len(vault_ids))})")
-            params.extend(vault_ids)
-        clause = " AND ".join(where)
-        rows = conn.execute(
-            f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,
-               fts_index.content AS chunk_text,
-               snippet(fts_index, 3, '<b>', '</b>', '...', 32) AS snippet,
-               fts_index.rank
-               FROM fts_index
-               JOIN tasks ON fts_index.file_hash = tasks.file_hash
-               WHERE {clause}
-               ORDER BY fts_index.rank LIMIT ?""",
-            params + [limit]
-        ).fetchall()
+            # Vault-filtered: INNER JOIN file_vault; use fv.file_path in SELECT.
+            # The old tasks.vault_id IN (...) clause is replaced by this JOIN.
+            placeholders = ','.join(['?'] * len(vault_ids))
+            where = ["fts_index.content MATCH ?",
+                     f"fv.vault_id IN ({placeholders})"]
+            params = [query, *vault_ids]
+            if file_type:
+                where.append("t.file_type LIKE ?")
+                params.append(f"%{file_type.strip()}%")
+            if date_from:
+                where.append("t.file_modified >= ?")
+                params.append(date_from)
+            if date_to:
+                where.append("t.file_modified <= ?")
+                params.append(date_to + "T23:59:59")
+            clause = " AND ".join(where)
+            rows = conn.execute(
+                f"""SELECT fts_index.file_hash, fts_index.chunk_index, fv.file_path,
+                       fts_index.content AS chunk_text,
+                       snippet(fts_index, 3, '<b>', '</b>', '...', 32) AS snippet,
+                       fts_index.rank
+                   FROM fts_index
+                   JOIN tasks t ON fts_index.file_hash = t.file_hash
+                   JOIN file_vault fv ON fts_index.file_hash = fv.file_hash
+                   WHERE {clause}
+                   ORDER BY fts_index.rank LIMIT ?""",
+                params + [limit]
+            ).fetchall()
+        else:
+            # No vault filter — original query using fts_index.file_path
+            where = ["fts_index.content MATCH ?"]
+            params = [query]
+            if file_type:
+                where.append("tasks.file_type LIKE ?")
+                params.append(f"%{file_type.strip()}%")
+            if date_from:
+                where.append("tasks.file_modified >= ?")
+                params.append(date_from)
+            if date_to:
+                where.append("tasks.file_modified <= ?")
+                params.append(date_to + "T23:59:59")
+            clause = " AND ".join(where)
+            rows = conn.execute(
+                f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,
+                   fts_index.content AS chunk_text,
+                   snippet(fts_index, 3, '<b>', '</b>', '...', 32) AS snippet,
+                   fts_index.rank
+                   FROM fts_index
+                   JOIN tasks ON fts_index.file_hash = tasks.file_hash
+                   WHERE {clause}
+                   ORDER BY fts_index.rank LIMIT ?""",
+                params + [limit]
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -852,7 +880,10 @@ def _filename_filter_clauses(file_type, date_from, date_to, vault_ids=None):
         where.append("DATE(COALESCE(file_modified, file_created)) <= ?")
         params.append(date_to)
     if vault_ids:
-        where.append(f"vault_id IN ({','.join(['?']*len(vault_ids))})")
+        placeholders = ','.join(['?'] * len(vault_ids))
+        where.append(
+            f"file_hash IN (SELECT file_hash FROM file_vault WHERE vault_id IN ({placeholders}))"
+        )
         params.extend(vault_ids)
     return where, params
 
@@ -919,7 +950,7 @@ def filename_search(db_path, query, limit=50, file_type=None, date_from=None, da
     with _connect(db_path) as conn:
         where = [f"LOWER(file_path) LIKE LOWER(?)" for _ in tokens]
         params = [f'%{t}%' for t in tokens]
-        extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to)
+        extra_where, extra_params = _filename_filter_clauses(file_type, date_from, date_to, vault_ids)
         where += extra_where
         params += extra_params
         params.append(limit)
@@ -934,6 +965,33 @@ def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None, v
     """Return list of file_hashes matching constraints, or None if no constraints active."""
     if not any([file_type, date_from, date_to, vault_ids]):
         return None  # no filter — caller should not restrict Qdrant
+
+    if vault_ids:
+        # Use file_vault as the membership source; join tasks for attribute filters
+        placeholders = ','.join(['?'] * len(vault_ids))
+        where = [f"fv.vault_id IN ({placeholders})"]
+        params = list(vault_ids)
+        if file_type:
+            where.append("t.file_type LIKE ?")
+            params.append(f"%{file_type.strip()}%")
+        if date_from:
+            where.append("t.file_modified >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("t.file_modified <= ?")
+            params.append(date_to + "T23:59:59")
+        clause = " AND ".join(where)
+        with _connect(db_path) as conn:
+            rows = conn.execute(
+                f"""SELECT DISTINCT fv.file_hash
+                    FROM file_vault fv
+                    JOIN tasks t ON fv.file_hash = t.file_hash
+                    WHERE {clause}""",
+                params
+            ).fetchall()
+        return [r['file_hash'] for r in rows]
+
+    # No vault filter — query tasks directly
     where, params = [], []
     if file_type:
         where.append("file_type LIKE ?")
@@ -944,9 +1002,6 @@ def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None, v
     if date_to:
         where.append("file_modified <= ?")
         params.append(date_to + "T23:59:59")
-    if vault_ids:
-        where.append(f"vault_id IN ({','.join(['?']*len(vault_ids))})")
-        params.extend(vault_ids)
     clause = "WHERE " + " AND ".join(where)
     with _connect(db_path) as conn:
         rows = conn.execute(

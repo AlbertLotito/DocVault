@@ -74,19 +74,36 @@ def _regex_search(db_path: str, pattern: str, limit: int,
         if date_to:
             where.append("tasks.file_modified <= ?")
             params.append(date_to + "T23:59:59")
+
         if vault_ids:
-            where.append(f"tasks.vault_id IN ({','.join(['?']*len(vault_ids))})")
+            # Replace tasks.vault_id IN (...) with a file_vault JOIN
+            placeholders = ','.join(['?'] * len(vault_ids))
+            where.append(f"fv.vault_id IN ({placeholders})")
             params.extend(vault_ids)
-        clause = " AND ".join(where)
-        rows = conn.execute(
-            f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,
-                       fts_index.content AS chunk_text,
-                       NULL AS snippet,
-                       0 AS rank
-                FROM fts_index
-                JOIN tasks ON fts_index.file_hash = tasks.file_hash
-                WHERE {clause}
-                LIMIT ?""",
-            params + [limit]
-        ).fetchall()
+            clause = " AND ".join(where)
+            rows = conn.execute(
+                f"""SELECT fts_index.file_hash, fts_index.chunk_index, fv.file_path,
+                           fts_index.content AS chunk_text,
+                           NULL AS snippet,
+                           0 AS rank
+                    FROM fts_index
+                    JOIN tasks ON fts_index.file_hash = tasks.file_hash
+                    JOIN file_vault fv ON fts_index.file_hash = fv.file_hash
+                    WHERE {clause}
+                    LIMIT ?""",
+                params + [limit]
+            ).fetchall()
+        else:
+            clause = " AND ".join(where)
+            rows = conn.execute(
+                f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,
+                           fts_index.content AS chunk_text,
+                           NULL AS snippet,
+                           0 AS rank
+                    FROM fts_index
+                    JOIN tasks ON fts_index.file_hash = tasks.file_hash
+                    WHERE {clause}
+                    LIMIT ?""",
+                params + [limit]
+            ).fetchall()
         return [dict(r) for r in rows]
