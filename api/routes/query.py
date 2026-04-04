@@ -28,6 +28,7 @@ class QueryRequest(BaseModel):
 @router.post("/query")
 async def rag_query(req: QueryRequest):
     notify_user_activity()
+    db = get_db()
     top_k      = req.top_k or int(settings.get('search:rag_top_k') or 5)
     vault_id_list = [v.strip() for v in req.vault_ids.split(',') if v.strip()] if req.vault_ids else None
 
@@ -35,7 +36,7 @@ async def rag_query(req: QueryRequest):
     # but since RRF is a rank-based system, we rely on the top_k.
 
     hash_filter = manager.get_filtered_hashes(
-        get_db(),
+        db,
         file_type=req.file_type,
         date_from=req.date_from,
         date_to=req.date_to,
@@ -46,7 +47,7 @@ async def rag_query(req: QueryRequest):
     # Use keyword arguments to ensure correct parameter mapping
     try:
         results, _ = await hybrid.async_search(
-            db_path=get_db(),
+            db_path=db,
             query=req.question,
             top_k=top_k,
             file_type=req.file_type,
@@ -55,6 +56,15 @@ async def rag_query(req: QueryRequest):
             hash_filter=hash_filter,
             vault_ids=vault_id_list,
         )
+
+        # Substitute vault-specific file paths for single-vault RAG queries
+        if vault_id_list and len(vault_id_list) == 1 and results:
+            _paths = manager.get_vault_paths(
+                db, {r.get('file_hash') for r in results if r.get('file_hash')}, vault_id_list[0]
+            )
+            for r in results:
+                if r.get('file_hash') in _paths:
+                    r['file_path'] = _paths[r['file_hash']]
 
         chunks  = [r.get('chunk_text', '') for r in results]
         sources = [{'file_path': r.get('file_path'), 'score': r.get('score'), 'combined_score': r.get('combined_score')}

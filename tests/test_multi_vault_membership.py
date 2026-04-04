@@ -264,3 +264,38 @@ def test_ingestor_move_non_origin_vault_does_not_corrupt_tasks_path(tmp_path):
     assert 'photo.jpg' in task['file_path']    # origin path unchanged
     assert task['vault_id'] == 'vault-a'
     assert 'nas_photo.jpg' in fv_b['file_path']  # vault-b has its own path
+
+
+# ── Test 11 ────────────────────────────────────────────────────────────────────
+
+def test_multi_vault_filter_no_path_substitution(vault_db):
+    """Single-vault: path substituted to vault-specific path.
+    Multi-vault: canonical path kept (get_vault_paths not applied)."""
+    path_a = os.path.normpath('/docs/a.txt')
+    path_b = os.path.normpath('Z:/nas/a.txt')
+    with _connect(vault_db) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, vault_id) VALUES ('h1', ?, 'txt', 'vault-a')", (path_a,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-a', ?)", (path_a,))
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-b', ?)", (path_b,))
+        conn.commit()
+
+    results = [{'file_hash': 'h1', 'file_path': path_a, 'score': 1.0}]
+
+    # Single vault → substitute
+    vault_id_list = ['vault-b']
+    if vault_id_list and len(vault_id_list) == 1:
+        paths = manager.get_vault_paths(vault_db, {r['file_hash'] for r in results}, vault_id_list[0])
+        for r in results:
+            if r.get('file_hash') in paths:
+                r['file_path'] = paths[r['file_hash']]
+    assert results[0]['file_path'] == path_b
+
+    # Multi-vault → no substitution
+    results = [{'file_hash': 'h1', 'file_path': path_a, 'score': 1.0}]
+    vault_id_list = ['vault-a', 'vault-b']
+    if vault_id_list and len(vault_id_list) == 1:
+        paths = manager.get_vault_paths(vault_db, {r['file_hash'] for r in results}, vault_id_list[0])
+        for r in results:
+            if r.get('file_hash') in paths:
+                r['file_path'] = paths[r['file_hash']]
+    assert results[0]['file_path'] == path_a   # canonical unchanged
