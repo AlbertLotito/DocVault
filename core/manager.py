@@ -791,9 +791,8 @@ def fts_search(db_path, query, limit=20,
             # Vault-filtered: INNER JOIN file_vault; use fv.file_path in SELECT.
             # The old tasks.vault_id IN (...) clause is replaced by this JOIN.
             placeholders = ','.join(['?'] * len(vault_ids))
-            where = ["fts_index.content MATCH ?",
-                     f"fv.vault_id IN ({placeholders})"]
-            params = [query, *vault_ids]
+            where = ["fts_index.content MATCH ?"]
+            params = [*vault_ids, query]
             if file_type:
                 where.append("t.file_type LIKE ?")
                 params.append(f"%{file_type.strip()}%")
@@ -811,7 +810,7 @@ def fts_search(db_path, query, limit=20,
                        fts_index.rank
                    FROM fts_index
                    JOIN tasks t ON fts_index.file_hash = t.file_hash
-                   JOIN file_vault fv ON fts_index.file_hash = fv.file_hash
+                   JOIN file_vault fv ON fts_index.file_hash = fv.file_hash AND fv.vault_id IN ({placeholders})
                    WHERE {clause}
                    ORDER BY fts_index.rank LIMIT ?""",
                 params + [limit]

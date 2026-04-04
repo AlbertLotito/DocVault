@@ -76,10 +76,10 @@ def _regex_search(db_path: str, pattern: str, limit: int,
             params.append(date_to + "T23:59:59")
 
         if vault_ids:
-            # Replace tasks.vault_id IN (...) with a file_vault JOIN
+            # Move vault_id restriction into the JOIN ON clause to prevent duplicate rows
+            # when a file belongs to multiple vaults.
             placeholders = ','.join(['?'] * len(vault_ids))
-            where.append(f"fv.vault_id IN ({placeholders})")
-            params.extend(vault_ids)
+            join_params = list(vault_ids)
             clause = " AND ".join(where)
             rows = conn.execute(
                 f"""SELECT fts_index.file_hash, fts_index.chunk_index, fv.file_path,
@@ -88,10 +88,10 @@ def _regex_search(db_path: str, pattern: str, limit: int,
                            0 AS rank
                     FROM fts_index
                     JOIN tasks ON fts_index.file_hash = tasks.file_hash
-                    JOIN file_vault fv ON fts_index.file_hash = fv.file_hash
+                    JOIN file_vault fv ON fts_index.file_hash = fv.file_hash AND fv.vault_id IN ({placeholders})
                     WHERE {clause}
                     LIMIT ?""",
-                params + [limit]
+                join_params + params + [limit]
             ).fetchall()
         else:
             clause = " AND ".join(where)

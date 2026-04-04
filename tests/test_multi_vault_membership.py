@@ -95,8 +95,6 @@ def test_upsert_file_vault_path_update_preserves_added_at(vault_db):
     assert row['added_at'] == '2024-01-01T00:00:00'   # preserved
 
 
-# ── Test 9 ─────────────────────────────────────────────────────────────────────
-
 # ── Test 6 ─────────────────────────────────────────────────────────────────────
 
 def test_get_filtered_hashes_multi_vault(vault_db):
@@ -128,6 +126,13 @@ def test_fts_search_vault_filter_returns_vault_path(vault_db):
     results = manager.fts_search(vault_db, 'hello', vault_ids=['vault-b'])
     assert len(results) == 1
     assert results[0]['file_path'] == path_b
+
+    # Multi-vault filter: file belongs to both vaults → 2 results, one per vault path
+    results_multi = manager.fts_search(vault_db, 'hello', vault_ids=['vault-a', 'vault-b'])
+    assert len(results_multi) == 2
+    paths_multi = {r['file_path'] for r in results_multi}
+    assert path_a in paths_multi
+    assert path_b in paths_multi
 
 
 # ── Test 8 ─────────────────────────────────────────────────────────────────────
