@@ -253,6 +253,15 @@ def init_db(db_path=None):
                 encoding_json  TEXT, -- JSON: [128 floats]
                 detected_at    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS file_vault (
+                file_hash TEXT NOT NULL REFERENCES tasks(file_hash),
+                vault_id  TEXT NOT NULL REFERENCES vaults(vault_id),
+                file_path TEXT NOT NULL,
+                added_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (file_hash, vault_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_file_vault_vault_id ON file_vault(vault_id);
         """)
 
         # Schema migrations
@@ -281,6 +290,12 @@ def init_db(db_path=None):
         img_columns = [row['name'] for row in cursor.fetchall()]
         if 'description' not in img_columns:
             conn.execute("ALTER TABLE extracted_images ADD COLUMN description TEXT")
+
+        # file_vault backfill — idempotent (INSERT OR IGNORE on PK)
+        conn.execute("""
+            INSERT OR IGNORE INTO file_vault (file_hash, vault_id, file_path)
+            SELECT file_hash, vault_id, file_path FROM tasks WHERE vault_id IS NOT NULL
+        """)
 
         conn.commit()
 
@@ -316,6 +331,10 @@ def bootstrap_default_vault(db_path=None, scan_directory=None):
             "UPDATE tasks SET vault_id = ? WHERE vault_id IS NULL",
             (vault_id,)
         )
+        conn.execute("""
+            INSERT OR IGNORE INTO file_vault (file_hash, vault_id, file_path)
+            SELECT file_hash, vault_id, file_path FROM tasks WHERE vault_id = ?
+        """, (vault_id,))
         conn.commit()
         print(f"[bootstrap] Created default vault 'Documents' ({vault_id}) -> {scan_directory}")
 
@@ -356,6 +375,59 @@ def insert_child_tasks(db_path, child_task_dicts: list, default_vault_id=None):
                 )
             )
         conn.commit()
+
+
+def upsert_file_vault(db_path, file_hash, vault_id, file_path):
+    """Register (or update) a file-vault membership with the vault-specific path.
+
+    Uses ON CONFLICT DO UPDATE so added_at is preserved on re-scan.
+    file_path is normalised before storage so ingestor comparisons are stable.
+    """
+    if not vault_id:
+        return
+    norm = os.path.normpath(file_path)
+    with _connect(db_path) as conn:
+        conn.execute(
+            """INSERT INTO file_vault (file_hash, vault_id, file_path)
+               VALUES (?, ?, ?)
+               ON CONFLICT(file_hash, vault_id) DO UPDATE SET file_path = excluded.file_path""",
+            (file_hash, vault_id, norm)
+        )
+        conn.commit()
+
+
+def get_file_vault_path(db_path, file_hash, vault_id):
+    """Return the stored file_path for (file_hash, vault_id), or None if not registered."""
+    if not vault_id:
+        return None
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT file_path FROM file_vault WHERE file_hash = ? AND vault_id = ?",
+            (file_hash, vault_id),
+        ).fetchone()
+    return row['file_path'] if row else None
+
+
+def get_vault_paths(db_path, file_hashes, vault_id):
+    """Return {file_hash: file_path} from file_vault for the given vault and hashes.
+
+    Returns {} on any DB error so callers silently keep canonical paths.
+    Uses parameterised IN clause — never string-interpolated input.
+    """
+    if not file_hashes:
+        return {}
+    try:
+        file_hashes = list(file_hashes)
+        placeholders = ','.join(['?'] * len(file_hashes))
+        with _connect(db_path) as conn:
+            rows = conn.execute(
+                f"SELECT file_hash, file_path FROM file_vault"
+                f" WHERE vault_id = ? AND file_hash IN ({placeholders})",
+                [vault_id, *file_hashes],
+            ).fetchall()
+        return {r['file_hash']: r['file_path'] for r in rows}
+    except Exception:
+        return {}
 
 
 def get_task_metadata(db_path, file_hash) -> dict:
