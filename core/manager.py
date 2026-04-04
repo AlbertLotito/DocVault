@@ -564,7 +564,9 @@ def list_tasks(db_path, status=None, file_type=None, vault_id=None, limit=50, of
         if file_type and file_type.strip():
             where.append("file_type LIKE ?"); params.append(f"%{file_type.strip()}%")
         if vault_id:
-            where.append("vault_id = ?"); params.append(vault_id)
+            # Use file_vault so files belonging to this vault via multi-vault membership are included
+            where.append("file_hash IN (SELECT file_hash FROM file_vault WHERE vault_id = ?)")
+            params.append(vault_id)
 
         clause = f"WHERE {' AND '.join(where)}" if where else ""
 
@@ -575,11 +577,20 @@ def list_tasks(db_path, status=None, file_type=None, vault_id=None, limit=50, of
         # Get paginated results
         query = f"SELECT * FROM tasks {clause} ORDER BY {sort_by} {sort_order} LIMIT ? OFFSET ?"
         paginated_params = params + [limit, offset]
-        
+
         rows = conn.execute(query, paginated_params).fetchall()
-        
+        tasks_list = [dict(r) for r in rows]
+
+        # Substitute vault-specific paths when a single vault is selected
+        if vault_id and tasks_list:
+            hashes = [t['file_hash'] for t in tasks_list]
+            vault_paths = get_vault_paths(db_path, hashes, vault_id)
+            for t in tasks_list:
+                if t['file_hash'] in vault_paths:
+                    t['file_path'] = vault_paths[t['file_hash']]
+
         return {
-            "tasks": [dict(r) for r in rows],
+            "tasks": tasks_list,
             "total_matches": total_matches,
         }
 
