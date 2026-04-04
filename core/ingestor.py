@@ -100,6 +100,7 @@ def ingest(directory, db_path, vault_id=None):
                         )
                         logger.info(f"  Added Directory Unit: {os.path.basename(root)} (type: {ext})")
                         added += 1
+                    manager.upsert_file_vault(db_path, folder_hash, vault_id, root_norm)
                 except Exception as e:
                     logger.warn(f"  Skipped directory {os.path.basename(root)}: {e}")
                 break
@@ -124,7 +125,7 @@ def ingest(directory, db_path, vault_id=None):
                 existing  = manager.get_task(db_path, file_hash)
 
                 if existing is None:
-                    # Brand-new file
+                    # Brand-new file — create task and register vault membership
                     size, created, modified = _stat(file_path)
                     priority = get_priority(ext)
                     manager.insert_task(
@@ -132,17 +133,29 @@ def ingest(directory, db_path, vault_id=None):
                         file_size=size, file_created=created, file_modified=modified,
                         vault_id=vault_id,
                     )
+                    manager.upsert_file_vault(db_path, file_hash, vault_id, file_path)
                     added += 1
                     logger.info(f"  Added: {name} (priority: {priority})")
 
-                elif os.path.normpath(existing['file_path']) != file_path:
-                    # Same content, new location — file was moved or renamed
-                    manager.update_task_path(db_path, file_hash, file_path)
-                    _update_qdrant_path(file_hash, file_path)
-                    moved += 1
-                    logger.info(f"  Moved: {existing['file_path']} → {file_path}")
+                else:
+                    vault_path = manager.get_file_vault_path(db_path, file_hash, vault_id)
 
-                # else: known file at known path — nothing to do
+                    if vault_path is None:
+                        # File known globally but first time this vault sees it
+                        manager.upsert_file_vault(db_path, file_hash, vault_id, file_path)
+                        logger.info(f"  Registered in vault: {name}")
+
+                    elif os.path.normpath(vault_path) != file_path:
+                        # File has moved within this vault — update vault-specific path
+                        manager.upsert_file_vault(db_path, file_hash, vault_id, file_path)
+                        if existing['vault_id'] == vault_id:
+                            # Origin vault: also update canonical path in tasks + Qdrant
+                            manager.update_task_path(db_path, file_hash, file_path)
+                            _update_qdrant_path(file_hash, file_path)
+                            moved += 1
+                            logger.info(f"  Moved: {existing['file_path']} → {file_path}")
+
+                    # else: known file at known vault path — nothing to do
 
             except Exception as e:
                 logger.warn(f"  Skipped {name}: {e}")
