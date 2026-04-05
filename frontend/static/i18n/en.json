@@ -170,6 +170,7 @@
   "settings.group.bing": "Bing",
   "settings.group.huggingface": "HuggingFace",
   "settings.group.art": "Art",
+  "settings.group.ingestion": "Ingestion",
   "settings.group.monitor": "Monitor",
   "settings.group.lab": "Lab",
   "settings.group.ui": "Interface",
