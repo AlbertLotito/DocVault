@@ -34,3 +34,31 @@ def test_scan_paused_column_exists(db):
         conn.commit()
         row = conn.execute("SELECT scan_paused FROM vaults WHERE vault_id='v1'").fetchone()
     assert row['scan_paused'] == 0
+
+
+from core.vault_manager import VaultManager, VaultStateError
+
+
+def test_set_scan_paused_true(vault_db):
+    """set_scan_paused(vault_id, True) sets column to 1 and returns updated vault."""
+    vm = VaultManager(vault_db)
+    result = vm.set_scan_paused('v1', True)
+    assert result['scan_paused'] == 1
+    # Verify persisted
+    vault = vm.get_vault('v1')
+    assert vault['scan_paused'] == 1
+
+
+def test_set_scan_paused_false(vault_db):
+    """set_scan_paused(vault_id, False) sets column back to 0."""
+    vm = VaultManager(vault_db)
+    vm.set_scan_paused('v1', True)
+    result = vm.set_scan_paused('v1', False)
+    assert result['scan_paused'] == 0
+
+
+def test_set_scan_paused_unknown_vault(vault_db):
+    """set_scan_paused raises VaultStateError for unknown vault_id."""
+    vm = VaultManager(vault_db)
+    with pytest.raises(VaultStateError):
+        vm.set_scan_paused('no-such-vault', True)

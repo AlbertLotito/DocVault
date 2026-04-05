@@ -203,6 +203,18 @@ class VaultManager:
         """Convenience: archived -> active."""
         return self.transition(vault_id, 'active')
 
+    def set_scan_paused(self, vault_id: str, paused: bool) -> dict:
+        vault = self.get_vault(vault_id)
+        if not vault:
+            raise VaultStateError(f"Vault {vault_id!r} not found")
+        with _connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE vaults SET scan_paused = ?, updated_at = ? WHERE vault_id = ?",
+                (1 if paused else 0, self._now(), vault_id)
+            )
+            conn.commit()
+        return self.get_vault(vault_id)
+
     def reindex(self, vault_id: str):
         """Wipe vectors and reset COMPLETED tasks to EXTRACTED for this vault only."""
         with _connect(self.db_path) as conn:
