@@ -418,7 +418,9 @@
           var stateClass = isArchived ? 'archived' : '';
           var stateBadge = isArchived
             ? '<span class="lc-badge lc-badge-archived">' + v.state + '</span>'
-            : '<span class="lc-badge lc-badge-active">' + v.state + '</span>';
+            : v.scan_paused
+              ? '<span class="lc-badge" style="background:#6b4800;color:#ffb347;">SCAN PAUSED</span>'
+              : '<span class="lc-badge lc-badge-active">' + v.state + '</span>';
           return '<div class="lc-vault-card ' + stateClass + '" style="border-top-color:' + (v.color||'var(--c-accent-dim)') + '">' +
               '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
                 '<div class="lc-vault-name">' + _esc(v.name) + '</div>' +
@@ -430,6 +432,10 @@
                 '<a href="javascript:void(0)" onclick="setFilter(\'ALL\');setVaultFilter(\'' + v.vault_id + '\');scrollToLog();" style="color:var(--c-accent);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">' + t('vault.card.view_files') + '</a>' +
                 '<span style="color:var(--c-border-str);">|</span>' +
                 '<a href="javascript:void(0)" onclick="openVaultManagement(\'' + v.vault_id + '\',\'' + escapeAttr(v.name) + '\')" style="color:var(--c-error);font-weight:bold;text-transform:uppercase;letter-spacing:1px;">' + t('vault.card.manage') + '</a>' +
+                (!isArchived ? (
+                  '<span style="color:var(--c-border-str);">|</span>' +
+                  '<a href="javascript:void(0)" onclick="toggleVaultScanPause(\'' + v.vault_id + '\',' + (v.scan_paused ? 'false' : 'true') + ')" style="color:' + (v.scan_paused ? '#4cff4c' : '#ff9900') + ';font-weight:bold;text-transform:uppercase;letter-spacing:1px;">' + (v.scan_paused ? 'RESUME' : 'PAUSE') + '</a>'
+                ) : '') +
               '</div>' +
             '</div>';
         }).join('');
@@ -477,6 +483,15 @@
       } catch(e) {
         lcToast(t('vault.toast.reset_failed', { error: e.message }), true);
       }
+    }
+
+    async function toggleVaultScanPause(vaultId, paused) {
+      await api('/vaults/' + vaultId + '/pause-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: paused })
+      });
+      loadVaultCards();
     }
 
     /* ================================================================
