@@ -36,7 +36,7 @@ def ingestion_worker_run(db_path, interval_seconds=60):
             def _scan_vault(vault):
                 try:
                     logger.info(f"Scanning vault '{vault['name']}': {vault['scan_directory']}")
-                    ingestor.ingest(vault['scan_directory'], db_path, vault_id=vault['vault_id'])
+                    ingestor.ingest(vault['scan_directory'], db_path, vault_id=vault['vault_id'], vault_row=vault)
                 except Exception as e:
                     logger.error(f"Vault scan failed for '{vault['name']}': {e}")
 

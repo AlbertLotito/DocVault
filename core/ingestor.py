@@ -2,8 +2,10 @@ import os
 import hashlib
 import datetime
 import ctypes
+import fnmatch
 from core import manager, logger
 from core.router import get_priority
+from core.settings import settings
 
 # Filenames always skipped regardless of location
 _BLOCKLIST = frozenset({
@@ -13,6 +15,11 @@ _BLOCKLIST = frozenset({
 
 # Extensions always skipped — sidecars and system metadata files
 _BLOCKED_EXTENSIONS = frozenset({'.nfo'})
+
+
+def parse_ignore_patterns(csv: str) -> frozenset:
+    """Parse a comma-separated pattern string into a frozenset of stripped, non-empty lowercase patterns."""
+    return frozenset(p.strip().lower() for p in csv.split(',') if p.strip())
 
 _FILE_ATTRIBUTE_HIDDEN = 0x2
 _FILE_ATTRIBUTE_SYSTEM = 0x4
@@ -58,7 +65,7 @@ def _update_qdrant_path(file_hash, new_path):
         logger.error(f"[qdrant] Path update failed for {file_hash[:8]}: {e}")
 
 
-def ingest(directory, db_path, vault_id=None):
+def ingest(directory, db_path, vault_id=None, vault_row=None):
     """
     Walk directory, hash each file, and:
       - Insert new files with full metadata (size, created, modified).
@@ -66,14 +73,27 @@ def ingest(directory, db_path, vault_id=None):
         the path in SQLite and Qdrant without re-embedding.
     Returns (added, moved) counts.
     """
-    from core.settings import settings
     from extractors.image_extractor import _cache_dir
     cache_dir = os.path.normpath(_cache_dir())
+
+    global_exts    = parse_ignore_patterns(settings.get('ingestion:ignore_extensions') or '')
+    global_folders = parse_ignore_patterns(settings.get('ingestion:ignore_folders') or '')
+    vault_exts     = parse_ignore_patterns((vault_row or {}).get('ignore_extensions', ''))
+    vault_folders  = parse_ignore_patterns((vault_row or {}).get('ignore_folders', ''))
+    ignore_exts    = global_exts | vault_exts
+    ignore_folders_set = global_folders | vault_folders
 
     added = 0
     moved = 0
 
     for root, dirs, files in os.walk(directory):
+        # ── Folder pruning (must be first — prunes before any stat/hash work) ─
+        if ignore_folders_set:
+            dirs[:] = [
+                d for d in dirs
+                if not any(fnmatch.fnmatch(d.lower(), pat) for pat in ignore_folders_set)
+            ]
+
         # ── Part 1: Folder Intelligence ──────────────────────────────────────
         # Check if the current folder itself should be a task unit
         root_norm = os.path.normpath(root)
@@ -120,6 +140,8 @@ def ingest(directory, db_path, vault_id=None):
             if ext in _BLOCKED_EXTENSIONS:
                 continue
             ext = ext.lstrip('.')
+            if ext in ignore_exts or ('.' + ext) in ignore_exts:
+                continue
             try:
                 file_hash = _sha256(file_path)
                 existing  = manager.get_task(db_path, file_hash)
