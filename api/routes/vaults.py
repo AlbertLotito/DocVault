@@ -1,7 +1,9 @@
+import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from core.vault_manager import VaultManager, VaultStateError, VaultConflictError
 from core.manager import get_db_path
+from core.ingestor import parse_ignore_patterns
 
 router = APIRouter(prefix="/api/vaults", tags=["vaults"])
 
@@ -18,6 +20,8 @@ class VaultUpdate(BaseModel):
     scan_directory: str | None = None
     priority: int | None = None
     color: str | None = None
+    ignore_extensions: str | None = None
+    ignore_folders: str | None = None
 
 
 class VaultSettingSet(BaseModel):
@@ -44,6 +48,113 @@ def create_vault(body: VaultCreate):
                                   body.priority, body.color)
     except VaultConflictError as e:
         raise HTTPException(409, str(e))
+
+
+@router.get("/{vault_id}/ignore-preview")
+def ignore_preview(vault_id: str):
+    """Return count of already-indexed files matching this vault's current ignore rules."""
+    import fnmatch as _fnmatch
+    from core.manager import _connect
+    from core.settings import settings as _settings
+    vm = _vm()
+    vault = vm.get_vault(vault_id)
+    if not vault:
+        raise HTTPException(status_code=404, detail="Vault not found")
+    ignore_exts = (
+        parse_ignore_patterns(_settings.get('ingestion:ignore_extensions') or '')
+        | parse_ignore_patterns(vault.get('ignore_extensions', ''))
+    )
+    ignore_folders_set = (
+        parse_ignore_patterns(_settings.get('ingestion:ignore_folders') or '')
+        | parse_ignore_patterns(vault.get('ignore_folders', ''))
+    )
+    db_path = vm.db_path
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT file_hash, file_path FROM file_vault WHERE vault_id = ?",
+            (vault_id,)
+        ).fetchall()
+    count = 0
+    for row in rows:
+        path = row['file_path'].replace('\\', '/')
+        ext = os.path.splitext(path)[1].lower()
+        parts = [p for p in path.split('/') if p]
+        ext_match = ext in ignore_exts or ext.lstrip('.') in ignore_exts
+        folder_match = ignore_folders_set and any(
+            _fnmatch.fnmatch(p.lower(), pat)
+            for p in parts[:-1]   # exclude filename itself
+            for pat in ignore_folders_set
+        )
+        if ext_match or folder_match:
+            count += 1
+    return {"count": count}
+
+
+@router.post("/{vault_id}/apply-ignore")
+def apply_ignore(vault_id: str):
+    """Remove already-indexed files matching this vault's current ignore rules.
+    Removes file_vault membership. Purges tasks/FTS/images/Qdrant if no other vault claims the file.
+    """
+    import fnmatch as _fnmatch
+    from core.manager import _connect
+    from core.settings import settings as _settings
+    vm = _vm()
+    vault = vm.get_vault(vault_id)
+    if not vault:
+        raise HTTPException(status_code=404, detail="Vault not found")
+    ignore_exts = (
+        parse_ignore_patterns(_settings.get('ingestion:ignore_extensions') or '')
+        | parse_ignore_patterns(vault.get('ignore_extensions', ''))
+    )
+    ignore_folders_set = (
+        parse_ignore_patterns(_settings.get('ingestion:ignore_folders') or '')
+        | parse_ignore_patterns(vault.get('ignore_folders', ''))
+    )
+    db_path = vm.db_path
+    removed = 0
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT file_hash, file_path FROM file_vault WHERE vault_id = ?",
+            (vault_id,)
+        ).fetchall()
+        for row in rows:
+            path = row['file_path'].replace('\\', '/')
+            file_hash = row['file_hash']
+            ext = os.path.splitext(path)[1].lower()
+            parts = [p for p in path.split('/') if p]
+            ext_match = ext in ignore_exts or ext.lstrip('.') in ignore_exts
+            folder_match = ignore_folders_set and any(
+                _fnmatch.fnmatch(p.lower(), pat)
+                for p in parts[:-1]
+                for pat in ignore_folders_set
+            )
+            if not (ext_match or folder_match):
+                continue
+            conn.execute(
+                "DELETE FROM file_vault WHERE file_hash = ? AND vault_id = ?",
+                (file_hash, vault_id)
+            )
+            other = conn.execute(
+                "SELECT 1 FROM file_vault WHERE file_hash = ? LIMIT 1", (file_hash,)
+            ).fetchone()
+            if other is None:
+                conn.execute("DELETE FROM tasks WHERE file_hash = ?", (file_hash,))
+                conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
+                conn.execute("DELETE FROM extracted_images WHERE source_hash = ?", (file_hash,))
+                try:
+                    from embeddings.vector_store import VectorStore
+                    from core.settings import settings as _s2
+                    vs = VectorStore(
+                        host=_s2.get('qdrant:host'),
+                        port=int(_s2.get('qdrant:port')),
+                        collection='docvault',
+                    )
+                    vs.delete(file_hash)
+                except Exception:
+                    pass
+            removed += 1
+        conn.commit()
+    return {"removed": removed}
 
 
 @router.get("/{vault_id}")

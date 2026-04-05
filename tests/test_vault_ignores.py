@@ -207,3 +207,66 @@ def test_effective_rules_are_union(db, tmp_path):
     assert any('keep.txt' in p for p in paths)
     assert not any('noise.bak' in p for p in paths), ".bak from global rules should be ignored"
     assert not any('noise.tmp' in p for p in paths), ".tmp from vault rules should be ignored"
+
+
+def test_apply_ignore_multi_vault(two_vault_db):
+    """
+    File shared by vault-a and vault-b:
+      - apply-ignore on vault-a removes vault-a's file_vault entry
+      - tasks row survives (vault-b still claims it)
+    File belonging only to vault-a:
+      - apply-ignore removes file_vault entry AND tasks row (no other claimant)
+    """
+    from fastapi.testclient import TestClient
+    from api.routes import vaults as vaults_module
+    from core.vault_manager import VaultManager
+
+    # Insert a shared file (both vaults claim it)
+    shared_hash = 'aabbcc' * 8  # 48-char fake hash
+    # Insert a vault-a-only file with .au extension
+    only_a_hash = 'ddeeff' * 8
+
+    with _connect(two_vault_db) as conn:
+        conn.execute("""INSERT INTO tasks (file_hash, file_path, file_type, vault_id)
+                        VALUES (?, '/docs/shared.pdf', 'pdf', 'vault-a')""", (shared_hash,))
+        conn.execute("""INSERT INTO file_vault (file_hash, vault_id, file_path)
+                        VALUES (?, 'vault-a', '/docs/shared.pdf')""", (shared_hash,))
+        conn.execute("""INSERT INTO file_vault (file_hash, vault_id, file_path)
+                        VALUES (?, 'vault-b', '/nas/shared.pdf')""", (shared_hash,))
+        conn.execute("""INSERT INTO tasks (file_hash, file_path, file_type, vault_id)
+                        VALUES (?, '/docs/noise.au', 'au', 'vault-a')""", (only_a_hash,))
+        conn.execute("""INSERT INTO file_vault (file_hash, vault_id, file_path)
+                        VALUES (?, 'vault-a', '/docs/noise.au')""", (only_a_hash,))
+        conn.commit()
+
+    # vault-a ignores .au; shared.pdf is NOT an .au file so it won't be purged;
+    # but let's add 'pdf' temporarily to vault-a's ignore to test shared-file safety.
+    # Actually: vault-a already has ignore_extensions='.au'. Only only_a_hash matches.
+    # shared.pdf is .pdf — not ignored. So only only_a_hash gets removed.
+
+    original_vm = vaults_module._vm
+    vaults_module._vm = lambda: VaultManager(two_vault_db)
+    try:
+        from api.main import app
+        client = TestClient(app)
+        resp = client.post('/api/vaults/vault-a/apply-ignore')
+        assert resp.status_code == 200
+        assert resp.json()['removed'] == 1  # only the .au file
+
+        with _connect(two_vault_db) as conn:
+            # vault-a membership for .au file removed
+            fv_a = conn.execute(
+                "SELECT * FROM file_vault WHERE file_hash=? AND vault_id='vault-a'",
+                (only_a_hash,)
+            ).fetchone()
+            assert fv_a is None, "file_vault entry for vault-a should be gone"
+
+            # tasks row for .au file removed (no other claimant)
+            task = conn.execute("SELECT * FROM tasks WHERE file_hash=?", (only_a_hash,)).fetchone()
+            assert task is None, "tasks row should be purged (no other vault claims it)"
+
+            # shared.pdf tasks row still exists (vault-b claims it)
+            shared_task = conn.execute("SELECT * FROM tasks WHERE file_hash=?", (shared_hash,)).fetchone()
+            assert shared_task is not None, "shared file tasks row must survive"
+    finally:
+        vaults_module._vm = original_vm
