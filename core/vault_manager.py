@@ -82,7 +82,7 @@ class VaultManager:
         return self.get_vault(vault_id)
 
     def update_vault(self, vault_id: str, **fields) -> dict:
-        allowed = {'name', 'scan_directory', 'priority', 'color'}
+        allowed = {'name', 'scan_directory', 'priority', 'color', 'ignore_extensions', 'ignore_folders'}
         updates = {k: v for k, v in fields.items() if k in allowed}
         if not updates:
             return self.get_vault(vault_id)
