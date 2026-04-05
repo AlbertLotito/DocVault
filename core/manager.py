@@ -730,11 +730,22 @@ def claim_pending_task(db_path, worker_id):
 
 
 def claim_extracted_task(db_path, worker_id):
+    age_weight = settings.get('workers:embed_age_weight') or 900
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            """SELECT file_hash, file_path, file_type, extracted_text
-               FROM tasks WHERE status = 'EXTRACTED' ORDER BY last_update LIMIT 1"""
+            """SELECT t.file_hash, t.file_path, t.file_type, t.extracted_text
+               FROM tasks t
+               LEFT JOIN vaults v ON t.vault_id = v.vault_id
+               WHERE t.status = 'EXTRACTED'
+               ORDER BY
+                 (10 - COALESCE(v.priority, 5))
+                 + (CAST(
+                     (julianday('now') - julianday(t.last_update)) * 86400
+                    AS REAL) / ?)
+                 DESC
+               LIMIT 1""",
+            (age_weight,)
         ).fetchone()
         if row is None:
             conn.commit()
@@ -750,17 +761,27 @@ def claim_extracted_task(db_path, worker_id):
 
 
 def claim_extracted_tasks(db_path, worker_id, limit=8):
-    """Claim up to *limit* EXTRACTED tasks in one transaction.
+    """Claim up to *limit* EXTRACTED tasks in one transaction, ordered by vault priority + aging.
 
     Returns a list of task dicts (same shape as claim_extracted_task).
     Returns [] when the queue is empty.
     """
+    age_weight = settings.get('workers:embed_age_weight') or 900
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         rows = conn.execute(
-            """SELECT file_hash, file_path, file_type, extracted_text
-               FROM tasks WHERE status = 'EXTRACTED' ORDER BY last_update LIMIT ?""",
-            (limit,)
+            """SELECT t.file_hash, t.file_path, t.file_type, t.extracted_text
+               FROM tasks t
+               LEFT JOIN vaults v ON t.vault_id = v.vault_id
+               WHERE t.status = 'EXTRACTED'
+               ORDER BY
+                 (10 - COALESCE(v.priority, 5))
+                 + (CAST(
+                     (julianday('now') - julianday(t.last_update)) * 86400
+                    AS REAL) / ?)
+                 DESC
+               LIMIT ?""",
+            (age_weight, limit)
         ).fetchall()
         if not rows:
             conn.commit()
