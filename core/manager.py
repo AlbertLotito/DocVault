@@ -291,6 +291,12 @@ def init_db(db_path=None):
         if 'description' not in img_columns:
             conn.execute("ALTER TABLE extracted_images ADD COLUMN description TEXT")
 
+        # scan_paused migration for vaults table
+        cursor = conn.execute("PRAGMA table_info(vaults)")
+        vcols = [r['name'] for r in cursor.fetchall()]
+        if 'scan_paused' not in vcols:
+            conn.execute("ALTER TABLE vaults ADD COLUMN scan_paused INTEGER NOT NULL DEFAULT 0")
+
         # file_vault backfill — idempotent (INSERT OR IGNORE on PK)
         conn.execute("""
             INSERT OR IGNORE INTO file_vault (file_hash, vault_id, file_path)
