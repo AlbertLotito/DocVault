@@ -299,6 +299,12 @@ def init_db(db_path=None):
         if 'scan_paused' not in vcols:
             conn.execute("ALTER TABLE vaults ADD COLUMN scan_paused INTEGER NOT NULL DEFAULT 0")
 
+        # ignore_extensions / ignore_folders migration for vaults table
+        if 'ignore_extensions' not in vcols:
+            conn.execute("ALTER TABLE vaults ADD COLUMN ignore_extensions TEXT NOT NULL DEFAULT ''")
+        if 'ignore_folders' not in vcols:
+            conn.execute("ALTER TABLE vaults ADD COLUMN ignore_folders TEXT NOT NULL DEFAULT ''")
+
         # file_vault backfill — idempotent (INSERT OR IGNORE on PK)
         conn.execute("""
             INSERT OR IGNORE INTO file_vault (file_hash, vault_id, file_path)

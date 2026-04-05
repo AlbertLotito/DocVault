@@ -329,6 +329,19 @@ class Settings:
                 'type': 'int', 'default': 30, 'label': 'Watchdog interval (s)', 'group': 'monitor',
                 'description': 'How often (in seconds) the watchdog checks that all worker threads are alive. Dead threads are restarted automatically and an alert is sent.',
             },
+            # Ingestion filtering
+            'ingestion:ignore_extensions': {
+                'type': 'string', 'default': '.bak, .tmp, .log',
+                'label': 'Global ignore extensions', 'group': 'ingestion',
+                'description': 'Comma-separated file extensions to skip during ingestion across all vaults. '
+                               'Include the dot: .bak, .tmp, .log',
+            },
+            'ingestion:ignore_folders': {
+                'type': 'string', 'default': 'temp*, __pycache__, .git',
+                'label': 'Global ignore folders', 'group': 'ingestion',
+                'description': 'Comma-separated glob patterns matched against folder name (not full path). '
+                               'Examples: temp*, node_modules, *_data',
+            },
             # System
             'system:debug_mode': {
                 'type': 'string', 'default': 'false', 'label': 'Debug Mode', 'group': 'general',
