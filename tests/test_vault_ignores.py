@@ -82,7 +82,6 @@ def test_global_extension_ignore(db, tmp_path):
         ingestor.ingest(scan_dir, db, vault_id='v1', vault_row=vault_row)
 
     with _connect(db) as conn:
-        hashes = [r['file_hash'] for r in conn.execute("SELECT file_hash FROM tasks").fetchall()]
         paths = [r['file_path'] for r in conn.execute("SELECT file_path FROM tasks").fetchall()]
 
     assert any('doc.pdf' in p for p in paths), "pdf should be indexed"

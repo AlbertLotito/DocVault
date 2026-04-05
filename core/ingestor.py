@@ -21,6 +21,7 @@ def parse_ignore_patterns(csv: str) -> frozenset:
     """Parse a comma-separated pattern string into a frozenset of stripped, non-empty lowercase patterns."""
     return frozenset(p.strip().lower() for p in csv.split(',') if p.strip())
 
+
 _FILE_ATTRIBUTE_HIDDEN = 0x2
 _FILE_ATTRIBUTE_SYSTEM = 0x4
 
@@ -54,7 +55,6 @@ def _update_qdrant_path(file_hash, new_path):
     """Push the new file_path into every Qdrant vector payload for this hash."""
     try:
         from embeddings.vector_store import VectorStore
-        from core.settings import settings
         vs = VectorStore(
             host=settings.get('qdrant:host'),
             port=int(settings.get('qdrant:port')),
