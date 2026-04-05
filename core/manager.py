@@ -4,6 +4,8 @@ import json
 import os
 from contextlib import contextmanager
 
+from core.settings import settings
+
 
 def get_db_path(db_path=None):
     if db_path:
@@ -693,6 +695,7 @@ def claim_pending_task(db_path, worker_id):
     Lower vault_priority = higher importance (priority 1 beats priority 9).
     Larger effective_priority value wins (ORDER BY DESC).
     """
+    age_weight = settings.get('workers:extract_age_weight') or 3600
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
@@ -707,9 +710,10 @@ def claim_pending_task(db_path, worker_id):
                  ((10 - COALESCE(v.priority, 5)) * COALESCE(t.priority, 10))
                  + (CAST(
                      (julianday('now') - julianday(t.last_update)) * 86400
-                    AS REAL) / 3600.0)
+                    AS REAL) / ?)
                  DESC
-               LIMIT 1"""
+               LIMIT 1""",
+            (age_weight,)
         ).fetchone()
         if row is None:
             conn.commit()

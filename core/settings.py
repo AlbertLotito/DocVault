@@ -135,6 +135,18 @@ class Settings:
                                'Increasing this without OLLAMA_NUM_PARALLEL > 1 adds SQLite contention '
                                'with no throughput benefit. Requires restart.',
             },
+            'workers:extract_age_weight': {
+                'type': 'int', 'default': 3600,
+                'label': 'Extraction age weight (s per priority point)', 'group': 'embeddings',
+                'description': 'Seconds a PENDING task must wait to gain 1 priority point via aging. '
+                               'Lower = ages faster. Default 3600 = 1 hour per point.',
+            },
+            'workers:embed_age_weight': {
+                'type': 'int', 'default': 900,
+                'label': 'Embedding age weight (s per priority point)', 'group': 'embeddings',
+                'description': 'Seconds an EXTRACTED task must wait to gain 1 priority point via aging. '
+                               'Lower = ages faster. Default 900 = 15 minutes per point.',
+            },
             # Search
             'search:rag_top_k': {
                 'type': 'int', 'default': 5, 'label': 'RAG chunks', 'group': 'search',
