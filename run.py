@@ -31,7 +31,7 @@ def ingestion_worker_run(db_path, interval_seconds=60):
             from core.vault_manager import VaultManager
             vm = VaultManager(db_path)
             vaults = vm.list_vaults()
-            active = [v for v in vaults if v['state'] == 'active']
+            active = [v for v in vaults if v['state'] == 'active' and not v.get('scan_paused')]
 
             def _scan_vault(vault):
                 try:

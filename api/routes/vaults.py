@@ -24,6 +24,10 @@ class VaultSettingSet(BaseModel):
     value: str
 
 
+class PauseScanRequest(BaseModel):
+    paused: bool
+
+
 def _vm():
     return VaultManager(get_db_path())
 
@@ -154,6 +158,15 @@ def delete_vault(vault_id: str):
         return {"status": "ok"}
     except VaultStateError as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/{vault_id}/pause-scan")
+def pause_vault_scan(vault_id: str, req: PauseScanRequest):
+    try:
+        vault = _vm().set_scan_paused(vault_id, req.paused)
+        return vault
+    except VaultStateError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/{vault_id}/settings")
