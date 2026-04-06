@@ -96,6 +96,7 @@ def apply_ignore(vault_id: str):
     Removes file_vault membership. Purges tasks/FTS/images/Qdrant if no other vault claims the file.
     """
     import fnmatch as _fnmatch
+    import sqlite3 as _sqlite3
     from core.manager import _connect
     from core.settings import settings as _settings
     vm = _vm()
@@ -112,48 +113,53 @@ def apply_ignore(vault_id: str):
     )
     db_path = vm.db_path
     removed = 0
-    with _connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT file_hash, file_path FROM file_vault WHERE vault_id = ?",
-            (vault_id,)
-        ).fetchall()
-        for row in rows:
-            path = row['file_path'].replace('\\', '/')
-            file_hash = row['file_hash']
-            ext = os.path.splitext(path)[1].lower()
-            parts = [p for p in path.split('/') if p]
-            ext_match = ext in ignore_exts or ext.lstrip('.') in ignore_exts
-            folder_match = ignore_folders_set and any(
-                _fnmatch.fnmatch(p.lower(), pat)
-                for p in parts[:-1]
-                for pat in ignore_folders_set
-            )
-            if not (ext_match or folder_match):
-                continue
-            conn.execute(
-                "DELETE FROM file_vault WHERE file_hash = ? AND vault_id = ?",
-                (file_hash, vault_id)
-            )
-            other = conn.execute(
-                "SELECT 1 FROM file_vault WHERE file_hash = ? LIMIT 1", (file_hash,)
-            ).fetchone()
-            if other is None:
-                conn.execute("DELETE FROM tasks WHERE file_hash = ?", (file_hash,))
-                conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
-                conn.execute("DELETE FROM extracted_images WHERE source_hash = ?", (file_hash,))
-                try:
-                    from embeddings.vector_store import VectorStore
-                    from core.settings import settings as _s2
-                    vs = VectorStore(
-                        host=_s2.get('qdrant:host'),
-                        port=int(_s2.get('qdrant:port')),
-                        collection='docvault',
-                    )
-                    vs.delete(file_hash)
-                except Exception:
-                    pass
-            removed += 1
-        conn.commit()
+    try:
+        with _connect(db_path) as conn:
+            rows = conn.execute(
+                "SELECT file_hash, file_path FROM file_vault WHERE vault_id = ?",
+                (vault_id,)
+            ).fetchall()
+            for row in rows:
+                path = row['file_path'].replace('\\', '/')
+                file_hash = row['file_hash']
+                ext = os.path.splitext(path)[1].lower()
+                parts = [p for p in path.split('/') if p]
+                ext_match = ext in ignore_exts or ext.lstrip('.') in ignore_exts
+                folder_match = ignore_folders_set and any(
+                    _fnmatch.fnmatch(p.lower(), pat)
+                    for p in parts[:-1]
+                    for pat in ignore_folders_set
+                )
+                if not (ext_match or folder_match):
+                    continue
+                conn.execute(
+                    "DELETE FROM file_vault WHERE file_hash = ? AND vault_id = ?",
+                    (file_hash, vault_id)
+                )
+                other = conn.execute(
+                    "SELECT 1 FROM file_vault WHERE file_hash = ? LIMIT 1", (file_hash,)
+                ).fetchone()
+                if other is None:
+                    conn.execute("DELETE FROM tasks WHERE file_hash = ?", (file_hash,))
+                    conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
+                    conn.execute("DELETE FROM extracted_images WHERE source_hash = ?", (file_hash,))
+                    try:
+                        from embeddings.vector_store import VectorStore
+                        from core.settings import settings as _s2
+                        vs = VectorStore(
+                            host=_s2.get('qdrant:host'),
+                            port=int(_s2.get('qdrant:port')),
+                            collection='docvault',
+                        )
+                        vs.delete(file_hash)
+                    except Exception:
+                        pass
+                removed += 1
+            conn.commit()
+    except _sqlite3.OperationalError as e:
+        if 'locked' in str(e).lower():
+            raise HTTPException(status_code=503, detail="Database busy — workers are active. Try again in a moment.")
+        raise
     return {"removed": removed}
 
 

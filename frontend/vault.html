@@ -934,7 +934,12 @@
         loadIgnorePreview(activeVaultId);
         refreshAll();
       } catch(e) {
-        lcToast('Cleanup failed: ' + e.message, true);
+        var msg = e.message || '';
+        if (msg.includes('503')) {
+          lcToast('Database busy — workers are active. Try again in a moment.', true);
+        } else {
+          lcToast('Cleanup failed: ' + msg, true);
+        }
       } finally {
         btn.disabled = false;
       }
