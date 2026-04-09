@@ -145,7 +145,10 @@ def start():
         logger.info(f"Startup: reset {n} orphaned PROCESSING/EMBEDDING task(s) to PENDING.")
 
     # Bootstrap default vault on first run or migration from pre-vault version
-    scan_dir = settings.get('paths:scan_directory')
+    import configparser as _cp
+    _cfg = _cp.ConfigParser(strict=False)
+    _cfg.read(os.path.join(os.path.dirname(__file__), 'config.ini'))
+    scan_dir = _cfg.get('paths', 'scan_directory', fallback='').strip()
     manager.bootstrap_default_vault(DB_PATH, scan_directory=scan_dir)
 
     # Register/Certify System Kernels
