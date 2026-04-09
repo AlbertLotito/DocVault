@@ -334,9 +334,12 @@ def bootstrap_default_vault(db_path=None, scan_directory=None):
 
         if not scan_directory:
             try:
-                scan_directory = get_setting('paths:scan_directory') or '.'
+                scan_directory = get_setting('paths:scan_directory') or ''
             except Exception:
-                scan_directory = '.'
+                scan_directory = ''
+
+        if not scan_directory:
+            return  # no default scan dir configured — skip phantom vault creation
 
         vault_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
