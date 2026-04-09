@@ -11,9 +11,13 @@ def get_db_path(db_path=None):
     if db_path:
         return db_path
     import configparser
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     cfg = configparser.ConfigParser()
-    cfg.read(os.path.join(os.path.dirname(__file__), '..', 'config.ini'))
-    return cfg['database']['sqlite_path']
+    cfg.read(os.path.join(project_root, 'config.ini'))
+    raw = cfg['database']['sqlite_path']
+    if not os.path.isabs(raw):
+        return os.path.join(project_root, raw)
+    return raw
 
 
 def get_settings_db_path():
