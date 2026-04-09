@@ -4,7 +4,7 @@ from core import manager
 
 class Settings:
     def __init__(self, config_path):
-        self.config = configparser.ConfigParser()
+        self.config = configparser.ConfigParser(strict=False)
         self.config.read(config_path)
         
         # This defines the settings that are user-configurable via the UI.
