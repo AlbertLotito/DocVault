@@ -185,8 +185,8 @@ class RegistryManager:
                 if isinstance(node, ast.Assign):
                     for target in node.targets:
                         if isinstance(target, ast.Name) and target.id == '__description__':
-                            if isinstance(node.value, (ast.Constant, ast.Str)):
-                                description = getattr(node.value, 'value', getattr(node.value, 's', ''))
+                            if isinstance(node.value, ast.Constant):
+                                description = node.value.value
 
             if manifest:
                 if not manifest.get('description'):
