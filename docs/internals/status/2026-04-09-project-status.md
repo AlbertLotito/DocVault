@@ -68,6 +68,12 @@ Fixes to make DocVault run on any machine without manual config edits.
 - Tier 3: `art_enrichment_worker.py` + Google Vision API + `.nfo` sidecars + transactional rename
 - Settings needed: `google:vision_api_key`, `art:enrichment_*`
 
+### Span Grounding for RAG
+- Store `chunk_offset` (start char position) alongside each chunk in FTS/Qdrant metadata
+- RAG responses cite exact document location ("paragraph 4, line 67") instead of raw chunk text
+- Enables source highlighting in document viewer
+- Inspired by LangExtract `char_interval` pattern (article 2026-04-08)
+
 ### Other Backlog
 - Face Crop Gallery UI in Identity Hub
 - Unified Settings: kernel-specific env vars in Settings UI
