@@ -24,6 +24,8 @@ DocVault's RAG answers tell users *what* the documents say but not *where* in th
 - Re-embedding existing documents. Offsets are derived from stored `chunk_index` data.
 - Per-chunk offset persistence in Qdrant or SQLite (derived at query time).
 
+> **Implementation prerequisite:** `chunk_text` must be present in both Qdrant payloads and FTS results at query time. Confirm this is the case before starting — the current embedding worker stores `chunk_text` in Qdrant payloads (`embedding_worker.py:99`) and FTS results return `content AS chunk_text` — so this holds.
+
 ---
 
 ## 4. Approach: Formula-Derived Offset + Text-Search Fallback
@@ -71,6 +73,8 @@ def paragraph_number(extracted_text: str, offset: int) -> int:
 
 ### 5.2 `GET /api/catalog/{hash}/text` (new endpoint in `api/routes/catalog.py`)
 
+> **Route ordering note:** This specific route must be declared **before** the existing parameterised `GET /api/catalog/{hash}` route in `catalog.py`, per project convention, to avoid the path segment `text` being captured as a hash value.
+
 Returns the full extracted text for a document, used by the inline viewer:
 
 ```json
@@ -110,6 +114,8 @@ After hybrid search returns results:
 ### 5.4 `llm/base.py` — Prompt enrichment
 
 `rag_query()` signature changes from `chunks: list[str]` to `chunks: list[dict]` where each dict has `text` and `paragraph_num`.
+
+> **Breaking change note:** Grep all call sites of `rag_query()` before implementing — any callers outside `query.py` (e.g., lab or identity pages) must be updated to pass the new dict format.
 
 Each document tag gains a `paragraph` attribute:
 
