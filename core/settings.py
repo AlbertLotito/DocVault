@@ -95,6 +95,14 @@ class Settings:
                 'type': 'int', 'default': 50, 'label': 'Max images per PDF', 'group': 'pdf',
                 'description': 'Maximum number of embedded images extracted per PDF file. Set to 0 for no limit. Prevents a single image-heavy PDF from monopolising the extraction worker. Images beyond the cap are not saved or analysed.',
             },
+            'swf:min_image_area': {
+                'type': 'int', 'default': 160000, 'label': 'SWF min image area (px²)', 'group': 'swf',
+                'description': "Minimum pixel area (width × height) for an embedded SWF image to be OCR'd. Images below this are UI chrome (buttons, icons). Default: 160,000 (≈ 400×400px).",
+            },
+            'swf:max_pages': {
+                'type': 'int', 'default': 200, 'label': 'SWF max pages', 'group': 'swf',
+                'description': 'Maximum number of images to OCR per SWF file. Larger newspapers may have more pages — raise if needed.',
+            },
             # Vision
             'vision:model': {
                 'type': 'string', 'default': 'minicpm-v', 'label': 'Vision Model', 'group': 'vision',
