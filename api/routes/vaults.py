@@ -248,16 +248,16 @@ def gut_vault(vault_id: str):
     v = vm.get_vault(vault_id)
     if not v:
         raise HTTPException(404, "Vault not found")
-    
-    # State machine enforcement: active -> archived -> gutted
-    if v['state'] == 'active':
-        vm.transition(vault_id, 'archived')
-    
+
     try:
+        if v['state'] == 'active':
+            vm.transition(vault_id, 'archived')
         vm.transition(vault_id, 'gutted')
         return {"status": "ok"}
     except VaultStateError as e:
         raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Gut failed: {e}")
 
 
 @router.post("/{vault_id}/delete")
@@ -272,16 +272,17 @@ def delete_vault(vault_id: str):
     try:
         if v['state'] == 'active':
             vm.transition(vault_id, 'archived')
-        
-        # Reload to get updated state
+
         v = vm.get_vault(vault_id)
         if v['state'] == 'archived':
             vm.transition(vault_id, 'gutted')
-            
+
         vm.transition(vault_id, 'deleted')
         return {"status": "ok"}
     except VaultStateError as e:
         raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Delete failed: {e}")
 
 
 @router.post("/{vault_id}/pause-scan")

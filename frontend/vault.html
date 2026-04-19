@@ -785,6 +785,15 @@
 
     async function openVaultManagement(id, name) {
       activeVaultId = id;
+      // Open modal immediately with placeholder title so user isn't left staring at nothing
+      document.getElementById('vault-modal-title').textContent = name + '…';
+      document.getElementById('v-input-name').value = '';
+      document.getElementById('v-input-path').value = '';
+      document.getElementById('v-maint-new-msg').style.display = 'none';
+      document.getElementById('v-maint-tools').style.display = 'none';
+      showVaultTab('identity');
+      cancelReset();
+      document.getElementById('vault-modal').classList.add('open');
       try {
         var v = await api('/vaults/' + id);
         document.getElementById('vault-modal-title').textContent = t('vault.modal.manage', { name: v.name });
@@ -794,17 +803,13 @@
         document.getElementById('v-input-color').value = v.color || '#cc6600';
         document.getElementById('v-input-ignore-ext').value = v.ignore_extensions || '';
         document.getElementById('v-input-ignore-folders').value = v.ignore_folders || '';
-        loadIgnorePreview(id);
         document.getElementById('btn-vault-save').textContent = t('vault.modal.save_changes');
-
-        document.getElementById('v-maint-new-msg').style.display = 'none';
         document.getElementById('v-maint-tools').style.display = '';
-
-        showVaultTab('identity');
-        await loadKernelRegistry(id);
-        cancelReset();
-        document.getElementById('vault-modal').classList.add('open');
+        // Fire these independently — don't block the modal on either
+        loadIgnorePreview(id);
+        loadKernelRegistry(id);
       } catch(err) {
+        closeVaultModal();
         lcToast('Could not load vault: ' + err.message, true);
       }
     }

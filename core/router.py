@@ -108,11 +108,11 @@ def reload(sync_disk: bool = True):
 # --- Initialize on first use ---
 _initialized = False
 
-def _ensure_initialized():
+def _ensure_initialized(sync_disk: bool = True):
     global _initialized
     if not _initialized:
         try:
-            reload()
+            reload(sync_disk=sync_disk)
         except Exception as e:
             # If DB isn't ready yet, we'll try again on the next call
             pass

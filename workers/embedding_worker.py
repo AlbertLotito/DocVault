@@ -6,7 +6,7 @@ from core import manager, logger
 from core.settings import settings
 from embeddings import chunker, embedder
 from embeddings.vector_store import VectorStore
-from workers.utils import interruptible_sleep, should_pause_or_throttle, get_throttle_sleep
+from workers.utils import interruptible_sleep, paused_sleep, should_pause_or_throttle, get_throttle_sleep
 
 
 def _load_vector_store(vault_id: str | None = None):
@@ -251,10 +251,13 @@ def run(db_path, shutdown_event=None, worker_id=None):
         skip, reason = should_pause_or_throttle()
         if skip:
             logger.info(f"Embedding worker {reason}. Sleeping...")
-            try:
-                interruptible_sleep(db_path, 10)
-            except Exception:
-                time.sleep(10)
+            if reason == 'paused':
+                paused_sleep()
+            else:
+                try:
+                    interruptible_sleep(db_path, 10)
+                except Exception:
+                    time.sleep(10)
             continue
 
         extra = get_throttle_sleep(reason)

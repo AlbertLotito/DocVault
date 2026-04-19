@@ -519,7 +519,7 @@ def retry_task(file_hash: str):
 def list_all_extractors():
     """Returns a list of all registered extractors and their settings."""
     import core.router as _router
-    _router._ensure_initialized()
+    _router._ensure_initialized(sync_disk=False)
     from core.extractors.base import LegacyExtractorAdapter
     from core.settings import settings
 
@@ -953,23 +953,35 @@ class BrowseRequest(BaseModel):
 
 @router.post("/utils/browse")
 def browse_path(req: BrowseRequest):
-    """Opens a native Windows file/folder picker and returns the selected path."""
-    import tkinter as tk
-    from tkinter import filedialog
-    
-    root = tk.Tk()
-    root.withdraw()  # Hide main window
-    root.attributes("-topmost", True)
-    
+    """Opens a native Windows file/folder picker via PowerShell subprocess."""
+    import subprocess
+    if req.mode == 'folder':
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+            "$d.Description = 'Select Folder'; "
+            "$null = $d.ShowDialog(); "
+            "Write-Output $d.SelectedPath"
+        )
+    else:
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "$d = New-Object System.Windows.Forms.OpenFileDialog; "
+            "$d.Title = 'Select File'; "
+            "$null = $d.ShowDialog(); "
+            "Write-Output $d.FileName"
+        )
     try:
-        if req.mode == 'folder':
-            path = filedialog.askdirectory(title="Select Target Directory")
-        else:
-            path = filedialog.askopenfilename(title="Select Target File")
-        
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True, text=True, timeout=120
+        )
+        path = result.stdout.strip()
         return {"status": "ok", "path": path if path else None}
-    finally:
-        root.destroy()
+    except subprocess.TimeoutExpired:
+        return {"status": "ok", "path": None}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 
 @router.post("/utils/open_path")

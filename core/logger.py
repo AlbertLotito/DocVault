@@ -41,8 +41,11 @@ def log(level: str, message: str, extractor: str = None):
     if extractor:
         prefix += f" [{extractor}]"
         
-    print(f"{prefix} {message}")
-    sys.stdout.flush()
+    try:
+        print(f"{prefix} {message}")
+        sys.stdout.flush()
+    except OSError:
+        pass  # stdout closed (console detached or pipe broken) — not fatal
 
 # Helper wrappers
 def debug(msg, ext=None): log('DEBUG', msg, ext)

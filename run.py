@@ -180,10 +180,28 @@ def start():
     # Start web server (blocking)
     host = settings.get('server:host') or '127.0.0.1'
     port = int(settings.get('server:port') or 8000)
-    logger.critical(f"Starting DocVault at http://{host}:{port}")
+    logger.critical(f"Starting DocVault at http://{host}:{port}  [PID {os.getpid()}]")
     uvicorn.run("api.main:app", host=host, port=port, reload=False)
 
 
 
 if __name__ == "__main__":
+    # On Windows, suppress the console-close event so closing the terminal
+    # doesn't silently kill the process mid-task. The process still exits on
+    # Ctrl+C (SIGINT) which uvicorn handles gracefully.
+    try:
+        import ctypes, ctypes.wintypes
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel32.SetConsoleCtrlHandler(None, False)  # restore default Ctrl+C
+        HANDLER = ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL, ctypes.wintypes.DWORD)
+        def _ctrl_handler(event):
+            if event in (2, 5, 6):  # CTRL_CLOSE, CTRL_LOGOFF, CTRL_SHUTDOWN
+                logger.critical("Console close event received — ignoring (use Ctrl+C to stop)")
+                return True  # suppress: don't let Windows kill the process immediately
+            return False
+        _ctrl_cb = HANDLER(_ctrl_handler)
+        kernel32.SetConsoleCtrlHandler(_ctrl_cb, True)
+    except Exception:
+        pass  # non-Windows or ctypes unavailable — no-op
+
     start()

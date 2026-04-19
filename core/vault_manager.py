@@ -122,40 +122,33 @@ class VaultManager:
 
     def _gut_vault(self, vault_id: str):
         """
-        Wipe all extracted content for this vault using optimized batch deletes.
+        Wipe all extracted content for this vault using batched deletes.
+        Each batch is its own short transaction to minimise write-lock duration.
         """
+        BATCH_SIZE = 500
+
+        # 1. Read hashes in a short read transaction, then close the connection.
         with _connect(self.db_path) as conn:
-            # 1. Enable WAL for concurrency
-            conn.execute("PRAGMA journal_mode=WAL")
-            
-            # 2. Get all file_hashes for this vault
             hashes = [r[0] for r in conn.execute(
                 "SELECT file_hash FROM tasks WHERE vault_id = ?", (vault_id,)
             ).fetchall()]
 
-            if not hashes:
-                # Still need to delete the vault's task entries if they exist
-                conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
-                conn.commit()
-            else:
-                # 3. Batch delete from FTS using a single transaction
-                # SQLite has a limit on parameters (usually 999), so we batch the hashes
-                BATCH_SIZE = 500
-                for i in range(0, len(hashes), BATCH_SIZE):
-                    batch = hashes[i:i + BATCH_SIZE]
-                    placeholders = ",".join("?" for _ in batch)
-                    
-                    conn.execute(f"DELETE FROM fts_index WHERE file_hash IN ({placeholders})", batch)
-                    conn.execute(f"DELETE FROM extracted_images WHERE source_hash IN ({placeholders})", batch)
-                    
-                    # Commit each batch to release the write lock for other processes
-                    conn.commit()
-
-                # 4. Final task cleanup
-                conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
+        # 2. Delete dependent rows in small batches, each as its own transaction.
+        for i in range(0, len(hashes), BATCH_SIZE):
+            batch = hashes[i:i + BATCH_SIZE]
+            placeholders = ','.join('?' * len(batch))
+            with _connect(self.db_path) as conn:
+                conn.execute(f"DELETE FROM fts_index WHERE file_hash IN ({placeholders})", batch)
+                conn.execute(f"DELETE FROM extracted_images WHERE source_hash IN ({placeholders})", batch)
                 conn.commit()
 
-        # Remove Qdrant vectors for this vault
+        # 3. Clean up task and vault-membership rows in one final transaction.
+        with _connect(self.db_path) as conn:
+            conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
+            conn.execute("DELETE FROM file_vault WHERE vault_id = ?", (vault_id,))
+            conn.commit()
+
+        # 4. Remove Qdrant vectors (best-effort — never blocks the delete).
         try:
             from embeddings.vector_store import VectorStore
             from core.settings import settings

@@ -9,10 +9,22 @@ def interruptible_sleep(db_path, duration, step=1):
     """
     slept = 0
     while slept < duration:
-        if manager.get_pause_state():
-            break
         time.sleep(step)
         slept += step
+        if manager.get_pause_state():
+            break
+
+
+def paused_sleep(duration=30, step=5):
+    """Sleep while paused, waking as soon as the pause is lifted.
+    Uses a long step to avoid spinning; max resume latency is step seconds.
+    """
+    slept = 0
+    while slept < duration:
+        time.sleep(step)
+        slept += step
+        if not manager.get_pause_state():
+            break
 
 
 def should_pause_or_throttle() -> tuple[bool, str]:

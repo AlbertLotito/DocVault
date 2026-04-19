@@ -3,7 +3,7 @@ from core import manager, router, logger
 from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger
 from core.settings import SettingsResolver
 from extractors import image_extractor, fallback_kernel
-from workers.utils import interruptible_sleep, should_pause_or_throttle, get_throttle_sleep
+from workers.utils import interruptible_sleep, paused_sleep, should_pause_or_throttle, get_throttle_sleep
 
 
 def _build_context(task: dict) -> ExtractorContext:
@@ -168,10 +168,13 @@ def run(db_path, worker_id=None, shutdown_event=None):
 
         if skip:
             logger.info(f"Extraction worker {reason}. Sleeping...")
-            try:
-                interruptible_sleep(db_path, 10)
-            except Exception:
-                time.sleep(10)
+            if reason == 'paused':
+                paused_sleep()
+            else:
+                try:
+                    interruptible_sleep(db_path, 10)
+                except Exception:
+                    time.sleep(10)
             continue
 
         extra = get_throttle_sleep(reason)
