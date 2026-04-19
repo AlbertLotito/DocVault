@@ -6,6 +6,7 @@ Status tags: `[ACTIVE]` in-progress · `[PARTIAL]` partially done · `[COMPLETE]
 
 | Plan | Status |
 |------|--------|
+| [LanceDB Migration](2026-04-19-lancedb-migration.md) | `[ACTIVE]` |
 | [Archive Xray Implementation](2026-03-13-archive-xray-implementation.md) | `[ACTIVE]` |
 | [Archive Xray Design](2026-03-13-archive-xray-design.md) | `[ACTIVE]` |
 | [KML Extractor Implementation](2026-03-13-kml-extractor-implementation.md) | `[ACTIVE]` |

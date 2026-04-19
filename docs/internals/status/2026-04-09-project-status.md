@@ -74,6 +74,13 @@ Fixes to make DocVault run on any machine without manual config edits.
 - Enables source highlighting in document viewer
 - Inspired by LangExtract `char_interval` pattern (article 2026-04-08)
 
+### SWF (Shockwave Flash) Extractor — Gap
+- No viable Python library or system binary (`swftools`) available on this machine
+- Pure-Python header parse (version, dimensions, frame rate, frame count) is feasible with no deps
+- Full content extraction (ActionScript strings, embedded assets) requires `swftools` or format research
+- **Owner researching the format** — may build a custom collector
+- Next step when ready: design extractor, decide on dep strategy (swftools subprocess vs pure-Python)
+
 ### Other Backlog
 - Face Crop Gallery UI in Identity Hub
 - Unified Settings: kernel-specific env vars in Settings UI
