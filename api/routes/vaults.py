@@ -155,13 +155,7 @@ def apply_ignore(vault_id: str):
             if other is None:
                 try:
                     from embeddings.vector_store import VectorStore
-                    from core.settings import settings as _s2
-                    vs = VectorStore(
-                        host=_s2.get('qdrant:host'),
-                        port=int(_s2.get('qdrant:port')),
-                        collection='docvault',
-                    )
-                    vs.delete(file_hash)
+                    VectorStore().delete_by_hash(file_hash)
                 except Exception:
                     pass
             removed += 1

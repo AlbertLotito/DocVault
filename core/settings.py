@@ -69,14 +69,10 @@ class Settings:
                 'type': 'int', 'default': 1, 'label': 'Max Parallel Requests', 'group': 'ollama',
                 'description': 'Maximum number of concurrent requests sent to Ollama. Set to 1 to serialize all requests (prevents "no slots available" errors). Increase this if you have configured Ollama with OLLAMA_NUM_PARALLEL > 1 and have sufficient VRAM. Changes take effect immediately — no restart required.',
             },
-            # Qdrant
-            'qdrant:host': {
-                'type': 'string', 'default': 'localhost', 'label': 'Host', 'group': 'qdrant',
-                'description': 'Hostname or IP address of the Qdrant vector database. Usually "localhost" when Qdrant runs in Docker on the same machine.',
-            },
-            'qdrant:port': {
-                'type': 'int', 'default': 6333, 'label': 'Port', 'group': 'qdrant',
-                'description': 'Port Qdrant listens on. Default is 6333. Change only if you have configured Qdrant to use a different port.',
+            # LanceDB
+            'lancedb:path': {
+                'type': 'string', 'default': 'lancedb_storage', 'label': 'LanceDB storage path', 'group': 'lancedb',
+                'description': 'Directory where LanceDB stores vector data. Relative to project root.',
             },
             # PDF extraction
             'pdf:poppler_path': {
@@ -308,22 +304,6 @@ class Settings:
             'monitor:stuck_task_threshold_mins': {
                 'type': 'int', 'default': 10, 'label': 'Stuck task threshold (m)', 'group': 'monitor',
                 'description': 'How many minutes a task can remain in PROCESSING or EMBEDDING state without an update before it is flagged as "stuck". Lower values catch dead processes faster; higher values avoid false positives for very large files.',
-            },
-            'qdrant:container_name': {
-                'type': 'string', 'default': 'docvault-qdrant-1', 'label': 'Qdrant container name', 'group': 'qdrant',
-                'description': 'Docker container name for Qdrant. If Qdrant becomes unreachable, DocVault will attempt to restart this container automatically.',
-            },
-            'qdrant:auto_restart': {
-                'type': 'string', 'default': 'true', 'label': 'Auto-restart Qdrant', 'group': 'qdrant',
-                'description': 'When enabled, DocVault will automatically run "docker restart <container>" if Qdrant is unreachable for too long.',
-            },
-            'qdrant:restart_after_failures': {
-                'type': 'int', 'default': 3, 'label': 'Restart after N failures', 'group': 'qdrant',
-                'description': 'Number of consecutive Qdrant connection failures (each ~10s apart) before triggering an automatic container restart.',
-            },
-            'qdrant:restart_cooldown_mins': {
-                'type': 'int', 'default': 10, 'label': 'Restart cooldown (m)', 'group': 'qdrant',
-                'description': 'Minimum minutes between automatic Qdrant restarts, to avoid restart storms.',
             },
             'monitor:stall_threshold_mins': {
                 'type': 'int', 'default': 30, 'label': 'Stall threshold (m)', 'group': 'monitor',

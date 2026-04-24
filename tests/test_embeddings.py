@@ -72,31 +72,18 @@ class TestEmbedder:
 
 
 class TestVectorStore:
-    @patch('embeddings.vector_store.QdrantClient')
-    def test_upsert_points(self, mock_client_class):
-        mock_client = MagicMock()
-        mock_client.collection_exists.return_value = True
-        mock_client_class.return_value = mock_client
+    def test_upsert_points(self, tmp_path):
+        with patch('embeddings.vector_store._db_path', return_value=str(tmp_path)):
+            vs = vector_store.VectorStore(collection='test')
+            vs.upsert('hash1', 0, [0.1] * 768, {'file_path': '/test.pdf', 'chunk_text': 'hello'})
+            assert vs.count() == 1
 
-        vs = vector_store.VectorStore('localhost', 6333, 'test')
-        vs.upsert('hash1', 0, [0.1]*768, {'file_path': '/test.pdf'})
-        mock_client.upsert.assert_called_once()
-
-    @patch('embeddings.vector_store.QdrantClient')
-    def test_search_returns_results(self, mock_client_class):
-        mock_result = MagicMock()
-        mock_result.payload = {'file_hash': 'abc', 'chunk_text': 'hello'}
-        mock_result.score = 0.95
-        mock_client = MagicMock()
-        mock_client.collection_exists.return_value = True
-        
-        # Mock query_points return value (QueryResponse with points attribute)
-        mock_response = MagicMock()
-        mock_response.points = [mock_result]
-        mock_client.query_points.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        vs = vector_store.VectorStore('localhost', 6333, 'test')
-        results = vs.search([0.1]*768, top_k=5)
-        assert len(results) == 1
-        assert results[0]['score'] == 0.95
+    def test_search_returns_results(self, tmp_path):
+        with patch('embeddings.vector_store._db_path', return_value=str(tmp_path)):
+            vs = vector_store.VectorStore(collection='test')
+            vec = [0.1] * 768
+            vs.upsert('abc', 0, vec, {'file_path': '/test.pdf', 'chunk_text': 'hello'})
+            results = vs.search(vec, top_k=5)
+            assert len(results) == 1
+            assert results[0]['file_hash'] == 'abc'
+            assert results[0]['score'] >= 0.99  # near-identical vector → high similarity

@@ -2,7 +2,6 @@ import os
 import subprocess
 from fastapi import APIRouter
 from pydantic import BaseModel
-from utils.qdrant_check import check_qdrant_health
 from core import manager
 from core.settings import settings
 from core.vault_manager import VaultManager
@@ -30,9 +29,6 @@ def _is_in_vault_root(path: str) -> bool:
         return False
     except Exception:
         return False
-from qdrant_client import QdrantClient
-from qdrant_client.http import models as qdrant_models
-
 router = APIRouter()
 
 
@@ -276,9 +272,14 @@ def optimizer_abort():
 
 
 @router.get("/utils/qdrant_check")
-async def run_qdrant_check():
-    """Runs a health check on the Qdrant database."""
-    return await check_qdrant_health()
+def run_qdrant_check():
+    """Health check for the vector store."""
+    try:
+        from embeddings.vector_store import VectorStore
+        count = VectorStore().count()
+        return {'status': 'ok', 'vectors': count}
+    except Exception as e:
+        return {'status': 'error', 'detail': str(e)}
 
 
 class OpenRequest(BaseModel):
@@ -289,29 +290,15 @@ class OpenRequest(BaseModel):
 @router.post("/utils/reindex")
 def reindex_all():
     """
-    Wipe the Qdrant vector collection and reset all COMPLETED tasks to EXTRACTED
+    Wipe the vector collection and reset all COMPLETED tasks to EXTRACTED
     so the embedding worker re-embeds everything from scratch.
     Extracted text, FTS index, settings, and file metadata are untouched.
     """
     from api.main import DB_PATH
+    from embeddings.vector_store import VectorStore
 
-    # 1. Drop and recreate Qdrant collection
-    host       = settings.get('qdrant:host')
-    port       = int(settings.get('qdrant:port'))
-    collection = 'docvault'
-    client = QdrantClient(host=host, port=port)
-    if client.collection_exists(collection):
-        client.delete_collection(collection)
-    client.create_collection(
-        collection_name=collection,
-        vectors_config=qdrant_models.VectorParams(
-            size=768,
-            distance=qdrant_models.Distance.COSINE,
-            on_disk=True,
-        ),
-    )
+    VectorStore().drop_and_recreate()
 
-    # 2. Reset COMPLETED → EXTRACTED in SQLite
     import sqlite3
     with sqlite3.connect(DB_PATH, timeout=10) as conn:
         cur = conn.execute(
@@ -400,7 +387,7 @@ def system_health():
                 'count': stuck,
             })
 
-        # 2. Qdrant embedding failures (safe to retry — Qdrant may have been down)
+        # 2. Embedding failures (safe to retry — transient vector store error)
         qdrant_errs = conn.execute(
             """SELECT COUNT(*) as n FROM tasks
                WHERE status='ERROR'
@@ -411,7 +398,7 @@ def system_health():
             issues.append({
                 'id': 'qdrant_errors',
                 'severity': 'warning',
-                'title': f'{qdrant_errs} Qdrant embedding failure{"s" if qdrant_errs != 1 else ""}',
+                'title': f'{qdrant_errs} embedding failure{"s" if qdrant_errs != 1 else ""}',
                 'detail': 'Extracted text is intact. Failed only at the embedding/upload step. Safe to retry.',
                 'action': 'retry_embed_errors',
                 'action_label': f'Retry {qdrant_errs} (reset to EXTRACTED)',
@@ -450,25 +437,19 @@ def system_health():
     finally:
         conn.close()
 
-    # 5. Qdrant connectivity
-    qdrant_ok = False
-    qdrant_points = 0
-    qdrant_detail = ''
+    # 5. Vector store connectivity
+    vs_ok = False
+    vs_points = 0
     try:
-        from qdrant_client import QdrantClient
-        host = settings.get('qdrant:host')
-        port = int(settings.get('qdrant:port'))
-        client = QdrantClient(host=host, port=port)
-        col = client.get_collection('docvault')
-        qdrant_ok = True
-        qdrant_points = col.points_count
+        from embeddings.vector_store import VectorStore
+        vs_points = VectorStore().count()
+        vs_ok = True
     except Exception as e:
-        qdrant_detail = str(e)
         issues.append({
             'id': 'qdrant_down',
             'severity': 'error',
-            'title': 'Qdrant unreachable',
-            'detail': f'Embedding worker cannot store vectors: {qdrant_detail}',
+            'title': 'Vector store unavailable',
+            'detail': f'Embedding worker cannot store vectors: {e}',
             'action': None,
             'action_label': None,
             'count': 0,
@@ -477,7 +458,7 @@ def system_health():
     return {
         'issues': issues,
         'counts': counts,
-        'qdrant': {'ok': qdrant_ok, 'points': qdrant_points},
+        'qdrant': {'ok': vs_ok, 'points': vs_points},
     }
 
 
@@ -924,7 +905,7 @@ def reset_stuck():
 
 @router.post("/utils/retry_embed_errors")
 def retry_embed_errors():
-    """Reset Qdrant-timeout ERROR tasks to EXTRACTED so the embedding worker retries."""
+    """Reset embedding ERROR tasks to EXTRACTED so the embedding worker retries."""
     from api.main import DB_PATH
     n = _db_write(DB_PATH,
         """UPDATE tasks SET status='EXTRACTED', worker_id=NULL, last_update=datetime('now')
