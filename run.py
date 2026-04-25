@@ -181,7 +181,15 @@ def start():
     host = settings.get('server:host') or '127.0.0.1'
     port = int(settings.get('server:port') or 8000)
     logger.critical(f"Starting DocVault at http://{host}:{port}  [PID {os.getpid()}]")
-    uvicorn.run("api.main:app", host=host, port=port, reload=False)
+    config = uvicorn.Config(
+        "api.main:app", host=host, port=port, reload=False,
+        timeout_graceful_shutdown=5,
+    )
+    server = uvicorn.Server(config)
+    server.run()
+    # Force-exit after server stops — daemon worker threads may still be
+    # blocked on Ollama calls and would prevent a clean interpreter shutdown.
+    os._exit(0)
 
 
 
