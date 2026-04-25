@@ -93,7 +93,7 @@
         <div class="danger-row-text">
           <div class="danger-row-name" data-i18n="settings.reindex_title">Rebuild Vector Index</div>
           <div class="danger-row-desc" data-i18n="settings.reindex_desc">
-            Wipes the Qdrant vector store and re-queues all documents for embedding.
+            Wipes the vector store and re-queues all documents for embedding.
             Extracted text, FTS search, file metadata, and settings are preserved.
             Semantic search and Ask chat will be unavailable until re-embedding completes.
           </div>
@@ -111,7 +111,7 @@
       <div id="reindex-step-1">
         <div class="lc-modal-title" data-i18n="settings.modal_title">Rebuild Vector Index?</div>
         <p data-i18n="settings.modal_step1_body" style="font-size:12px;color:var(--c-label);margin-bottom:10px;line-height:1.6;">
-          This will permanently delete all vectors from the Qdrant store and re-queue
+          This will permanently delete all vectors from the vector store and re-queue
           every document for re-embedding. The process runs in the background —
           semantic search and the Ask chat will return no results until it completes.
         </p>
@@ -166,7 +166,7 @@
     const GROUPS = [
       { id: 'general',      label: () => t('settings.group.general') },
       { id: 'ollama',       label: () => t('settings.group.ollama') },
-      { id: 'qdrant',       label: () => t('settings.group.qdrant') },
+
       { id: 'pdf',          label: () => t('settings.group.pdf') },
       { id: 'embeddings',   label: () => t('settings.group.embeddings') },
       { id: 'search',       label: () => t('settings.group.search') },
@@ -183,7 +183,7 @@
     ];
 
     const GROUP_COLORS = {
-      general:'#cc6600', ollama:'#aa5500', qdrant:'#994400', pdf:'#885500',
+      general:'#cc6600', ollama:'#aa5500', pdf:'#885500',
       embeddings:'#776600', search:'#665500', vision:'#664400', video:'#554400',
       google:'#443300', bing:'#332200', huggingface:'#442200', art:'#553300',
       ingestion:'#446633', monitor:'#333300', lab:'#334400'
@@ -191,7 +191,7 @@
 
     // Group icon/emoji
     const GROUP_ICONS = {
-      general:'⚙', ollama:'🤖', qdrant:'⬡', pdf:'📄',
+      general:'⚙', ollama:'🤖', pdf:'📄',
       embeddings:'🔢', search:'🔍', vision:'👁', video:'🎬',
       google:'☁', bing:'🌐', huggingface:'🤗', art:'🎨',
       ingestion:'🔽', monitor:'📊', lab:'⚗'
