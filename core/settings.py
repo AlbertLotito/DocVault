@@ -37,8 +37,8 @@ class Settings:
                 'description': 'Ollama model used for RAG answers in the "Ask" chat. Must be pulled first with "ollama pull <model>". Recommended: qwen2.5:14b (speed/quality balance) or qwen2.5:32b for higher quality.',
             },
             'ollama:embed_model': {
-                'type': 'string', 'default': 'nomic-embed-text-v2', 'label': 'Embedding Model', 'group': 'ollama',
-                'description': 'Ollama model used to generate vector embeddings for semantic search. Changing this invalidates all existing embeddings — use Rebuild Index to re-embed everything. Default: nomic-embed-text-v2.',
+                'type': 'string', 'default': 'nomic-embed-text', 'label': 'Embedding Model', 'group': 'ollama',
+                'description': 'Ollama model used to generate vector embeddings for semantic search. Changing this invalidates all existing embeddings — use Rebuild Index to re-embed everything. Default: nomic-embed-text.',
             },
             'ollama:embed_timeout': {
                 'type': 'int', 'default': 120, 'label': 'Embedding Timeout (s)', 'group': 'ollama',
