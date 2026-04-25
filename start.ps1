@@ -28,7 +28,7 @@ try {
 }
 
 if ($ollamaOk) {
-    $requiredModels = @('nomic-embed-text-v2', 'minicpm-v', 'qwen2.5:14b')
+    $requiredModels = @('nomic-embed-text', 'minicpm-v', 'qwen2.5:14b')
     try {
         $ollamaList = (& ollama list 2>&1) | Out-String
         foreach ($m in $requiredModels) {
