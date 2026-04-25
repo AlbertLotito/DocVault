@@ -33,8 +33,8 @@ class Settings:
                 'description': 'Base URL for the Ollama API server. Change this if Ollama runs on a different machine or a non-default port.',
             },
             'ollama:chat_model': {
-                'type': 'string', 'default': 'deepseek-r1:14b', 'label': 'Chat Model', 'group': 'ollama',
-                'description': 'Ollama model used for RAG answers in the "Ask" chat. Must be pulled first with "ollama pull <model>". Recommended: deepseek-r1:14b (speed/quality balance) or llama3.1:70b for higher quality.',
+                'type': 'string', 'default': 'qwen2.5:14b', 'label': 'Chat Model', 'group': 'ollama',
+                'description': 'Ollama model used for RAG answers in the "Ask" chat. Must be pulled first with "ollama pull <model>". Recommended: qwen2.5:14b (speed/quality balance) or qwen2.5:32b for higher quality.',
             },
             'ollama:embed_model': {
                 'type': 'string', 'default': 'nomic-embed-text-v2', 'label': 'Embedding Model', 'group': 'ollama',
