@@ -51,18 +51,13 @@ def _stat(file_path):
     return s.st_size, created, modified
 
 
-def _update_qdrant_path(file_hash, new_path):
-    """Push the new file_path into every Qdrant vector payload for this hash."""
+def _update_vector_path(file_hash, new_path):
+    """Update the stored file_path in the vector store for this hash."""
     try:
         from embeddings.vector_store import VectorStore
-        vs = VectorStore(
-            host=settings.get('qdrant:host'),
-            port=int(settings.get('qdrant:port')),
-            collection='docvault',
-        )
-        vs.update_path(file_hash, new_path)
+        VectorStore().update_path(file_hash, new_path)
     except Exception as e:
-        logger.error(f"[qdrant] Path update failed for {file_hash[:8]}: {e}")
+        logger.error(f"[vector] Path update failed for {file_hash[:8]}: {e}")
 
 
 def ingest(directory, db_path, vault_id=None, vault_row=None):
@@ -173,7 +168,7 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
                         if existing['vault_id'] == vault_id:
                             # Origin vault: also update canonical path in tasks + Qdrant
                             manager.update_task_path(db_path, file_hash, file_path)
-                            _update_qdrant_path(file_hash, file_path)
+                            _update_vector_path(file_hash, file_path)
                             moved += 1
                             logger.info(f"  Moved: {existing['file_path']} → {file_path}")
 

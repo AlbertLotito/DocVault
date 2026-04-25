@@ -148,24 +148,13 @@ class VaultManager:
             conn.execute("DELETE FROM file_vault WHERE vault_id = ?", (vault_id,))
             conn.commit()
 
-        # 4. Remove Qdrant vectors (best-effort — never blocks the delete).
-        try:
-            from embeddings.vector_store import VectorStore
-            from core.settings import settings
-            vs = VectorStore(
-                host=settings.get('qdrant:host'),
-                port=int(settings.get('qdrant:port')),
-                collection='docvault',
-            )
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
-            vs.client.delete(
-                collection_name='docvault',
-                points_selector=Filter(must=[
-                    FieldCondition(key='vault_id', match=MatchValue(value=vault_id))
-                ])
-            )
-        except Exception as e:
-            print(f"[vault_manager] Warning: could not remove Qdrant vectors: {e}")
+        # 4. Remove vectors (best-effort — never blocks the delete).
+        if hashes:
+            try:
+                from embeddings.vector_store import VectorStore
+                VectorStore().delete_by_hashes(hashes)
+            except Exception as e:
+                print(f"[vault_manager] Warning: could not remove vectors: {e}")
 
     def get_vault_extractors(self, vault_id: str) -> list[dict]:
         """Returns the custom extractor config for a vault, or empty list if using defaults."""
@@ -216,21 +205,15 @@ class VaultManager:
                 (vault_id,)
             )
             conn.commit()
-        # Remove Qdrant vectors
+        # Remove vectors for this vault so they are re-embedded from scratch.
         try:
             from embeddings.vector_store import VectorStore
-            from core.settings import settings
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
-            vs = VectorStore(
-                host=settings.get('qdrant:host'),
-                port=int(settings.get('qdrant:port')),
-                collection='docvault',
-            )
-            vs.client.delete(
-                collection_name='docvault',
-                points_selector=Filter(must=[
-                    FieldCondition(key='vault_id', match=MatchValue(value=vault_id))
-                ])
-            )
+            import sqlite3
+            with sqlite3.connect(self.db_path) as _c:
+                _hashes = [r[0] for r in _c.execute(
+                    "SELECT file_hash FROM tasks WHERE vault_id=?", (vault_id,)
+                ).fetchall()]
+            if _hashes:
+                VectorStore().delete_by_hashes(_hashes)
         except Exception as e:
-            print(f"[vault_manager] Warning: reindex Qdrant removal failed: {e}")
+            print(f"[vault_manager] Warning: vector removal failed: {e}")

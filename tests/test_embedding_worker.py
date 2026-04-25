@@ -23,7 +23,7 @@ def test_process_task_embeds_all_chunks(mock_chunk, mock_embed_batch,
     inputs = mock_embed_batch.call_args[0][0]
     assert len(inputs) == 2
 
-    # Single batch upsert to Qdrant
+    # Single batch upsert to vector store
     mock_vs.upsert_batch.assert_called_once()
     batch = mock_vs.upsert_batch.call_args[0][1]
     assert len(batch) == 2
@@ -146,18 +146,18 @@ def test_process_task_batch_skips_none_vectors(mock_chunk, mock_embed, mock_prog
 @patch('workers.embedding_worker.manager.update_task_progress')
 @patch('workers.embedding_worker.embedder.embed_batch')
 @patch('workers.embedding_worker.chunker.chunk')
-def test_process_task_batch_resets_to_extracted_on_qdrant_failure(mock_chunk, mock_embed, mock_progress, mock_status):
-    """If Qdrant upsert raises, ALL non-empty tasks are reset to EXTRACTED and exception re-raises."""
+def test_process_task_batch_resets_to_extracted_on_vector_store_failure(mock_chunk, mock_embed, mock_progress, mock_status):
+    """If vector store upsert raises, ALL non-empty tasks are reset to EXTRACTED and exception re-raises."""
     mock_chunk.side_effect = [['c1'], ['c2']]
     mock_embed.return_value = [[0.1]*768, [0.2]*768]
     mock_vs = MagicMock()
-    mock_vs.upsert_batch.side_effect = Exception("Qdrant down")
+    mock_vs.upsert_batch.side_effect = Exception("Vector store down")
 
     tasks = [
         {'file_hash': 'h1', 'file_path': '/a.pdf', 'file_type': 'pdf', 'extracted_text': 'text1'},
         {'file_hash': 'h2', 'file_path': '/b.pdf', 'file_type': 'pdf', 'extracted_text': 'text2'},
     ]
-    with pytest.raises(Exception, match="Qdrant down"):
+    with pytest.raises(Exception, match="Vector store down"):
         embedding_worker.process_task_batch('test.db', tasks, mock_vs)
 
     all_calls = mock_status.call_args_list

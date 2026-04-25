@@ -37,8 +37,8 @@ class Settings:
                 'description': 'Ollama model used for RAG answers in the "Ask" chat. Must be pulled first with "ollama pull <model>". Recommended: deepseek-r1:14b (speed/quality balance) or llama3.1:70b for higher quality.',
             },
             'ollama:embed_model': {
-                'type': 'string', 'default': 'nomic-embed-text', 'label': 'Embedding Model', 'group': 'ollama',
-                'description': 'Ollama model used to generate vector embeddings for semantic search. Changing this invalidates all existing embeddings — you must delete the Qdrant collection and re-embed everything. Default: nomic-embed-text.',
+                'type': 'string', 'default': 'nomic-embed-text-v2', 'label': 'Embedding Model', 'group': 'ollama',
+                'description': 'Ollama model used to generate vector embeddings for semantic search. Changing this invalidates all existing embeddings — use Rebuild Index to re-embed everything. Default: nomic-embed-text-v2.',
             },
             'ollama:embed_timeout': {
                 'type': 'int', 'default': 120, 'label': 'Embedding Timeout (s)', 'group': 'ollama',
@@ -69,14 +69,10 @@ class Settings:
                 'type': 'int', 'default': 1, 'label': 'Max Parallel Requests', 'group': 'ollama',
                 'description': 'Maximum number of concurrent requests sent to Ollama. Set to 1 to serialize all requests (prevents "no slots available" errors). Increase this if you have configured Ollama with OLLAMA_NUM_PARALLEL > 1 and have sufficient VRAM. Changes take effect immediately — no restart required.',
             },
-            # Qdrant
-            'qdrant:host': {
-                'type': 'string', 'default': 'localhost', 'label': 'Host', 'group': 'qdrant',
-                'description': 'Hostname or IP address of the Qdrant vector database. Usually "localhost" when Qdrant runs in Docker on the same machine.',
-            },
-            'qdrant:port': {
-                'type': 'int', 'default': 6333, 'label': 'Port', 'group': 'qdrant',
-                'description': 'Port Qdrant listens on. Default is 6333. Change only if you have configured Qdrant to use a different port.',
+            # LanceDB
+            'lancedb:path': {
+                'type': 'string', 'default': 'lancedb_storage', 'label': 'LanceDB storage path', 'group': 'lancedb',
+                'description': 'Directory where LanceDB stores vector data. Relative to project root.',
             },
             # PDF extraction
             'pdf:poppler_path': {
@@ -119,11 +115,11 @@ class Settings:
             # Embeddings
             'embeddings:chunk_size': {
                 'type': 'int', 'default': 600, 'label': 'Chunk size (chars)', 'group': 'embeddings',
-                'description': 'Maximum number of characters per text chunk. Smaller chunks produce more precise semantic matches but generate more Qdrant vectors. Recommended range: 400–800. Changing this requires deleting the Qdrant collection and re-embedding all documents.',
+                'description': 'Maximum number of characters per text chunk. Smaller chunks produce more precise semantic matches but generate more vectors. Recommended range: 400–800. Changing this requires Rebuild Index.',
             },
             'embeddings:chunk_overlap': {
                 'type': 'int', 'default': 100, 'label': 'Chunk overlap (chars)', 'group': 'embeddings',
-                'description': 'Number of characters shared between adjacent chunks. Overlap prevents context from being lost at chunk boundaries (e.g. a sentence split across two chunks). Recommended: 10–20% of chunk size. Changing this requires re-embedding.',
+                'description': 'Number of characters shared between adjacent chunks. Overlap prevents context from being lost at chunk boundaries (e.g. a sentence split across two chunks). Recommended: 10–20% of chunk size. Changing this requires Rebuild Index.',
             },
             'embeddings:score_threshold': {
                 'type': 'float', 'default': 0.65, 'label': 'Search score threshold', 'group': 'embeddings',
@@ -308,22 +304,6 @@ class Settings:
             'monitor:stuck_task_threshold_mins': {
                 'type': 'int', 'default': 10, 'label': 'Stuck task threshold (m)', 'group': 'monitor',
                 'description': 'How many minutes a task can remain in PROCESSING or EMBEDDING state without an update before it is flagged as "stuck". Lower values catch dead processes faster; higher values avoid false positives for very large files.',
-            },
-            'qdrant:container_name': {
-                'type': 'string', 'default': 'docvault-qdrant-1', 'label': 'Qdrant container name', 'group': 'qdrant',
-                'description': 'Docker container name for Qdrant. If Qdrant becomes unreachable, DocVault will attempt to restart this container automatically.',
-            },
-            'qdrant:auto_restart': {
-                'type': 'string', 'default': 'true', 'label': 'Auto-restart Qdrant', 'group': 'qdrant',
-                'description': 'When enabled, DocVault will automatically run "docker restart <container>" if Qdrant is unreachable for too long.',
-            },
-            'qdrant:restart_after_failures': {
-                'type': 'int', 'default': 3, 'label': 'Restart after N failures', 'group': 'qdrant',
-                'description': 'Number of consecutive Qdrant connection failures (each ~10s apart) before triggering an automatic container restart.',
-            },
-            'qdrant:restart_cooldown_mins': {
-                'type': 'int', 'default': 10, 'label': 'Restart cooldown (m)', 'group': 'qdrant',
-                'description': 'Minimum minutes between automatic Qdrant restarts, to avoid restart storms.',
             },
             'monitor:stall_threshold_mins': {
                 'type': 'int', 'default': 30, 'label': 'Stall threshold (m)', 'group': 'monitor',
