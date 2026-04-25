@@ -114,12 +114,12 @@ class Settings:
             },
             # Embeddings
             'embeddings:chunk_size': {
-                'type': 'int', 'default': 600, 'label': 'Chunk size (chars)', 'group': 'embeddings',
-                'description': 'Maximum number of characters per text chunk. Smaller chunks produce more precise semantic matches but generate more vectors. Recommended range: 400–800. Changing this requires Rebuild Index.',
+                'type': 'int', 'default': 1000, 'label': 'Chunk size (chars)', 'group': 'embeddings',
+                'description': 'Maximum number of characters per text chunk. The chunker fills chunks with whole sentences up to this limit. Smaller chunks produce more precise matches; larger chunks give the model more context. Recommended range: 800–1500. Changing this requires Rebuild Index.',
             },
             'embeddings:chunk_overlap': {
-                'type': 'int', 'default': 100, 'label': 'Chunk overlap (chars)', 'group': 'embeddings',
-                'description': 'Number of characters shared between adjacent chunks. Overlap prevents context from being lost at chunk boundaries (e.g. a sentence split across two chunks). Recommended: 10–20% of chunk size. Changing this requires Rebuild Index.',
+                'type': 'int', 'default': 200, 'label': 'Chunk overlap (chars)', 'group': 'embeddings',
+                'description': 'Trailing sentences carried into the next chunk to preserve context across boundaries. Recommended: 15–25% of chunk size. Changing this requires Rebuild Index.',
             },
             'embeddings:score_threshold': {
                 'type': 'float', 'default': 0.65, 'label': 'Search score threshold', 'group': 'embeddings',
