@@ -37,8 +37,8 @@ class Settings:
                 'description': 'Ollama model used for RAG answers in the "Ask" chat. Must be pulled first with "ollama pull <model>". Recommended: deepseek-r1:14b (speed/quality balance) or llama3.1:70b for higher quality.',
             },
             'ollama:embed_model': {
-                'type': 'string', 'default': 'nomic-embed-text', 'label': 'Embedding Model', 'group': 'ollama',
-                'description': 'Ollama model used to generate vector embeddings for semantic search. Changing this invalidates all existing embeddings — you must delete the Qdrant collection and re-embed everything. Default: nomic-embed-text.',
+                'type': 'string', 'default': 'nomic-embed-text-v2', 'label': 'Embedding Model', 'group': 'ollama',
+                'description': 'Ollama model used to generate vector embeddings for semantic search. Changing this invalidates all existing embeddings — use Rebuild Index to re-embed everything. Default: nomic-embed-text-v2.',
             },
             'ollama:embed_timeout': {
                 'type': 'int', 'default': 120, 'label': 'Embedding Timeout (s)', 'group': 'ollama',
@@ -115,11 +115,11 @@ class Settings:
             # Embeddings
             'embeddings:chunk_size': {
                 'type': 'int', 'default': 600, 'label': 'Chunk size (chars)', 'group': 'embeddings',
-                'description': 'Maximum number of characters per text chunk. Smaller chunks produce more precise semantic matches but generate more Qdrant vectors. Recommended range: 400–800. Changing this requires deleting the Qdrant collection and re-embedding all documents.',
+                'description': 'Maximum number of characters per text chunk. Smaller chunks produce more precise semantic matches but generate more vectors. Recommended range: 400–800. Changing this requires Rebuild Index.',
             },
             'embeddings:chunk_overlap': {
                 'type': 'int', 'default': 100, 'label': 'Chunk overlap (chars)', 'group': 'embeddings',
-                'description': 'Number of characters shared between adjacent chunks. Overlap prevents context from being lost at chunk boundaries (e.g. a sentence split across two chunks). Recommended: 10–20% of chunk size. Changing this requires re-embedding.',
+                'description': 'Number of characters shared between adjacent chunks. Overlap prevents context from being lost at chunk boundaries (e.g. a sentence split across two chunks). Recommended: 10–20% of chunk size. Changing this requires Rebuild Index.',
             },
             'embeddings:score_threshold': {
                 'type': 'float', 'default': 0.65, 'label': 'Search score threshold', 'group': 'embeddings',

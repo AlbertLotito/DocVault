@@ -41,9 +41,11 @@ def _extract_doc_legacy(file_path: str) -> tuple:
         pythoncom.CoInitialize()
         word = win32com.client.Dispatch("Word.Application")
         word.Visible = False
-        
+        word.DisplayAlerts = 0  # suppress repair dialog
+
         doc = word.Documents.Open(os.path.abspath(file_path))
         text = doc.Content.Text
+        doc.Save()  # write repairs back to the original file
         doc.Close()
         word.Quit()
         return text, None
