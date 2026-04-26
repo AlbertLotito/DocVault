@@ -10,10 +10,10 @@
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-function Write-Step { param($msg) Write-Host "`n==> $msg" -ForegroundColor Cyan }
-function Write-OK   { param($msg) Write-Host "    [OK] $msg" -ForegroundColor Green }
-function Write-Warn { param($msg) Write-Host "    [!!] $msg" -ForegroundColor Yellow }
-function Write-Fail { param($msg) Write-Host "    [XX] $msg" -ForegroundColor Red }
+function Write-Step { param($msg) Write-Host "`n$(Get-Date -Format 'HH:mm:ss') ==> $msg" -ForegroundColor Cyan }
+function Write-OK   { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')     [OK] $msg" -ForegroundColor Green }
+function Write-Warn { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')     [!!] $msg" -ForegroundColor Yellow }
+function Write-Fail { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')     [XX] $msg" -ForegroundColor Red }
 
 # --- 1. Ollama (warn only, do not block startup) ---
 Write-Step "Checking Ollama"
