@@ -130,7 +130,7 @@
 
       <!-- Type filter input -->
       <div style="padding:0 20px 10px;">
-        <input id="filter-type" class="lc-input" style="max-width:220px;" placeholder="Filter by type (e.g. pdf)" data-i18n-placeholder="vault.filter.type_placeholder" onchange="g_currentPage=1;loadCatalog()">
+        <input id="filter-type" class="lc-input" style="max-width:220px;" placeholder="Type or filename (e.g. pdf, %report%)" onchange="g_currentPage=1;loadCatalog()">
       </div>
 
       <div class="lc-table-wrap">
@@ -606,7 +606,12 @@
 
       var url = '/catalog?limit=' + g_pageSize + '&offset=' + offset + '&sort_by=' + g_sortBy + '&sort_order=' + g_sortOrder;
       if (g_statusFilter) url += '&status=' + g_statusFilter;
-      if (typeFilter) url += '&file_type=' + typeFilter;
+      if (typeFilter) {
+        if (typeFilter.indexOf('%') !== -1 || typeFilter.indexOf('_') !== -1)
+          url += '&filename=' + encodeURIComponent(typeFilter);
+        else
+          url += '&file_type=' + encodeURIComponent(typeFilter);
+      }
       if (g_vaultFilter) url += '&vault_id=' + g_vaultFilter;
 
       try {

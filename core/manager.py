@@ -563,7 +563,7 @@ def get_task(db_path, file_hash):
         return dict(row) if row else None
 
 
-def list_tasks(db_path, status=None, file_type=None, vault_id=None, limit=50, offset=0, sort_by='last_update', sort_order='DESC'):
+def list_tasks(db_path, status=None, file_type=None, filename=None, vault_id=None, limit=50, offset=0, sort_by='last_update', sort_order='DESC'):
     with _connect(db_path) as conn:
         # Prevent SQL injection by validating sort parameters
         allowed_sort_by = ['file_path', 'file_type', 'status', 'last_update', 'priority', 'file_size', 'vault_id']
@@ -578,6 +578,8 @@ def list_tasks(db_path, status=None, file_type=None, vault_id=None, limit=50, of
             where.append("status = ?"); params.append(status)
         if file_type and file_type.strip():
             where.append("file_type LIKE ?"); params.append(f"%{file_type.strip()}%")
+        if filename and filename.strip():
+            where.append("file_path LIKE ?"); params.append(filename.strip())
         if vault_id:
             # Use file_vault so files belonging to this vault via multi-vault membership are included
             where.append("file_hash IN (SELECT file_hash FROM file_vault WHERE vault_id = ?)")

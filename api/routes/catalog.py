@@ -19,11 +19,12 @@ def get_stats():
 
 @router.get("/catalog")
 def list_catalog(status: str = None, file_type: str = None,
-                 vault_id: str = None,
+                 filename: str = None, vault_id: str = None,
                  limit: int = 50, offset: int = 0,
                  sort_by: str = 'last_update', sort_order: str = 'DESC'):
     return manager.list_tasks(get_db(), status=status,
-                               file_type=file_type, vault_id=vault_id,
+                               file_type=file_type, filename=filename,
+                               vault_id=vault_id,
                                limit=limit, offset=offset,
                                sort_by=sort_by, sort_order=sort_order)
 
