@@ -100,9 +100,12 @@ def process_task_batch(db_path, tasks, vs):
     logger.info(f"Embedding batch: {n_docs} doc(s), {n_chunks} chunk(s)")
 
     batch_start = time.time()
-    # Phase 2: one Ollama call for all chunks
-    inputs  = [e[3] for e in all_entries]
-    vectors = embedder.embed_batch(inputs)
+    # Phase 2: embed in sub-batches to avoid overwhelming Ollama
+    max_chunks = int(settings.get('workers:embed_chunk_limit') or 200)
+    inputs = [e[3] for e in all_entries]
+    vectors = []
+    for i in range(0, len(inputs), max_chunks):
+        vectors.extend(embedder.embed_batch(inputs[i:i + max_chunks]))
 
     # Phase 3: group vectors back by document
     doc_batches: dict = {}

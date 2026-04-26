@@ -132,6 +132,12 @@ class Settings:
                                'Larger values keep the GPU busier between documents but use more memory. '
                                'Recommended: 4–16. Has no effect when the queue is nearly empty.',
             },
+            'workers:embed_chunk_limit': {
+                'type': 'int', 'default': 200, 'label': 'Embed chunk limit (per Ollama call)', 'group': 'embeddings',
+                'description': 'Maximum number of chunks sent to Ollama in a single embed call. '
+                               'Keeping this low prevents Ollama timeouts and leaves headroom for RAG queries. '
+                               'Recommended: 100–300.',
+            },
             'workers:embed_concurrency': {
                 'type': 'int', 'default': 1, 'label': 'Embed worker threads', 'group': 'embeddings',
                 'description': 'Number of parallel embedding worker threads. Set to 2–4 only if Ollama is '
