@@ -355,6 +355,7 @@ def _set_embed_stall_state(detected: bool, minutes: int):
 _ollama_semaphore: Optional[threading.Semaphore] = None
 _ollama_serial_lock = threading.Lock()
 _ollama_limit: int = -1
+_embed_semaphore: Optional[threading.Semaphore] = None
 
 
 def notify_user_activity():
@@ -389,21 +390,29 @@ def get_throttle_state() -> str:
 
 
 @contextmanager
-def ollama_governor():
+def ollama_governor(kind: str = 'chat'):
     """
     Context manager that controls the flow of requests to Ollama.
-    1. Respects the 'ollama:max_parallel' setting (Semaphore).
-    2. Forces serialization (Lock) if the system is under thermal pressure.
+
+    kind='chat'  — used by chat/vision (heavy models). Respects
+                   'ollama:max_parallel' and serializes under thermal pressure.
+    kind='embed' — used by the embedding worker (light model). Uses its own
+                   independent semaphore so embed batches never block user queries.
     """
-    global _ollama_semaphore, _ollama_limit
-    
+    global _ollama_semaphore, _ollama_limit, _embed_semaphore
+
+    if kind == 'embed':
+        if _embed_semaphore is None:
+            _embed_semaphore = threading.Semaphore(1)
+        with _embed_semaphore:
+            yield
+        return
+
     from core.settings import settings
-    
+
     # 1. Initialize or update semaphore if limit changed (or first run)
     limit = int(settings.get('ollama:max_parallel') or 1)
     if _ollama_semaphore is None or _ollama_limit != limit:
-        # Note: changing limit at runtime might lead to a temporary burst
-        # as the old semaphore is discarded, but it's safe.
         _ollama_semaphore = threading.Semaphore(limit) if limit > 0 else None
         _ollama_limit = limit
 
@@ -413,13 +422,11 @@ def ollama_governor():
             # 3. Check for thermal pressure (Governor Action)
             state, _reason = get_throttle_state()
             if state in ('throttled', 'cooldown'):
-                # Force serialization under pressure
                 with _ollama_serial_lock:
                     yield
             else:
                 yield
     else:
-        # No parallel limit. Still serialize under pressure.
         state, _reason = get_throttle_state()
         if state in ('throttled', 'cooldown'):
             with _ollama_serial_lock:

@@ -18,9 +18,12 @@ class OllamaProvider(BaseLLMProvider):
                 'top_p':          float(settings.get('ollama:top_p')),
                 'repeat_penalty': float(settings.get('ollama:repeat_penalty')),
             }
+            raw = settings.get('ollama:chat_timeout')
+            timeout = int(raw) if raw not in (None, '', '0', 0) else 300
+            client = ollama.Client(host=self.host, timeout=timeout)
 
-            with ollama_governor():
-                response = ollama.chat(
+            with ollama_governor(kind='chat'):
+                response = client.chat(
                     model=self.model,
                     messages=messages,
                     options=options,

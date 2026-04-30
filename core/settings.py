@@ -45,6 +45,11 @@ class Settings:
                 'description': 'HTTP timeout in seconds for Ollama embedding calls. '
                                'Prevents indefinite hangs when Ollama is unresponsive.',
             },
+            'ollama:chat_timeout': {
+                'type': 'int', 'default': 300, 'label': 'Chat Timeout (s)', 'group': 'ollama',
+                'description': 'HTTP timeout in seconds for Ollama chat/RAG calls. '
+                               'If the model does not respond within this window the query returns an error.',
+            },
             'ollama:num_ctx': {
                 'type': 'int', 'default': 8192, 'label': 'Context Window (tokens)', 'group': 'ollama',
                 'description': 'Maximum number of tokens the model can see at once, including retrieved chunks and conversation history. Larger values use more VRAM. Must not exceed the model\'s own maximum context length.',
