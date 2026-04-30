@@ -410,6 +410,21 @@ def ollama_governor(kind: str = 'chat'):
 
     from core.settings import settings
 
+    # RAM guard — raise a catchable MemoryError rather than letting the
+    # model response buffer push an already-full system over the edge.
+    try:
+        import psutil
+        ram_block = float(settings.get('monitor:ram_ollama_block_pct') or 90)
+        ram_pct = psutil.virtual_memory().percent
+        if ram_pct >= ram_block:
+            raise MemoryError(
+                f"Ollama call blocked: RAM at {ram_pct:.0f}% >= {ram_block:.0f}% limit"
+            )
+    except MemoryError:
+        raise
+    except Exception:
+        pass
+
     # 1. Initialize or update semaphore if limit changed (or first run)
     limit = int(settings.get('ollama:max_parallel') or 1)
     if _ollama_semaphore is None or _ollama_limit != limit:

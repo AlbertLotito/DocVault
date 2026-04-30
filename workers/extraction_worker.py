@@ -2,7 +2,7 @@ import gc
 import os, socket, time, threading
 from core import manager, router, logger
 from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger
-from core.settings import SettingsResolver
+from core.settings import settings, SettingsResolver
 from extractors import image_extractor, fallback_kernel
 from workers.utils import interruptible_sleep, paused_sleep, should_pause_or_throttle, get_throttle_sleep
 
@@ -48,6 +48,34 @@ def process_task(db_path, task):
     combined_images = []
 
     for i, ext_module in enumerate(extractors):
+        # RAM guard — check before each extractor in the chain.
+        try:
+            import psutil
+            ram_abort = float(settings.get('monitor:ram_chain_abort_pct') or 88)
+            ram_pct = psutil.virtual_memory().percent
+            if ram_pct >= ram_abort:
+                if i == 0:
+                    # Nothing extracted yet — re-queue rather than marking ERROR.
+                    logger.warn(
+                        f"RAM at {ram_pct:.0f}% before {filename} — re-queuing task"
+                    )
+                    manager.complete_extraction(db_path, file_hash, status='PENDING', error=None)
+                    return
+                else:
+                    errors.append(
+                        f"[ram-guard] chain aborted at extractor {i}/{len(extractors)}: "
+                        f"RAM {ram_pct:.0f}% >= {ram_abort:.0f}%"
+                    )
+                    logger.warn(
+                        f"RAM at {ram_pct:.0f}% — aborting {filename} "
+                        f"after {i} of {len(extractors)} extractor(s), saving partial results"
+                    )
+                    break
+        except MemoryError:
+            raise
+        except Exception:
+            pass
+
         # If it's already an adapter (e.g. SubprocessExtractorAdapter), use it directly
         from core.extractors.base import BaseExtractor
         if isinstance(ext_module, BaseExtractor):

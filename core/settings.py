@@ -296,6 +296,18 @@ class Settings:
                 'type': 'float', 'default': 85.0, 'label': 'RAM throttle (%)', 'group': 'monitor',
                 'description': 'RAM usage percentage at which workers throttle.',
             },
+            'monitor:ram_chain_abort_pct': {
+                'type': 'float', 'default': 88.0, 'label': 'RAM chain abort (%)', 'group': 'monitor',
+                'description': 'RAM usage percentage at which the extractor chain is aborted before starting the next extractor. If triggered before any extractor has run the task is re-queued; otherwise partial results are saved. Set higher than ram_throttle_pct, lower than ram_ollama_block_pct.',
+            },
+            'monitor:ram_ollama_block_pct': {
+                'type': 'float', 'default': 90.0, 'label': 'RAM Ollama block (%)', 'group': 'monitor',
+                'description': 'RAM usage percentage at which chat/vision Ollama calls are blocked with a catchable MemoryError before the request is sent. Prevents the model response buffer from pushing an already-full system over the edge. Should sit between ram_chain_abort_pct and ram_emergency_pct.',
+            },
+            'monitor:ram_emergency_pct': {
+                'type': 'float', 'default': 92.0, 'label': 'RAM emergency stop (%)', 'group': 'monitor',
+                'description': 'RAM usage percentage at which workers stop claiming new tasks immediately, bypassing the 60-second monitor sample cycle. Acts as a last-resort circuit breaker before the OS runs out of memory entirely.',
+            },
             'monitor:cpu_temp_throttle': {
                 'type': 'float', 'default': 85.0, 'label': 'CPU temp throttle (°C)', 'group': 'monitor',
                 'description': 'CPU temperature at which workers throttle.',
