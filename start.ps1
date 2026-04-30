@@ -73,11 +73,12 @@ while ($true) {
 
     $restartCount++
     if ($restartCount -gt $maxRestarts) {
-        Write-Fail "DocVault has crashed $maxRestarts time(s) in a row — giving up. Check logs."
+        Write-Fail "DocVault has crashed $maxRestarts time(s) in a row. Giving up. Check logs."
         break
     }
 
-    Write-Warn "DocVault exited with code $exitCode (crash #$restartCount). Restarting in ${delaySecs}s..."
+    $msg = "DocVault exited (code $exitCode, crash $restartCount of $maxRestarts). Restarting in $delaySecs s..."
+    Write-Warn $msg
     Start-Sleep -Seconds $delaySecs
-    $delaySecs = [Math]::Min($delaySecs * 2, 60)   # exponential back-off: 5s, 10s, 20s, 40s, 60s…
+    $delaySecs = [Math]::Min($delaySecs * 2, 60)
 }
