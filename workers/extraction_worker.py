@@ -1,3 +1,4 @@
+import gc
 import os, socket, time, threading
 from core import manager, router, logger
 from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger
@@ -191,6 +192,18 @@ def run(db_path, worker_id=None, shutdown_event=None):
         if task:
             try:
                 process_task(db_path, task)
+            except MemoryError:
+                # Force GC before any further allocations — MemoryError leaves the
+                # heap in a fragile state. Best-effort mark ERROR then continue.
+                gc.collect()
+                logger.error(
+                    f"Extraction worker OOM on {task.get('file_path', '?')} — marking ERROR"
+                )
+                try:
+                    manager.complete_extraction(db_path, task['file_hash'],
+                                                status='ERROR', error='Out of memory')
+                except Exception:
+                    pass
             except Exception as e:
                 logger.error(f"Extraction worker unhandled: {e}")
                 try:
@@ -201,6 +214,8 @@ def run(db_path, worker_id=None, shutdown_event=None):
                         f"Extraction worker: could not mark task {task['file_hash'][:8]} ERROR — "
                         f"task is stuck in PROCESSING and will not be retried until server restart: {e2}"
                     )
+            finally:
+                gc.collect()
         else:
             try:
                 interruptible_sleep(db_path, 10)

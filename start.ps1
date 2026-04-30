@@ -52,9 +52,32 @@ if (-not (Test-Path $venvPython)) {
 }
 Write-OK "venv found"
 
-# --- 3. Start DocVault ---
+# --- 3. Start DocVault (auto-restart on crash) ---
 Write-Host ""
 Write-Host "  Starting DocVault at http://localhost:8050  (Ctrl+C to stop)" -ForegroundColor Cyan
 Write-Host ""
 
-& $venvPython (Join-Path $scriptDir 'run.py')
+$maxRestarts  = 10
+$restartCount = 0
+$delaySecs    = 5
+
+while ($true) {
+    & $venvPython (Join-Path $scriptDir 'run.py')
+    $exitCode = $LASTEXITCODE
+
+    # Exit code 0 = clean shutdown (Ctrl+C / user stop). Don't restart.
+    if ($exitCode -eq 0) {
+        Write-Host "$(Get-Date -Format 'HH:mm:ss') DocVault stopped cleanly." -ForegroundColor Green
+        break
+    }
+
+    $restartCount++
+    if ($restartCount -gt $maxRestarts) {
+        Write-Fail "DocVault has crashed $maxRestarts time(s) in a row — giving up. Check logs."
+        break
+    }
+
+    Write-Warn "DocVault exited with code $exitCode (crash #$restartCount). Restarting in ${delaySecs}s..."
+    Start-Sleep -Seconds $delaySecs
+    $delaySecs = [Math]::Min($delaySecs * 2, 60)   # exponential back-off: 5s, 10s, 20s, 40s, 60s…
+}

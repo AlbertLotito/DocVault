@@ -1,6 +1,10 @@
 import time
 from core import manager
 
+# Hard RAM ceiling checked inline before every task claim.
+# The monitor samples every 60s; this catches spikes the cycle misses.
+_RAM_EMERGENCY_PCT = 92.0
+
 
 def interruptible_sleep(db_path, duration, step=1):
     """Sleep duration seconds, waking early if paused.
@@ -34,6 +38,16 @@ def should_pause_or_throttle() -> tuple[bool, str]:
     """
     if manager.get_pause_state():
         return True, 'paused'
+
+    # Inline RAM check — don't wait for the 60s monitor sample cycle.
+    # If RAM is critically high, treat it as cooldown immediately.
+    try:
+        import psutil
+        if psutil.virtual_memory().percent >= _RAM_EMERGENCY_PCT:
+            return True, 'cooldown'
+    except Exception:
+        pass
+
     try:
         from core.monitor import get_throttle_state
         state, reason = get_throttle_state()
