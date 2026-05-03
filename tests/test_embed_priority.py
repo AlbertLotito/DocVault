@@ -37,6 +37,11 @@ def _insert_task(conn, file_hash, vault_id, status, last_update=None, file_path=
            VALUES (?, ?, 'txt', ?, ?, ?)""",
         (file_hash, file_path, status, vault_id, last_update)
     )
+    if status in ('EXTRACTED', 'COMPLETED', 'EMBEDDING'):
+        conn.execute(
+            "INSERT OR IGNORE INTO extracted_texts (file_hash, extracted_text) VALUES (?, ?)",
+            (file_hash, f'placeholder text for {file_hash}')
+        )
 
 
 def test_extract_age_weight_respected(priority_db):
