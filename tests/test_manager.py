@@ -126,6 +126,27 @@ def test_extracted_texts_table_exists(db):
     assert 'stored_at' in cols
 
 
+def test_extracted_texts_cascade_delete(db):
+    """Deleting a task must cascade-delete its extracted_texts row."""
+    manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')
+    import sqlite3 as _sq
+    conn = _sq.connect(db)
+    conn.row_factory = _sq.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute(
+        "INSERT INTO extracted_texts (file_hash, extracted_text) VALUES (?, ?)",
+        ('abc123', 'Some text')
+    )
+    conn.commit()
+    conn.execute("DELETE FROM tasks WHERE file_hash = ?", ('abc123',))
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM extracted_texts WHERE file_hash = ?", ('abc123',)
+    ).fetchone()
+    conn.close()
+    assert row is None, "ON DELETE CASCADE did not fire — extracted_texts row still exists"
+
+
 def test_indexes_exist(db):
     """Verify all expected indexes are present after init_db."""
     import sqlite3 as _sq

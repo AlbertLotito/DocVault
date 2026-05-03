@@ -189,6 +189,7 @@ def _connect(db_path):
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA cache_size=-65536")   # 64 MB page cache
     conn.execute("PRAGMA temp_store=MEMORY")
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
     finally:
