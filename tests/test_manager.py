@@ -20,7 +20,7 @@ def test_init_creates_tables(db):
     conn.close()
     assert 'tasks' in tables
     assert 'extracted_images' in tables
-    assert 'settings' in tables
+    # settings lives in settings.db (init_settings_db), not the main DB
 
 
 def test_insert_task(db):
@@ -35,8 +35,8 @@ def test_insert_task(db):
 def test_insert_task_deduplicates(db):
     manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')
     manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')  # duplicate
-    tasks = manager.list_tasks(db)
-    assert len(tasks) == 1
+    result = manager.list_tasks(db)
+    assert len(result['tasks']) == 1
 
 
 def test_update_task_status(db):
@@ -103,14 +103,15 @@ def test_fts_search(db):
 
 
 def test_get_pause_state_defaults_false(db):
-    assert manager.get_pause_state(db) is False
+    # get_pause_state reads from settings.db, not the task DB
+    assert manager.get_pause_state() is False
 
 
 def test_set_pause_state(db):
-    manager.set_pause_state(db, True)
-    assert manager.get_pause_state(db) is True
-    manager.set_pause_state(db, False)
-    assert manager.get_pause_state(db) is False
+    manager.set_pause_state(True)
+    assert manager.get_pause_state() is True
+    manager.set_pause_state(False)
+    assert manager.get_pause_state() is False
 
 
 def test_indexes_exist(db):
