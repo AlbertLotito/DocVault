@@ -524,21 +524,23 @@ def update_task_metadata(db_path, file_hash, metadata: dict):
 def update_fts(db_path, file_hash):
     """Re-sync FTS index for a single task from its current extracted_text."""
     with _connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT file_path, extracted_text FROM tasks WHERE file_hash = ?",
-            (file_hash,)
+        task_row = conn.execute(
+            "SELECT file_path FROM tasks WHERE file_hash = ?", (file_hash,)
         ).fetchone()
-        if not row:
+        text_row = conn.execute(
+            "SELECT extracted_text FROM extracted_texts WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+        if not task_row:
             return
         conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
-        if row['extracted_text']:
+        if text_row and text_row['extracted_text']:
             try:
                 from embeddings.chunker import chunk
-                chunks = chunk(row['extracted_text'])
+                chunks = chunk(text_row['extracted_text'])
                 for i, chunk_text in enumerate(chunks):
                     conn.execute(
                         "INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES (?, ?, ?, ?)",
-                        (file_hash, i, row['file_path'], chunk_text)
+                        (file_hash, i, task_row['file_path'], chunk_text)
                     )
             except Exception as e:
                 print(f"[manager] Warning: FTS update failed for {file_hash}: {e}")
@@ -549,19 +551,17 @@ def append_parent_text(db_path, parent_hash, suffix: str):
     """Append suffix to parent task's extracted_text and update FTS. Idempotent."""
     with _connect(db_path) as conn:
         row = conn.execute(
-            "SELECT extracted_text FROM tasks WHERE file_hash = ?", (parent_hash,)
+            "SELECT extracted_text FROM extracted_texts WHERE file_hash = ?", (parent_hash,)
         ).fetchone()
-        if not row:
-            return
-        existing = row['extracted_text'] or ''
-        # Idempotency: the suffix starts with "[Image, Page N, #M (hash8):" —
-        # extract the guard token (everything up to and including the closing paren)
+        existing = (row['extracted_text'] if row else '') or ''
         guard = suffix.split('):')[0] + '):' if '):' in suffix else suffix[:30]
         if guard in existing:
             return
+        new_text = existing + '\n\n' + suffix
         conn.execute(
-            "UPDATE tasks SET extracted_text = ? WHERE file_hash = ?",
-            (existing + '\n\n' + suffix, parent_hash)
+            """INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text, stored_at)
+               VALUES (?, ?, CURRENT_TIMESTAMP)""",
+            (parent_hash, new_text)
         )
         conn.commit()
     update_fts(db_path, parent_hash)
@@ -693,29 +693,30 @@ def complete_extraction(db_path, file_hash, status, text=None,
                         metadata=None, error=None):
     with _connect(db_path) as conn:
         conn.execute(
-            """UPDATE tasks SET status = ?, extracted_text = ?,
+            """UPDATE tasks SET status = ?,
                metadata_json = ?, error_log = ?,
                progress_text = NULL, progress_pct = 100,
                last_update = CURRENT_TIMESTAMP
                WHERE file_hash = ?""",
             (
                 status,
-                text,
                 json.dumps(metadata) if metadata else None,
                 error,
                 file_hash,
             )
         )
-        # Update FTS index when text is available (index chunks for better RAG)
         if text:
+            conn.execute(
+                """INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text, stored_at)
+                   VALUES (?, ?, CURRENT_TIMESTAMP)""",
+                (file_hash, text)
+            )
             row = conn.execute(
                 "SELECT file_path FROM tasks WHERE file_hash = ?", (file_hash,)
             ).fetchone()
             if row:
                 try:
-                    conn.execute(
-                        "DELETE FROM fts_index WHERE file_hash = ?", (file_hash,)
-                    )
+                    conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
                     from embeddings.chunker import chunk
                     chunks = chunk(text)
                     for i, chunk_text in enumerate(chunks):
@@ -775,8 +776,9 @@ def claim_extracted_task(db_path, worker_id):
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            """SELECT t.file_hash, t.file_path, t.file_type, t.extracted_text
+            """SELECT t.file_hash, t.file_path, t.file_type, et.extracted_text
                FROM tasks t
+               LEFT JOIN extracted_texts et ON t.file_hash = et.file_hash
                LEFT JOIN vaults v ON t.vault_id = v.vault_id
                WHERE t.status = 'EXTRACTED'
                ORDER BY
@@ -802,17 +804,14 @@ def claim_extracted_task(db_path, worker_id):
 
 
 def claim_extracted_tasks(db_path, worker_id, limit=8):
-    """Claim up to *limit* EXTRACTED tasks in one transaction, ordered by vault priority + aging.
-
-    Returns a list of task dicts (same shape as claim_extracted_task).
-    Returns [] when the queue is empty.
-    """
+    """Claim up to *limit* EXTRACTED tasks in one transaction, ordered by vault priority + aging."""
     age_weight = settings.get('workers:embed_age_weight') or 900
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         rows = conn.execute(
-            """SELECT t.file_hash, t.file_path, t.file_type, t.extracted_text
+            """SELECT t.file_hash, t.file_path, t.file_type, et.extracted_text
                FROM tasks t
+               LEFT JOIN extracted_texts et ON t.file_hash = et.file_hash
                LEFT JOIN vaults v ON t.vault_id = v.vault_id
                WHERE t.status = 'EXTRACTED'
                ORDER BY
@@ -1152,9 +1151,12 @@ def reprocess_task(db_path, file_hash):
     with _connect(db_path) as conn:
         conn.execute(
             """UPDATE tasks SET status='PENDING', worker_id=NULL,
-               extracted_text=NULL, error_log=NULL,
+               error_log=NULL,
                last_update=CURRENT_TIMESTAMP WHERE file_hash=?""",
             (file_hash,)
+        )
+        conn.execute(
+            "DELETE FROM extracted_texts WHERE file_hash = ?", (file_hash,)
         )
         conn.commit()
 

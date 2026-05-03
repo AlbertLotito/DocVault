@@ -51,7 +51,15 @@ def test_complete_task_stores_text(db):
     manager.complete_extraction(db, 'abc123', text='Hello world', status='EXTRACTED')
     task = manager.get_task(db, 'abc123')
     assert task['status'] == 'EXTRACTED'
-    assert task['extracted_text'] == 'Hello world'
+    # Text lives in extracted_texts, not in the task row
+    import sqlite3 as _sq
+    conn = _sq.connect(db)
+    conn.row_factory = _sq.Row
+    row = conn.execute(
+        "SELECT extracted_text FROM extracted_texts WHERE file_hash=?", ('abc123',)
+    ).fetchone()
+    conn.close()
+    assert row['extracted_text'] == 'Hello world'
 
 
 def test_complete_task_stores_error(db):
@@ -169,3 +177,47 @@ def test_indexes_exist(db):
     }
     missing = expected - idx
     assert not missing, f"Missing indexes: {missing}"
+
+
+def test_complete_extraction_stores_text_in_extracted_texts(db):
+    manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')
+    manager.complete_extraction(db, 'abc123', text='Hello world', status='EXTRACTED')
+    import sqlite3 as _sq
+    conn = _sq.connect(db)
+    conn.row_factory = _sq.Row
+    row = conn.execute(
+        "SELECT extracted_text FROM extracted_texts WHERE file_hash = ?", ('abc123',)
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row['extracted_text'] == 'Hello world'
+
+
+def test_complete_extraction_does_not_store_text_in_tasks(db):
+    manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')
+    manager.complete_extraction(db, 'abc123', text='Hello world', status='EXTRACTED')
+    task = manager.get_task(db, 'abc123')
+    assert task['status'] == 'EXTRACTED'
+    assert 'file_hash' in task
+
+
+def test_claim_extracted_tasks_returns_text(db):
+    manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')
+    manager.complete_extraction(db, 'abc123', text='Hello world', status='EXTRACTED')
+    tasks = manager.claim_extracted_tasks(db, 'worker-1', limit=1)
+    assert len(tasks) == 1
+    assert tasks[0]['extracted_text'] == 'Hello world'
+
+
+def test_reprocess_task_clears_extracted_text(db):
+    manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')
+    manager.complete_extraction(db, 'abc123', text='Hello world', status='EXTRACTED')
+    manager.reprocess_task(db, 'abc123')
+    import sqlite3 as _sq
+    conn = _sq.connect(db)
+    conn.row_factory = _sq.Row
+    row = conn.execute(
+        "SELECT extracted_text FROM extracted_texts WHERE file_hash = ?", ('abc123',)
+    ).fetchone()
+    conn.close()
+    assert row is None
