@@ -272,6 +272,13 @@ def init_db(db_path=None):
                 added_at  TEXT DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (file_hash, vault_id)
             );
+
+            CREATE TABLE IF NOT EXISTS extracted_texts (
+                file_hash      TEXT PRIMARY KEY REFERENCES tasks(file_hash) ON DELETE CASCADE,
+                extracted_text TEXT NOT NULL,
+                stored_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE INDEX IF NOT EXISTS idx_file_vault_vault_id ON file_vault(vault_id);
 
             CREATE INDEX IF NOT EXISTS idx_tasks_status

@@ -114,6 +114,18 @@ def test_set_pause_state(db):
     assert manager.get_pause_state() is False
 
 
+def test_extracted_texts_table_exists(db):
+    """extracted_texts table must exist with correct columns after init_db."""
+    import sqlite3 as _sq
+    conn = _sq.connect(db)
+    conn.row_factory = _sq.Row
+    cols = {r['name'] for r in conn.execute("PRAGMA table_info(extracted_texts)")}
+    conn.close()
+    assert 'file_hash' in cols
+    assert 'extracted_text' in cols
+    assert 'stored_at' in cols
+
+
 def test_indexes_exist(db):
     """Verify all expected indexes are present after init_db."""
     import sqlite3 as _sq
