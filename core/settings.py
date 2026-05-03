@@ -1,6 +1,5 @@
 import configparser
 import os
-from core import manager
 
 class Settings:
     def __init__(self, config_path):
@@ -49,6 +48,11 @@ class Settings:
                 'type': 'int', 'default': 300, 'label': 'Chat Timeout (s)', 'group': 'ollama',
                 'description': 'HTTP timeout in seconds for Ollama chat/RAG calls. '
                                'If the model does not respond within this window the query returns an error.',
+            },
+            'ollama:slot_timeout': {
+                'type': 'int', 'default': 30, 'label': 'Slot Wait Timeout (s)', 'group': 'ollama',
+                'description': 'How long to wait for a chat concurrency slot before failing with an error. '
+                               'Prevents new queries from queuing silently behind a stuck request.',
             },
             'ollama:num_ctx': {
                 'type': 'int', 'default': 8192, 'label': 'Context Window (tokens)', 'group': 'ollama',
@@ -408,7 +412,8 @@ class Settings:
         
         # 1. Check database for user-set value (DB may not be ready yet at import time)
         try:
-            db_value = manager.get_setting(key)
+            from core import manager as _manager
+            db_value = _manager.get_setting(key)
             if db_value is not None:
                 return db_value
         except Exception:
@@ -424,7 +429,8 @@ class Settings:
     def set(self, key: str, value):
         if key not in self.schema:
             raise KeyError(f"'{key}' is not a valid or UI-configurable setting.")
-        manager.set_setting(key, value)
+        from core import manager as _manager
+        _manager.set_setting(key, value)
 
     def get_all_configurable(self) -> list[dict]:
         """Returns a list of all UI-configurable settings with their current values."""

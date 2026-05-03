@@ -30,7 +30,7 @@ def test_ingest_skips_duplicates(env):
 
 def test_ingest_assigns_correct_file_type(env):
     ingestor.ingest(env["docs"], env["db"])
-    tasks = manager.list_tasks(env["db"])
+    tasks = manager.list_tasks(env["db"])['tasks']
     types = {os.path.basename(t['file_path']): t['file_type'] for t in tasks}
     assert types['file1.pdf'] == 'pdf'
     assert types['file2.txt'] == 'txt'
@@ -39,6 +39,6 @@ def test_ingest_assigns_correct_file_type(env):
 
 def test_ingest_paths_are_normalized(env):
     ingestor.ingest(env["docs"], env["db"])
-    tasks = manager.list_tasks(env["db"])
+    tasks = manager.list_tasks(env["db"])['tasks']
     for t in tasks:
         assert '/' not in t['file_path'] or os.sep == '/'

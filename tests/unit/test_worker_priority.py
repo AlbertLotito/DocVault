@@ -15,8 +15,8 @@ def test_high_vault_priority_claimed_first(tmp_path, monkeypatch):
     m, db = _db(tmp_path, monkeypatch)
     conn = sqlite3.connect(db)
     # Insert two vaults
-    conn.execute("INSERT INTO vaults VALUES ('v-high','High','E:/h',1,'#fff','active',NULL,NULL)")
-    conn.execute("INSERT INTO vaults VALUES ('v-low', 'Low', 'E:/l',9,'#000','active',NULL,NULL)")
+    conn.execute("INSERT INTO vaults (vault_id,name,scan_directory,priority,color,state,created_at,updated_at) VALUES ('v-high','High','E:/h',1,'#fff','active',NULL,NULL)")
+    conn.execute("INSERT INTO vaults (vault_id,name,scan_directory,priority,color,state,created_at,updated_at) VALUES ('v-low', 'Low', 'E:/l',9,'#000','active',NULL,NULL)")
     # Two tasks, same extractor priority
     conn.execute("INSERT INTO tasks (file_hash,file_path,file_type,status,priority,vault_id) "
                  "VALUES ('h1','/h/f.pdf','pdf','PENDING',10,'v-high')")
@@ -32,7 +32,7 @@ def test_aging_raises_old_low_priority_task(tmp_path, monkeypatch):
     """A very old task should have a better effective priority than a new one."""
     m, db = _db(tmp_path, monkeypatch)
     conn = sqlite3.connect(db)
-    conn.execute("INSERT INTO vaults VALUES ('v1','V1','E:/v1',5,'#fff','active',NULL,NULL)")
+    conn.execute("INSERT INTO vaults (vault_id,name,scan_directory,priority,color,state,created_at,updated_at) VALUES ('v1','V1','E:/v1',5,'#fff','active',NULL,NULL)")
     # Old task: created 2 hours ago, low vault priority
     conn.execute("""INSERT INTO tasks (file_hash,file_path,file_type,status,priority,vault_id,last_update)
                     VALUES ('old1','/old.pdf','pdf','PENDING',5,'v1',

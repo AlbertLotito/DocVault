@@ -39,7 +39,7 @@ def process_task(db_path, task):
 
 
     if extractors == [fallback_kernel]:
-        _, msg = fallback_kernel.extract(file_path)
+        _, msg = fallback_kernel.extract(file_path, ctx)
         manager.complete_extraction(db_path, file_hash, status='UNKNOWN', error=msg)
         logger.info(f"Flagged as UNKNOWN: {file_type}")
         return
