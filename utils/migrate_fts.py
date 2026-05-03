@@ -29,10 +29,13 @@ def migrate():
             )
         """)
         
-        # 2. Fetch all completed tasks with text
-        print("Fetching COMPLETED tasks...")
+        # 2. Fetch all completed tasks with text (now in extracted_texts)
+        print("Fetching COMPLETED tasks with text...")
         tasks = conn.execute(
-            "SELECT file_hash, file_path, extracted_text FROM tasks WHERE status='COMPLETED' AND extracted_text IS NOT NULL"
+            """SELECT t.file_hash, t.file_path, et.extracted_text
+               FROM tasks t
+               JOIN extracted_texts et ON t.file_hash = et.file_hash
+               WHERE t.status = 'COMPLETED'"""
         ).fetchall()
         
         total = len(tasks)
