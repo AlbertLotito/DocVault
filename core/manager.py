@@ -186,6 +186,9 @@ def _connect(db_path):
     conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size=-65536")   # 64 MB page cache
+    conn.execute("PRAGMA temp_store=MEMORY")
     try:
         yield conn
     finally:
@@ -209,6 +212,8 @@ def init_db(db_path=None):
                 file_size      INTEGER,
                 file_created   TEXT,
                 file_modified  TEXT,
+                vault_id       TEXT,
+                parent_hash    TEXT,
                 progress_text  TEXT,
                 progress_pct   REAL DEFAULT 0,
                 last_update    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -268,6 +273,25 @@ def init_db(db_path=None):
                 PRIMARY KEY (file_hash, vault_id)
             );
             CREATE INDEX IF NOT EXISTS idx_file_vault_vault_id ON file_vault(vault_id);
+
+            CREATE INDEX IF NOT EXISTS idx_tasks_status
+                ON tasks(status);
+            CREATE INDEX IF NOT EXISTS idx_tasks_vault_id
+                ON tasks(vault_id);
+            CREATE INDEX IF NOT EXISTS idx_tasks_file_type
+                ON tasks(file_type);
+            CREATE INDEX IF NOT EXISTS idx_tasks_status_vault
+                ON tasks(status, vault_id);
+            CREATE INDEX IF NOT EXISTS idx_tasks_status_priority
+                ON tasks(status, priority DESC);
+            CREATE INDEX IF NOT EXISTS idx_tasks_last_update
+                ON tasks(last_update DESC);
+            CREATE INDEX IF NOT EXISTS idx_tasks_file_path
+                ON tasks(file_path);
+            CREATE INDEX IF NOT EXISTS idx_extracted_images_source_hash
+                ON extracted_images(source_hash);
+            CREATE INDEX IF NOT EXISTS idx_face_detections_cluster_id
+                ON face_detections(cluster_id);
         """)
 
         # Schema migrations
@@ -1095,6 +1119,23 @@ def set_pause_state(paused: bool):
         conn.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('paused', ?)",
             ('1' if paused else '0',)
+        )
+        conn.commit()
+
+
+def get_search_mode() -> bool:
+    with _connect(get_settings_db_path()) as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = 'workers:search_mode'"
+        ).fetchone()
+        return row is not None and row['value'] == '1'
+
+
+def set_search_mode(enabled: bool):
+    with _connect(get_settings_db_path()) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('workers:search_mode', ?)",
+            ('1' if enabled else '0',)
         )
         conn.commit()
 

@@ -111,3 +111,27 @@ def test_set_pause_state(db):
     assert manager.get_pause_state(db) is True
     manager.set_pause_state(db, False)
     assert manager.get_pause_state(db) is False
+
+
+def test_indexes_exist(db):
+    """Verify all expected indexes are present after init_db."""
+    import sqlite3 as _sq
+    conn = _sq.connect(db)
+    conn.row_factory = _sq.Row
+    idx = {r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='index'"
+    )}
+    conn.close()
+    expected = {
+        'idx_tasks_status',
+        'idx_tasks_vault_id',
+        'idx_tasks_file_type',
+        'idx_tasks_status_vault',
+        'idx_tasks_status_priority',
+        'idx_tasks_last_update',
+        'idx_tasks_file_path',
+        'idx_extracted_images_source_hash',
+        'idx_face_detections_cluster_id',
+    }
+    missing = expected - idx
+    assert not missing, f"Missing indexes: {missing}"
