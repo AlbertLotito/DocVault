@@ -26,7 +26,9 @@ def test_hidden_keys_not_in_configurable():
 
 # ── API endpoint tests ────────────────────────────────────────────────────────
 
-def test_get_theme_returns_empty_dict_by_default():
+def test_get_theme_returns_empty_dict_by_default(monkeypatch):
+    from core.settings import settings as s
+    monkeypatch.setattr(s, 'get', lambda key: None if key == 'ui:theme' else None)
     from api.main import app
     client = TestClient(app)
     resp = client.get('/api/settings/theme')

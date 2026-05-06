@@ -35,6 +35,9 @@ def should_pause_or_throttle() -> tuple[bool, str]:
     if manager.get_pause_state():
         return True, 'paused'
 
+    if manager.get_search_mode():
+        return True, 'search_mode'
+
     # Inline RAM check — bypass the 60s monitor sample cycle.
     try:
         import psutil

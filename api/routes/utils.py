@@ -941,7 +941,9 @@ def browse_path(req: BrowseRequest):
             "Add-Type -AssemblyName System.Windows.Forms; "
             "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
             "$d.Description = 'Select Folder'; "
-            "$null = $d.ShowDialog(); "
+            "$f = New-Object System.Windows.Forms.Form; "
+            "$f.TopMost = $true; $f.ShowInTaskbar = $false; $f.WindowState = 'Minimized'; $f.Show(); "
+            "$null = $d.ShowDialog($f); $f.Dispose(); "
             "Write-Output $d.SelectedPath"
         )
     else:
@@ -949,7 +951,9 @@ def browse_path(req: BrowseRequest):
             "Add-Type -AssemblyName System.Windows.Forms; "
             "$d = New-Object System.Windows.Forms.OpenFileDialog; "
             "$d.Title = 'Select File'; "
-            "$null = $d.ShowDialog(); "
+            "$f = New-Object System.Windows.Forms.Form; "
+            "$f.TopMost = $true; $f.ShowInTaskbar = $false; $f.WindowState = 'Minimized'; $f.Show(); "
+            "$null = $d.ShowDialog($f); $f.Dispose(); "
             "Write-Output $d.FileName"
         )
     try:
@@ -963,6 +967,36 @@ def browse_path(req: BrowseRequest):
         return {"status": "ok", "path": None}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
+
+
+@router.get("/utils/search_mode")
+def get_search_mode_state():
+    """Return current search mode state."""
+    from core.manager import get_search_mode
+    return {"enabled": get_search_mode()}
+
+
+class SearchModeRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/utils/search_mode")
+def set_search_mode_state(req: SearchModeRequest):
+    """Enable or disable search mode (pauses all workers)."""
+    from core.manager import set_search_mode
+    set_search_mode(req.enabled)
+    return {"ok": True, "enabled": req.enabled}
+
+
+@router.post("/utils/shutdown")
+def shutdown():
+    """Signal the uvicorn server to stop gracefully (exit code 0)."""
+    import api.main as _main
+    if _main._server is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="server ref not available")
+    _main._server.should_exit = True
+    return {"ok": True}
 
 
 @router.post("/utils/open_path")

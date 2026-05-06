@@ -793,14 +793,14 @@ def run(db_path: str, shutdown_event=None):
                     else:
                         logger.error(
                             f"Art enrichment: API error {status_code} for "
-                            f"{os.path.basename(image_path)}: {e}", ext="art"
+                            f"{os.path.basename(image_path)}", ext="art"
                         )
                         _write_nfo(image_path, {
                             'artist': '', 'title': '', 'confidence': '0',
                             'identified_at': today,
                             'original_name': os.path.basename(image_path),
                             'renamed_to': '(failed)',
-                            'error': str(e),
+                            'error': f'HTTP {status_code}',
                         })
                         continue
                 except Exception as e:

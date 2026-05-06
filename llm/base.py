@@ -17,22 +17,19 @@ class BaseLLMProvider(ABC):
             return answer, thinking
         return text.strip(), None
 
-    def rag_query(self, question: str, chunks: list[str],
-                  history: list[dict] | None = None) -> dict:
-        """Build a RAG prompt from retrieved chunks and query the LLM.
+    def _build_rag_messages(self, question: str, chunks: list[str],
+                            history: list[dict] | None = None) -> list[dict]:
+        """Build the message list for a RAG query without calling the LLM.
 
         SECURITY — tool-use prohibition:
-        This method must never be called with tool/function-calling enabled on
-        the underlying model.  Document excerpts are untrusted user-supplied
-        content and may contain adversarial instructions.  Giving the model
-        tool access while processing such content allows injection attacks to
-        trigger real side-effects.
+        Never call this with tool/function-calling enabled on the model.
+        Document excerpts are untrusted user-supplied content and may contain
+        adversarial instructions; tool access would let injection attacks trigger
+        real side-effects.
         """
         history = history or []
 
         if chunks:
-            # Wrap each chunk in XML delimiters.  Escape any closing tag that
-            # appears inside chunk text to prevent tag-injection / breakout.
             def _wrap(i: int, chunk: str) -> str:
                 safe = chunk.replace('</document>', '&lt;/document&gt;')
                 return f'<document index="{i + 1}">\n{safe}\n</document>'
@@ -63,7 +60,12 @@ class BaseLLMProvider(ABC):
         messages = [{"role": "system", "content": system_content}]
         messages.extend(history)
         messages.append({"role": "user", "content": question})
+        return messages
 
+    def rag_query(self, question: str, chunks: list[str],
+                  history: list[dict] | None = None) -> dict:
+        """Run a RAG query. Never call with tool/function-calling enabled — chunks are untrusted."""
+        messages = self._build_rag_messages(question, chunks, history)
         raw = self.chat(messages)
         answer, thinking = self._extract_thinking(raw)
         return {'answer': answer, 'thinking': thinking}

@@ -550,6 +550,11 @@ def update_fts(db_path, file_hash):
 def append_parent_text(db_path, parent_hash, suffix: str):
     """Append suffix to parent task's extracted_text and update FTS. Idempotent."""
     with _connect(db_path) as conn:
+        task_row = conn.execute(
+            "SELECT file_hash FROM tasks WHERE file_hash = ?", (parent_hash,)
+        ).fetchone()
+        if not task_row:
+            return
         row = conn.execute(
             "SELECT extracted_text FROM extracted_texts WHERE file_hash = ?", (parent_hash,)
         ).fetchone()
@@ -772,6 +777,7 @@ def claim_pending_task(db_path, worker_id):
 
 
 def claim_extracted_task(db_path, worker_id):
+    """Claim the single highest-priority EXTRACTED task."""
     age_weight = settings.get('workers:embed_age_weight') or 900
     with _connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -781,6 +787,7 @@ def claim_extracted_task(db_path, worker_id):
                LEFT JOIN extracted_texts et ON t.file_hash = et.file_hash
                LEFT JOIN vaults v ON t.vault_id = v.vault_id
                WHERE t.status = 'EXTRACTED'
+                 AND et.extracted_text IS NOT NULL
                ORDER BY
                  (10 - COALESCE(v.priority, 5))
                  + (CAST(
@@ -814,6 +821,7 @@ def claim_extracted_tasks(db_path, worker_id, limit=8):
                LEFT JOIN extracted_texts et ON t.file_hash = et.file_hash
                LEFT JOIN vaults v ON t.vault_id = v.vault_id
                WHERE t.status = 'EXTRACTED'
+                 AND et.extracted_text IS NOT NULL
                ORDER BY
                  (10 - COALESCE(v.priority, 5))
                  + (CAST(

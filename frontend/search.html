@@ -629,29 +629,88 @@
 
       const cf = getFilters('chat');
       const vaultIds = getSelectedVaultIds();
-      let resp;
+
+      let streamDiv = null;
+      let fullText  = '';
+
       try {
-        resp = await api('/query', {
+        const resp = await fetch('/api/query/stream', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             question,
-            history: chatHistory,
+            history:   chatHistory,
             file_type: cf.file_type || null,
-            date_from:  cf.date_from  || null,
-            date_to:    cf.date_to    || null,
+            date_from: cf.date_from || null,
+            date_to:   cf.date_to   || null,
             vault_ids: vaultIds.length ? vaultIds.join(',') : null,
           }),
         });
-      } catch (err) {
-        removeLoading(loadingId);
-        appendAssistantBubble(`Error: ${err.message}`, null, []);
-        return;
-      }
 
-      removeLoading(loadingId);
-      appendAssistantBubble(resp.answer, resp.thinking, resp.sources || []);
-      chatHistory.push({ role: 'user', content: question });
-      chatHistory.push({ role: 'assistant', content: resp.answer });
+        if (!resp.ok) {
+          removeLoading(loadingId);
+          appendAssistantBubble(`Server error ${resp.status}`, null, []);
+          return;
+        }
+
+        const reader  = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let   buf     = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let evt;
+            try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (evt.type === 'status') {
+              updateLoadingText(loadingId, evt.text);
+            } else if (evt.type === 'token') {
+              if (!streamDiv) {
+                removeLoading(loadingId);
+                streamDiv = createStreamingBubble();
+              }
+              fullText += evt.text;
+              streamDiv.querySelector('.stream-text').textContent = fullText;
+              scrollChat();
+            } else if (evt.type === 'done') {
+              if (streamDiv) streamDiv.remove();
+              else removeLoading(loadingId);
+              appendAssistantBubble(evt.answer, evt.thinking, evt.sources || []);
+              chatHistory.push({ role: 'user',      content: question   });
+              chatHistory.push({ role: 'assistant', content: evt.answer });
+            } else if (evt.type === 'error') {
+              if (streamDiv) streamDiv.remove();
+              else removeLoading(loadingId);
+              appendAssistantBubble(`Error: ${evt.text}`, null, []);
+            }
+          }
+        }
+      } catch (err) {
+        if (streamDiv) streamDiv.remove(); else removeLoading(loadingId);
+        appendAssistantBubble(`Error: ${err.message}`, null, []);
+      }
+    }
+
+    function updateLoadingText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML =
+        `<div class="chat-msg-ai" style="color:var(--c-label-dim);">${escapeHtml(text)}</div>`;
+    }
+
+    function createStreamingBubble() {
+      const thread = document.getElementById('chat-thread');
+      const div = document.createElement('div');
+      div.innerHTML = `<div class="chat-msg-ai"><div class="stream-text" style="white-space:pre-wrap;"></div></div>`;
+      thread.appendChild(div);
+      scrollChat();
+      return div;
     }
 
     function clearChat() {

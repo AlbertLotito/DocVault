@@ -431,16 +431,26 @@ def ollama_governor(kind: str = 'chat'):
         _ollama_semaphore = threading.Semaphore(limit) if limit > 0 else None
         _ollama_limit = limit
 
-    # 2. Acquire parallel slot
+    # 2. Acquire parallel slot — with timeout so a hung request doesn't
+    #    block new ones indefinitely.
+    slot_timeout = int(settings.get('ollama:slot_timeout') or 30)
+
     if _ollama_semaphore:
-        with _ollama_semaphore:
-            # 3. Check for thermal pressure (Governor Action)
+        acquired = _ollama_semaphore.acquire(timeout=slot_timeout)
+        if not acquired:
+            raise RuntimeError(
+                f"Ollama chat slot unavailable after {slot_timeout}s — "
+                f"another request may be stuck. Please try again shortly."
+            )
+        try:
             state, _reason = get_throttle_state()
             if state in ('throttled', 'cooldown'):
                 with _ollama_serial_lock:
                     yield
             else:
                 yield
+        finally:
+            _ollama_semaphore.release()
     else:
         state, _reason = get_throttle_state()
         if state in ('throttled', 'cooldown'):

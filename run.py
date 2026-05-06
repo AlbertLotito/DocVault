@@ -27,6 +27,9 @@ def ingestion_worker_run(db_path, interval_seconds=60):
     """Periodically scans all active vaults in parallel."""
     logger.info(f"Ingestion worker starting. Will scan every {interval_seconds}s.")
     while True:
+        if manager.get_pause_state() or manager.get_search_mode():
+            time.sleep(interval_seconds)
+            continue
         try:
             from core.vault_manager import VaultManager
             vm = VaultManager(db_path)
@@ -180,6 +183,8 @@ def start():
         timeout_graceful_shutdown=5,
     )
     server = uvicorn.Server(config)
+    import api.main as _api_main
+    _api_main._server = server
     server.run()
     # Force-exit after server stops — daemon worker threads may still be
     # blocked on Ollama calls and would prevent a clean interpreter shutdown.

@@ -13,6 +13,16 @@
     <div style="padding:0 20px;">
       <div class="lc-bar-badges">
 
+        <!-- Search Mode toggle -->
+        <div class="lc-bar-badge" id="search-mode-badge" onclick="toggleSearchMode()" style="cursor:pointer;">
+          <div class="lc-bar-tab" id="search-mode-tab" style="background:#443300;">&#128269;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Search Mode</div>
+            <div class="lc-bar-desc">Pause all workers — dedicate resources to search and RAG</div>
+            <div id="search-mode-status" style="font-size:11px;margin-top:4px;color:var(--c-label-dim);">Loading...</div>
+          </div>
+        </div>
+
         <!-- Full-page nav badges -->
         <a href="/lab" class="lc-bar-badge">
           <div class="lc-bar-tab" style="background:#cc6600;">&#9879;</div>
@@ -97,6 +107,19 @@
           <div id="clear-logs-result" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
         </div>
 
+        <div class="lc-bar-badge" onclick="lcAccordion(this)">
+          <div class="lc-bar-tab" style="background:#550000;">&#9211;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name">Shutdown</div>
+            <div class="lc-bar-desc">Gracefully stop the DocVault server</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-expand" id="shutdown-expand">
+          <button class="lc-btn lc-btn-sm lc-btn-danger" id="shutdown-btn" onclick="doShutdown()">Shutdown Server</button>
+          <div id="shutdown-result" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -104,6 +127,46 @@
   <script src="/static/app.js"></script>
   <script src="/static/lcars.js"></script>
   <script>
+    let _searchModeEnabled = false;
+
+    async function loadSearchMode() {
+      try {
+        const data = await api('/utils/search_mode');
+        _applySearchModeUI(data.enabled);
+      } catch (_) {}
+    }
+
+    function _applySearchModeUI(enabled) {
+      _searchModeEnabled = enabled;
+      const tab    = document.getElementById('search-mode-tab');
+      const status = document.getElementById('search-mode-status');
+      if (enabled) {
+        tab.style.background  = '#884400';
+        status.textContent    = 'ACTIVE — All workers paused';
+        status.style.color    = 'var(--c-warn)';
+      } else {
+        tab.style.background  = '#443300';
+        status.textContent    = 'Inactive — Workers running normally';
+        status.style.color    = 'var(--c-label-dim)';
+      }
+    }
+
+    async function toggleSearchMode() {
+      const next = !_searchModeEnabled;
+      if (next && !confirm('Enable Search Mode?\n\nAll extraction, embedding, and ingestion workers will pause until Search Mode is turned off.')) return;
+      try {
+        const data = await api('/utils/search_mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: next }),
+        });
+        _applySearchModeUI(data.enabled);
+        lcToast(next ? 'Search Mode enabled' : 'Search Mode disabled');
+      } catch (err) {
+        lcToast('Error: ' + err.message);
+      }
+    }
+
     async function loadGDriveStatus() {
       try {
         const data = await api('/utils/gdrive_status');
@@ -204,7 +267,24 @@
       }
     }
 
+    async function doShutdown() {
+      if (!confirm('Stop the DocVault server? The page will become unreachable.')) return;
+      const btn = document.getElementById('shutdown-btn');
+      const res = document.getElementById('shutdown-result');
+      btn.disabled = true;
+      res.innerHTML = '<span style="color:var(--c-warn);">Sending shutdown signal...</span>';
+      try {
+        await api('/utils/shutdown', { method: 'POST' });
+        btn.style.display = 'none';
+        res.innerHTML = '<span style="color:var(--c-ok);">Server is shutting down. This page will stop responding shortly.</span>';
+      } catch (err) {
+        res.innerHTML = `<span style="color:var(--c-error);">Shutdown failed: ${err.message}</span>`;
+        btn.disabled = false;
+      }
+    }
+
     document.addEventListener('lc:ready', () => {
+      loadSearchMode();
       loadGDriveStatus();
     });
   </script>

@@ -199,6 +199,7 @@ def test_complete_extraction_does_not_store_text_in_tasks(db):
     task = manager.get_task(db, 'abc123')
     assert task['status'] == 'EXTRACTED'
     assert 'file_hash' in task
+    assert 'extracted_text' not in task or task.get('extracted_text') is None
 
 
 def test_claim_extracted_tasks_returns_text(db):
@@ -221,3 +222,22 @@ def test_reprocess_task_clears_extracted_text(db):
     ).fetchone()
     conn.close()
     assert row is None
+
+
+def test_claim_extracted_tasks_skips_missing_text(db):
+    """Tasks with EXTRACTED status but no extracted_texts row must not be claimed."""
+    import sqlite3 as _sq
+    manager.insert_task(db, 'abc123', '/docs/test.pdf', 'pdf')
+    # Force status to EXTRACTED without writing text
+    conn = _sq.connect(db)
+    conn.execute("UPDATE tasks SET status='EXTRACTED' WHERE file_hash='abc123'")
+    conn.commit()
+    conn.close()
+    tasks = manager.claim_extracted_tasks(db, 'worker-1', limit=1)
+    assert tasks == []
+
+
+def test_append_parent_text_nonexistent_parent(db):
+    """append_parent_text with a non-existent parent hash must return without raising."""
+    manager.append_parent_text(db, 'nonexistent_hash', 'some suffix text')
+    # No assertion needed beyond "did not raise"

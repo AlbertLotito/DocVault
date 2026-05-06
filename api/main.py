@@ -1,5 +1,8 @@
 import configparser, os
 from fastapi import FastAPI
+
+# Set by run.py before server.run() — lets routes trigger graceful shutdown.
+_server = None
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
 from api.routes import catalog, search, query, workers, utils, settings as settings_routes

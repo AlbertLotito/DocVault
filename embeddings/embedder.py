@@ -34,7 +34,7 @@ def embed_batch(texts: list[str]) -> list[list[float] | None]:
     for attempt in range(_NO_SLOTS_RETRIES + 1):
         try:
             with ollama_governor(kind='embed'):
-                response = client.embed(model=model, input=texts)
+                response = client.embed(model=model, input=texts, keep_alive=-1)
                 return [list(v) for v in response.embeddings]
         except Exception as e:
             err = str(e)
