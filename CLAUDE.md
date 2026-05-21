@@ -11,6 +11,17 @@ Read the following files in full before doing anything else:
 
 When a new status document appears (e.g. `docs/internals/status/2026-03-06-project-status.md`), read it instead of the previous one — it supersedes all earlier status docs.
 
+Also read all memory topic files referenced in MEMORY.md (the index is auto-loaded but individual files are not):
+
+- `C:\Users\Albert\.claude\projects\E--DocVault\memory\session-notes.md`
+- `C:\Users\Albert\.claude\projects\E--DocVault\memory\common-bugs.md`
+- `C:\Users\Albert\.claude\projects\E--DocVault\memory\infrastructure-migration.md`
+- `C:\Users\Albert\.claude\projects\E--DocVault\memory\project_span_grounding_wip.md`
+- `C:\Users\Albert\.claude\projects\E--DocVault\memory\feedback_ui_text_size.md`
+- `C:\Users\Albert\.claude\projects\E--DocVault\memory\feedback_visual_companion_windows.md`
+
+If a file listed above does not exist, skip it silently.
+
 ## Project Location
 
 `E:\DocVault`

@@ -343,8 +343,8 @@ def _call_clip_local(image_path: str, collection: str) -> dict | None:
         vec = emb[0].cpu().numpy().tolist()
 
         client = QdrantClient(
-            host=settings.get('qdrant:host'),
-            port=int(settings.get('qdrant:port')),
+            host=settings.get('qdrant:host') or 'localhost',
+            port=int(settings.get('qdrant:port') or 6333),
         )
 
         # Silently skip if collection not built yet
