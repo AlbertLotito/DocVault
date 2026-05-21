@@ -2,6 +2,7 @@
 DocVault entry point.
 Starts the FastAPI web server and spawns background workers in threads.
 """
+import asyncio
 import json
 import threading
 import time
@@ -185,7 +186,10 @@ def start():
     server = uvicorn.Server(config)
     import api.main as _api_main
     _api_main._server = server
-    server.run()
+    try:
+        server.run()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
     # Force-exit after server stops — daemon worker threads may still be
     # blocked on Ollama calls and would prevent a clean interpreter shutdown.
     os._exit(0)
