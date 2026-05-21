@@ -62,6 +62,27 @@ class VectorStore:
             .execute(rows)
         )
 
+    def upsert_documents(self, doc_batches: dict) -> None:
+        """Write chunks for multiple documents in a single merge_insert call."""
+        rows = []
+        for file_hash, chunks in doc_batches.items():
+            for c in chunks:
+                rows.append({
+                    'id':          f"{file_hash}:{c['chunk_index']}",
+                    'file_hash':   file_hash,
+                    'chunk_index': c['chunk_index'],
+                    'file_path':   c['payload'].get('file_path', ''),
+                    'chunk_text':  c['payload'].get('chunk_text', ''),
+                    'vector':      c['vector'],
+                })
+        if rows:
+            (
+                self._table.merge_insert('id')
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+                .execute(rows)
+            )
+
     def update_path(self, file_hash: str, new_path: str):
         self._table.update(
             where=f"file_hash = '{_esc(file_hash)}'",

@@ -403,7 +403,9 @@ def ollama_governor(kind: str = 'chat'):
 
     if kind == 'embed':
         if _embed_semaphore is None:
-            _embed_semaphore = threading.Semaphore(1)
+            from core.settings import settings
+            n = max(1, int(settings.get('workers:embed_concurrency') or 1))
+            _embed_semaphore = threading.Semaphore(n)
         with _embed_semaphore:
             yield
         return

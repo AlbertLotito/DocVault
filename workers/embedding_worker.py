@@ -124,12 +124,12 @@ def process_task_batch(db_path, tasks, vs):
                 },
             })
 
-    # Phase 4: upsert all, then mark complete.
-    # If any upsert fails, reset ALL non-empty docs to EXTRACTED before re-raising.
+    # Phase 4: upsert all docs in a single LanceDB merge_insert call, then mark complete.
+    # If upsert fails, reset ALL non-empty docs to EXTRACTED before re-raising.
+    non_empty = {fh: batch for fh, batch in doc_batches.items() if batch}
     try:
-        for fh, batch in doc_batches.items():
-            if batch:
-                vs.upsert_batch(fh, batch)
+        if non_empty:
+            vs.upsert_documents(non_empty)
     except Exception as e:
         logger.error(f"Vector upsert failed: {e}. Resetting batch to EXTRACTED.")
         for fh in doc_batches:
