@@ -142,13 +142,13 @@ class Settings:
                                'Recommended: 8–32. Has no effect when the queue is nearly empty.',
             },
             'workers:embed_chunk_limit': {
-                'type': 'int', 'default': 400, 'label': 'Embed chunk limit (per Ollama call)', 'group': 'embeddings',
+                'type': 'int', 'default': 250, 'label': 'Embed chunk limit (per Ollama call)', 'group': 'embeddings',
                 'description': 'Maximum number of chunks sent to Ollama in a single embed call. '
                                'Keeping this low prevents Ollama timeouts and leaves headroom for RAG queries. '
-                               'Recommended: 200–600.',
+                               'Recommended: 100–300.',
             },
             'workers:embed_concurrency': {
-                'type': 'int', 'default': 2, 'label': 'Embed worker threads', 'group': 'embeddings',
+                'type': 'int', 'default': 1, 'label': 'Embed worker threads', 'group': 'embeddings',
                 'description': 'Number of parallel embedding worker threads. Each worker claims its own task batch '
                                'and runs a concurrent Ollama embed call. Requires OLLAMA_NUM_PARALLEL > 1 '
                                'and sufficient VRAM. The embed semaphore is sized to this value at startup — '
