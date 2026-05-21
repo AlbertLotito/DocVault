@@ -337,7 +337,7 @@ class Settings:
                 'description': 'How many minutes without any extraction activity (while PENDING tasks exist) before the pipeline is flagged as stalled. A stall alert is sent via ntfy.sh and the sensor rail turns red.',
             },
             'monitor:embed_stall_threshold_mins': {
-                'type': 'int', 'default': 5, 'label': 'Embed stall threshold (m)', 'group': 'monitor',
+                'type': 'int', 'default': 10, 'label': 'Embed stall threshold (m)', 'group': 'monitor',
                 'description': 'Minutes without embedding activity (while EXTRACTED tasks exist) before the embedding pipeline is flagged as stalled.',
             },
             'monitor:watchdog_interval': {
