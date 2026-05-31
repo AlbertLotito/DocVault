@@ -66,13 +66,38 @@ async def rag_query(req: QueryRequest):
         except Exception:
             pass  # get_vault_paths already returns {} on error; belt-and-suspenders
 
-        chunks  = [r.get('chunk_text', '') for r in results]
-        sources = [{'file_path': r.get('file_path'), 'score': r.get('score'), 'combined_score': r.get('combined_score')}
-                   for r in results]
+        # Resolve char offsets for span grounding
+        from search import spans
+        from core.settings import settings as _settings
+        file_hashes = list({r['file_hash'] for r in results if r.get('file_hash')})
+        extracted_texts = manager.get_extracted_texts(db, file_hashes)
+        chunk_size = int(_settings.get('embeddings:chunk_size') or 600)
+
+        enriched_chunks = []
+        sources = []
+        for r in results:
+            fh = r.get('file_hash', '')
+            ext_text = extracted_texts.get(fh, '')
+            chunk_index = int(r.get('chunk_index', 0))
+            chunk_text = r.get('chunk_text', '')
+
+            offset = spans.resolve_offset(chunk_index, chunk_text, ext_text) if ext_text else None
+            para_num = spans.paragraph_number(ext_text, offset) if (ext_text and offset is not None) else None
+
+            enriched_chunks.append({'text': chunk_text, 'paragraph_num': para_num})
+            sources.append({
+                'file_hash': fh,
+                'file_path': r.get('file_path'),
+                'score': r.get('score'),
+                'combined_score': r.get('combined_score'),
+                'chunk_offset': offset,
+                'chunk_size': chunk_size,
+                'paragraph_num': para_num,
+            })
 
         llm    = get_provider()
         # rag_query is synchronous and blocks the thread; run in executor
-        result = await asyncio.to_thread(llm.rag_query, req.question, chunks, history=req.history)
+        result = await asyncio.to_thread(llm.rag_query, req.question, enriched_chunks, history=req.history)
 
         return {'answer': result['answer'], 'thinking': result['thinking'], 'sources': sources}
     except Exception as e:

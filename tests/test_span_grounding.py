@@ -179,3 +179,102 @@ def test_catalog_text_endpoint_404_on_missing(tmp_path):
 
     resp = client.get('/api/catalog/deadbeef/text')
     assert resp.status_code == 404
+
+
+# ── llm/base.py paragraph tags ────────────────────────────────────────────────
+
+class _MockProvider:
+    """Minimal provider that records the messages it receives."""
+    def __init__(self):
+        self.last_messages = []
+    def chat(self, messages):
+        self.last_messages = messages
+        return 'answer'
+
+def _system_content(chunks, question='test?'):
+    from llm.base import BaseLLMProvider
+    p = _MockProvider()
+    # Bind _build_rag_messages from BaseLLMProvider onto the mock instance
+    import types
+    p._build_rag_messages = types.MethodType(BaseLLMProvider._build_rag_messages, p)
+    p._extract_thinking = types.MethodType(BaseLLMProvider._extract_thinking, p)
+    BaseLLMProvider.rag_query(p, question, chunks)
+    return p.last_messages[0]['content']
+
+
+def test_rag_query_dict_chunks_add_paragraph_attr():
+    content = _system_content([{'text': 'some text', 'paragraph_num': 4}])
+    assert 'paragraph="4"' in content
+
+
+def test_rag_query_str_chunks_no_paragraph_attr():
+    """Legacy list[str] call still works without paragraph attribute."""
+    content = _system_content(['plain string chunk'])
+    assert 'paragraph=' not in content
+
+
+def test_rag_query_dict_null_paragraph_omits_attr():
+    content = _system_content([{'text': 'some text', 'paragraph_num': None}])
+    assert 'paragraph=' not in content
+
+
+# ── /api/query source enrichment ─────────────────────────────────────────────
+
+def test_query_sources_include_offset_fields(tmp_path, monkeypatch):
+    """POST /query sources include chunk_offset, chunk_size, paragraph_num."""
+    import sqlite3
+    from fastapi.testclient import TestClient
+    from core import manager
+    import api.main as main_mod
+
+    db = str(tmp_path / 'query_test.db')
+    manager.init_db(db)
+
+    extracted = 'Introduction\n\nMain content here. ' * 5
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO tasks (file_hash, file_path, file_type, status) "
+            "VALUES ('hash1', '/doc.txt', 'txt', 'COMPLETED')"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text, stored_at) "
+            "VALUES ('hash1', ?, datetime('now'))", (extracted,)
+        )
+        conn.commit()
+
+    main_mod.DB_PATH = db
+
+    chunk_text = extracted[0:600]
+    fake_result = {
+        'file_hash': 'hash1',
+        'file_path': '/doc.txt',
+        'chunk_index': 0,
+        'chunk_text': chunk_text,
+        'score': 0.9,
+        'combined_score': 0.015,
+    }
+
+    async def _fake_search(self, **kwargs):
+        return [fake_result], False
+
+    monkeypatch.setattr('api.routes.query.hybrid', type('M', (), {'async_search': _fake_search})())
+
+    class _FakeLLM:
+        def rag_query(self, q, chunks, history=None):
+            return {'answer': 'ok', 'thinking': None}
+
+    monkeypatch.setattr('api.routes.query.get_provider', lambda: _FakeLLM())
+
+    from api.main import app
+    client = TestClient(app)
+    resp = client.post('/api/query', json={'question': 'what?'})
+    assert resp.status_code == 200
+    sources = resp.json()['sources']
+    assert len(sources) == 1
+    s = sources[0]
+    assert 'chunk_offset' in s
+    assert 'chunk_size' in s
+    assert 'paragraph_num' in s
+    assert s['chunk_offset'] == 0
+    assert s['paragraph_num'] == 1
+    assert 'file_hash' in s
