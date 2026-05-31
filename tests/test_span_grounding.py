@@ -278,3 +278,58 @@ def test_query_sources_include_offset_fields(tmp_path, monkeypatch):
     assert s['chunk_offset'] == 0
     assert s['paragraph_num'] == 1
     assert 'file_hash' in s
+
+
+# ── /api/search result enrichment ────────────────────────────────────────────
+
+def test_search_results_include_offset_fields(tmp_path, monkeypatch):
+    """GET /search results include chunk_offset, chunk_size, paragraph_num."""
+    import sqlite3
+    from fastapi.testclient import TestClient
+    from core import manager
+    import api.main as main_mod
+
+    db = str(tmp_path / 'search_test.db')
+    manager.init_db(db)
+
+    extracted = 'First para.\n\nSecond para here. ' * 10
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO tasks (file_hash, file_path, file_type, status) "
+            "VALUES ('srch1', '/s.txt', 'txt', 'COMPLETED')"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text, stored_at) "
+            "VALUES ('srch1', ?, datetime('now'))", (extracted,)
+        )
+        conn.commit()
+
+    main_mod.DB_PATH = db
+
+    chunk_text = extracted[0:600]
+    fake_results = [{
+        'file_hash': 'srch1',
+        'file_path': '/s.txt',
+        'chunk_index': 0,
+        'chunk_text': chunk_text,
+        'score': 0.8,
+        'combined_score': 0.01,
+    }]
+
+    async def _fake_hybrid(self, **kwargs):
+        return fake_results, False
+
+    monkeypatch.setattr('api.routes.search.hybrid', type('M', (), {'async_search': _fake_hybrid})())
+
+    from api.main import app
+    client = TestClient(app)
+    resp = client.get('/api/search?q=para&mode=hybrid')
+    assert resp.status_code == 200
+    results = resp.json()['results']
+    assert len(results) == 1
+    r = results[0]
+    assert 'chunk_offset' in r
+    assert 'chunk_size' in r
+    assert 'paragraph_num' in r
+    assert r['chunk_offset'] == 0
+    assert r['paragraph_num'] == 1

@@ -1,7 +1,7 @@
 import asyncio
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
-from search import fts, semantic, hybrid
+from search import fts, semantic, hybrid, spans
 from search.query import detect_mode
 from core import manager
 from core.settings import settings
@@ -17,6 +17,31 @@ def get_db():
 
 def _limit(override: int = None) -> int:
     return override or int(settings.get('search:result_limit') or 20)
+
+
+def _enrich_with_offsets(db: str, results: list[dict]) -> list[dict]:
+    """Add chunk_offset, chunk_size, paragraph_num to each search result in-place."""
+    if not results:
+        return results
+
+    file_hashes = list({r['file_hash'] for r in results if r.get('file_hash')})
+    extracted_texts = manager.get_extracted_texts(db, file_hashes)
+    chunk_size = int(settings.get('embeddings:chunk_size') or 600)
+
+    for r in results:
+        fh = r.get('file_hash', '')
+        ext_text = extracted_texts.get(fh, '')
+        chunk_index = int(r.get('chunk_index', 0))
+        chunk_text = r.get('chunk_text', '')
+
+        offset = spans.resolve_offset(chunk_index, chunk_text, ext_text) if ext_text else None
+        para_num = spans.paragraph_number(ext_text, offset) if (ext_text and offset is not None) else None
+
+        r['chunk_offset'] = offset
+        r['chunk_size'] = chunk_size
+        r['paragraph_num'] = para_num
+
+    return results
 
 
 @router.get("/search")
@@ -40,6 +65,7 @@ async def search(q: str = Query(..., min_length=1),
         results = fts.search(db, q, n,
                              file_type=file_type, date_from=date_from, date_to=date_to,
                              vault_ids=vault_id_list)
+        _enrich_with_offsets(db, results)
         if vector_unsupported and mode != 'fts':
             return JSONResponse(content={
                 'results': results,
@@ -61,6 +87,7 @@ async def search(q: str = Query(..., min_length=1),
         results = await semantic.async_search(q, top_k=n, hash_filter=hash_filter)
         manager.substitute_vault_paths(db, results, vault_id_list)
         # semantic already returns [] gracefully when Qdrant is down
+        _enrich_with_offsets(db, results)
         return JSONResponse(content={'results': results, 'degraded': False})
 
     results, qdrant_offline = await hybrid.async_search(
@@ -73,12 +100,14 @@ async def search(q: str = Query(..., min_length=1),
         fts_results = fts.search(db, q, n,
                                  file_type=file_type, date_from=date_from, date_to=date_to,
                                  vault_ids=vault_id_list)
+        _enrich_with_offsets(db, fts_results)
         return JSONResponse(content={
             'results': fts_results,
             'degraded': True,
             'degraded_reason': 'Qdrant unavailable — showing full-text results only',
         })
     manager.substitute_vault_paths(db, results, vault_id_list)
+    _enrich_with_offsets(db, results)
     return JSONResponse(content={'results': results, 'degraded': False})
 
 
