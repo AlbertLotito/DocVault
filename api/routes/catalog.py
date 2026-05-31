@@ -153,6 +153,27 @@ def browse_archive(path: str = Query(...)):
     }
 
 
+@router.get("/catalog/{file_hash}/text")
+def get_catalog_text(file_hash: str):
+    """Return the full extracted text for a document (used by the inline span viewer)."""
+    db = get_db()
+    row = manager.get_task(db, file_hash)
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+    # Fetch from extracted_texts table
+    try:
+        with sqlite3.connect(db, timeout=10) as conn:
+            conn.row_factory = sqlite3.Row
+            et_row = conn.execute(
+                "SELECT extracted_text FROM extracted_texts WHERE file_hash = ?", (file_hash,)
+            ).fetchone()
+    except Exception:
+        et_row = None
+    if not et_row or not et_row['extracted_text']:
+        raise HTTPException(status_code=404, detail="Extracted text not found")
+    return {"extracted_text": et_row['extracted_text']}
+
+
 @router.get("/catalog/{file_hash}")
 def get_catalog_item(file_hash: str):
     task = manager.get_task(get_db(), file_hash)

@@ -134,3 +134,48 @@ def test_get_extracted_texts_empty_list(tmp_path):
     manager.init_db(db)
     result = manager.get_extracted_texts(db, [])
     assert result == {}
+
+
+# ── GET /api/catalog/{hash}/text ──────────────────────────────────────────────
+
+def test_catalog_text_endpoint_returns_text(tmp_path):
+    import sqlite3
+    from fastapi.testclient import TestClient
+    from core import manager
+    import api.main as main_mod
+
+    db = str(tmp_path / 'catalog_test.db')
+    manager.init_db(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO tasks (file_hash, file_path, file_type, status) "
+            "VALUES ('abc123', '/doc.txt', 'txt', 'COMPLETED')"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text, stored_at) "
+            "VALUES ('abc123', 'The full text of the document.', datetime('now'))"
+        )
+        conn.commit()
+
+    main_mod.DB_PATH = db
+    from api.main import app
+    client = TestClient(app)
+
+    resp = client.get('/api/catalog/abc123/text')
+    assert resp.status_code == 200
+    assert resp.json()['extracted_text'] == 'The full text of the document.'
+
+
+def test_catalog_text_endpoint_404_on_missing(tmp_path):
+    from fastapi.testclient import TestClient
+    from core import manager
+    import api.main as main_mod
+
+    db = str(tmp_path / 'catalog_test2.db')
+    manager.init_db(db)
+    main_mod.DB_PATH = db
+    from api.main import app
+    client = TestClient(app)
+
+    resp = client.get('/api/catalog/deadbeef/text')
+    assert resp.status_code == 404
