@@ -149,7 +149,10 @@ a:hover { color: var(--c-warn); }
   transition: filter 0.15s;
 }
 .lc-bar-badge:hover { filter: brightness(1.2); }
-.lc-bar-badge.active .lc-bar-body { background: #150a00; }
+.lc-bar-badge.active { border-color: var(--c-accent-dim); }
+.lc-bar-badge.active .lc-bar-tab { filter: brightness(1.5); }
+.lc-bar-badge.active .lc-bar-body { background: #1f0f00; }
+.lc-bar-badge.active .lc-bar-name { color: #fff; }
 .lc-bar-badge.active .lc-bar-arrow { color: var(--c-accent); }
 
 /* Accordion-open variant: flatten bottom corners */
