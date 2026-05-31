@@ -103,6 +103,7 @@ def _vision_ocr(pil_image) -> str:
                 'images': [b64],
             }],
             options={'temperature': 0},
+            keep_alive=60,
         )
         return response['message']['content'].strip()
     except Exception as e:

@@ -71,6 +71,7 @@ def describe(pil_image, prompt: str = None) -> str:
                     model=model,
                     messages=[{'role': 'user', 'content': prompt, 'images': [b64]}],
                     options={'temperature': 0},
+                    keep_alive=60,
                 )
                 res_text = response['message']['content'].strip()
                 if not res_text:
