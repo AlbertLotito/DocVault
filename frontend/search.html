@@ -108,11 +108,23 @@
     .score-mid  { background: #111100; color: var(--c-pend); border: 1px solid #333300; }
     .score-low  { background: #111; color: var(--c-unk); border: 1px solid #333; }
 
+    /* Ask textarea */
+    .lc-ask-textarea {
+      resize: none;
+      overflow-y: hidden;
+      min-height: 36px;
+      max-height: 220px;
+      line-height: 1.5;
+      padding-top: 7px;
+      padding-bottom: 7px;
+    }
+    .lc-ask-hint { font-size: calc(10px * var(--font-scale)); color: var(--c-label-dim); margin-top: 3px; }
+
     /* Chat pane */
     .chat-container {
       display: flex;
       flex-direction: column;
-      height: 540px;
+      margin-top: 10px;
     }
     .chat-header {
       display: flex;
@@ -127,6 +139,7 @@
       flex: 1;
       overflow-y: auto;
       padding: 8px 0;
+      max-height: 500px;
     }
     .chat-thread > div + div { margin-top: 8px; }
     .chat-input-area {
@@ -417,34 +430,39 @@
 
     <!-- ── Ask / RAG panel ──────────────────────────────────────────────────── -->
     <div id="panel-ask" style="display:none;padding:14px 20px;">
+      <!-- Input at top -->
+      <div class="search-input-row" style="align-items:flex-end;">
+        <textarea id="query-input"
+          data-i18n-placeholder="search.ask.placeholder"
+          placeholder="Ask anything about your documents..."
+          class="lc-input lc-ask-textarea"
+          rows="1"
+          onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();doQuery();}"></textarea>
+        <button onclick="doQuery()" class="lc-btn lc-btn-primary" data-i18n="search.ask.ask_btn">Ask</button>
+      </div>
+      <div class="lc-ask-hint" data-i18n="search.ask.hint">Ctrl+Enter to submit &nbsp;·&nbsp; Enter for new line</div>
+      <div class="search-filter-row" style="margin-top:8px;">
+        <span class="search-filter-label" data-i18n="search.filter.label">Filters:</span>
+        <input id="chat-filter-type" type="text"
+          data-i18n-placeholder="search.filter.type_placeholder"
+          placeholder="File type (pdf, docx...)"
+          class="search-filter-input" style="width:130px;">
+        <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">from</span>
+        <input id="chat-filter-from" type="date" class="search-filter-input">
+        <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">to</span>
+        <input id="chat-filter-to" type="date" class="search-filter-input">
+        <button onclick="clearFilters('chat')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
+      </div>
+      <!-- Conversation -->
       <div class="chat-container">
         <div class="chat-header">
-          <span class="chat-header-title" data-i18n="search.ask.header">Ask a question about your documents</span>
-          <button onclick="clearChat()" class="lc-btn lc-btn-sm lc-btn-danger" data-i18n="search.ask.clear">Clear chat</button>
+          <span class="chat-header-title" data-i18n="search.ask.header">Conversation</span>
+          <div style="display:flex;gap:6px;">
+            <button onclick="saveChat()" class="lc-btn lc-btn-sm" data-i18n="search.ask.save">Save chat</button>
+            <button onclick="clearChat()" class="lc-btn lc-btn-sm lc-btn-danger" data-i18n="search.ask.clear">Clear chat</button>
+          </div>
         </div>
         <div id="chat-thread" class="chat-thread"></div>
-        <div class="chat-input-area">
-          <div class="search-filter-row" style="margin-top:0;margin-bottom:8px;">
-            <span class="search-filter-label" data-i18n="search.filter.label">Filters:</span>
-            <input id="chat-filter-type" type="text"
-              data-i18n-placeholder="search.filter.type_placeholder"
-              placeholder="File type (pdf, docx...)"
-              class="search-filter-input" style="width:130px;">
-            <span data-i18n="search.filter.from" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">from</span>
-            <input id="chat-filter-from" type="date" class="search-filter-input">
-            <span data-i18n="search.filter.to" style="color:var(--c-label-dim);font-size:calc(11px * var(--font-scale));">to</span>
-            <input id="chat-filter-to" type="date" class="search-filter-input">
-            <button onclick="clearFilters('chat')" class="search-filter-clear" data-i18n="search.filter.clear">&#10005; Clear</button>
-          </div>
-          <div class="search-input-row">
-            <input id="query-input" type="text"
-              data-i18n-placeholder="search.ask.placeholder"
-              placeholder="Ask anything about your documents..."
-              class="lc-input"
-              onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); doQuery(); }">
-            <button onclick="doQuery()" class="lc-btn lc-btn-primary" data-i18n="search.ask.ask_btn">Ask</button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -713,6 +731,7 @@
       const question = input.value.trim();
       if (!question) return;
       input.value = '';
+      input.style.height = 'auto';
 
       appendUserBubble(question);
       const loadingId = appendLoadingBubble();
@@ -806,6 +825,22 @@
     function clearChat() {
       chatHistory = [];
       document.getElementById('chat-thread').innerHTML = '';
+    }
+
+    function saveChat() {
+      if (!chatHistory.length) { lcToast('No conversation to save.', 'warn'); return; }
+      const lines = chatHistory.map(m => {
+        const label = m.role === 'user' ? '**You**' : '**Assistant**';
+        return `${label}\n\n${m.content}`;
+      });
+      const text = `# DocVault Chat — ${new Date().toLocaleString()}\n\n` + lines.join('\n\n---\n\n');
+      const blob = new Blob([text], { type: 'text/markdown' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `docvault-chat-${new Date().toISOString().slice(0,10)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     function appendUserBubble(text) {
@@ -988,6 +1023,13 @@
       const _initialMode = _modeMap[window.location.hash.replace('#','')] || 'content';
       switchMode(_initialMode);
       loadVaultSelector();
+
+      // Auto-grow textarea
+      const qa = document.getElementById('query-input');
+      qa.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 220) + 'px';
+      });
     });
 
     // ── Inspect modal ─────────────────────────────────────────────────────────
