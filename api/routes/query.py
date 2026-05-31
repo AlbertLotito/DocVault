@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from search import hybrid
+from search import spans
 from llm.factory import get_provider
 from core import manager
 from core.settings import settings
@@ -26,6 +27,43 @@ class QueryRequest(BaseModel):
     date_from: str | None = None
     date_to: str | None = None
     vault_ids: str | None = None
+
+
+def _enrich_results(db: str, results: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Resolve char offsets and paragraph numbers for span grounding.
+
+    Returns:
+        enriched_chunks: list of dicts with 'text' and 'paragraph_num', for the LLM call.
+        sources: list of dicts with file_hash, file_path, score, combined_score,
+                 chunk_offset, chunk_size, paragraph_num.
+    """
+    file_hashes = list({r['file_hash'] for r in results if r.get('file_hash')})
+    extracted_texts = manager.get_extracted_texts(db, file_hashes)
+    chunk_size = int(settings.get('embeddings:chunk_size') or 600)
+
+    enriched_chunks = []
+    sources = []
+    for r in results:
+        fh = r.get('file_hash', '')
+        ext_text = extracted_texts.get(fh, '')
+        chunk_index = int(r.get('chunk_index', 0))
+        chunk_text = r.get('chunk_text', '')
+
+        offset = spans.resolve_offset(chunk_index, chunk_text, ext_text) if ext_text else None
+        para_num = spans.paragraph_number(ext_text, offset) if (ext_text and offset is not None) else None
+
+        enriched_chunks.append({'text': chunk_text, 'paragraph_num': para_num})
+        sources.append({
+            'file_hash': fh,
+            'file_path': r.get('file_path'),
+            'score': r.get('score'),
+            'combined_score': r.get('combined_score'),
+            'chunk_offset': offset,
+            'chunk_size': chunk_size,
+            'paragraph_num': para_num,
+        })
+
+    return enriched_chunks, sources
 
 
 @router.post("/query")
@@ -67,33 +105,7 @@ async def rag_query(req: QueryRequest):
             pass  # get_vault_paths already returns {} on error; belt-and-suspenders
 
         # Resolve char offsets for span grounding
-        from search import spans
-        from core.settings import settings as _settings
-        file_hashes = list({r['file_hash'] for r in results if r.get('file_hash')})
-        extracted_texts = manager.get_extracted_texts(db, file_hashes)
-        chunk_size = int(_settings.get('embeddings:chunk_size') or 600)
-
-        enriched_chunks = []
-        sources = []
-        for r in results:
-            fh = r.get('file_hash', '')
-            ext_text = extracted_texts.get(fh, '')
-            chunk_index = int(r.get('chunk_index', 0))
-            chunk_text = r.get('chunk_text', '')
-
-            offset = spans.resolve_offset(chunk_index, chunk_text, ext_text) if ext_text else None
-            para_num = spans.paragraph_number(ext_text, offset) if (ext_text and offset is not None) else None
-
-            enriched_chunks.append({'text': chunk_text, 'paragraph_num': para_num})
-            sources.append({
-                'file_hash': fh,
-                'file_path': r.get('file_path'),
-                'score': r.get('score'),
-                'combined_score': r.get('combined_score'),
-                'chunk_offset': offset,
-                'chunk_size': chunk_size,
-                'paragraph_num': para_num,
-            })
+        enriched_chunks, sources = _enrich_results(db, results)
 
         llm    = get_provider()
         # rag_query is synchronous and blocks the thread; run in executor
@@ -145,17 +157,13 @@ async def rag_query_stream(req: QueryRequest):
             except Exception:
                 pass
 
-            chunks  = [r.get('chunk_text', '') for r in results]
-            sources = [
-                {'file_path': r.get('file_path'), 'score': r.get('score'),
-                 'combined_score': r.get('combined_score')}
-                for r in results
-            ]
+            # Resolve char offsets for span grounding (same as non-streaming endpoint)
+            enriched_chunks, sources = _enrich_results(db, results)
 
             yield _sse({'type': 'status', 'text': 'Generating answer...'})
 
             llm      = get_provider()
-            messages = llm._build_rag_messages(req.question, chunks, history=req.history)
+            messages = llm._build_rag_messages(req.question, enriched_chunks, history=req.history)
 
             loop    = asyncio.get_running_loop()
             token_q: asyncio.Queue = asyncio.Queue()
