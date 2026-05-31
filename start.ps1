@@ -15,16 +15,42 @@ function Write-OK   { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')    
 function Write-Warn { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')     [!!] $msg" -ForegroundColor Yellow }
 function Write-Fail { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')     [XX] $msg" -ForegroundColor Red }
 
-# --- 1. Ollama (warn only, do not block startup) ---
-Write-Step "Checking Ollama"
+# --- 1. Ollama ---
+# Port 11434 falls in a Windows/Hyper-V excluded range on this machine.
+# Use 11600 instead. Set OLLAMA_HOST so both `ollama serve` and the
+# ollama Python client bind/connect to the same port.
+$env:OLLAMA_HOST = '127.0.0.1:11600'
+$ollamaUrl = 'http://127.0.0.1:11600'
+
+Write-Step "Checking Ollama (port 11600)"
 $ollamaOk = $false
 try {
-    Invoke-RestMethod -Uri 'http://localhost:11434/api/version' -TimeoutSec 3 | Out-Null
+    Invoke-RestMethod -Uri "$ollamaUrl/api/version" -TimeoutSec 3 | Out-Null
     $ollamaOk = $true
     Write-OK "Ollama is running"
 } catch {
-    Write-Warn "Ollama is not running. Embeddings and LLM features will fail until it starts."
-    Write-Host "    Start Ollama from the system tray or run: ollama serve" -ForegroundColor Gray
+    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [..] Ollama not detected — launching ollama serve..." -ForegroundColor Gray
+    try {
+        Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden -ErrorAction Stop
+        # Wait up to 10 s for it to come up
+        $waited = 0
+        while ($waited -lt 10) {
+            Start-Sleep -Seconds 1
+            $waited++
+            try {
+                Invoke-RestMethod -Uri "$ollamaUrl/api/version" -TimeoutSec 1 | Out-Null
+                $ollamaOk = $true
+                Write-OK "Ollama started (after $waited s)"
+                break
+            } catch {}
+        }
+        if (-not $ollamaOk) {
+            Write-Warn "Ollama did not respond after 10 s. LLM features may fail."
+        }
+    } catch {
+        Write-Warn "Could not launch ollama serve: $_"
+        Write-Host "    Start Ollama manually or check that 'ollama' is on your PATH." -ForegroundColor Gray
+    }
 }
 
 if ($ollamaOk) {
