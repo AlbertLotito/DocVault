@@ -29,7 +29,7 @@ try {
     $ollamaOk = $true
     Write-OK "Ollama is running"
 } catch {
-    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [..] Ollama not detected — launching ollama serve..." -ForegroundColor Gray
+    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [..] Ollama not detected - launching ollama serve..." -ForegroundColor Gray
     try {
         Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden -ErrorAction Stop
         # Wait up to 10 s for it to come up
