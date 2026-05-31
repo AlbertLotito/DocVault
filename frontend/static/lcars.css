@@ -492,6 +492,32 @@ a:hover { color: var(--c-warn); }
 .lc-ctx-item:hover { background: #110a00; color: var(--c-accent); }
 .lc-ctx-sep { height: 1px; background: var(--c-border-str); margin: 2px 0; }
 
+/* ── Span grounding — inline context viewer ────────────── */
+.lc-span-highlight {
+    background-color: color-mix(in srgb, var(--lc-amber, #ffb300) 28%, transparent);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+.lc-context-panel {
+    margin-top: calc(4px * var(--font-scale, 1));
+    border-left: 3px solid var(--lc-amber, #ffb300);
+    padding: calc(8px * var(--font-scale, 1));
+    background: var(--lc-surface-2, #111);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.lc-context-pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: calc(11px * var(--font-scale, 1));
+    line-height: 1.6;
+    color: var(--lc-text, #e0e0e0);
+}
+
 /* ── Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--c-nav); }

@@ -388,7 +388,7 @@
         el.innerHTML = `<p class="no-results">${t('search.content.no_results')}</p>`;
         return;
       }
-      el.innerHTML = results.map(r => {
+      el.innerHTML = results.map((r, i) => {
         const safePath = (r.file_path || '').replace(/"/g, '&quot;');
         const scoreBadge = scoreBadgeHtml(r.score);
         const isArchive = isArchivePath(r.file_path);
@@ -397,6 +397,11 @@
           ? `<button data-path="${safePath}" onclick="browseArchive(this.dataset.path, this)" class="search-action-btn">Browse &#9654;</button>`
           : '';
         const snippet = isArchive ? '' : `<div class="search-result-snippet">${escapeHtml(r.snippet || r.chunk_text || '')}</div>`;
+        const ctxId = `ctx-${escapeHtml(r.file_hash || '')}-${r.chunk_index ?? i}`;
+        const hasOffset = r.chunk_offset !== null && r.chunk_offset !== undefined;
+        const ctxBtn = hasOffset
+          ? `<button class="search-action-btn" onclick="_buildContextPanel('${ctxId}','${escapeHtml(r.file_hash || '')}',${r.chunk_offset},${r.chunk_size})">View in context</button>`
+          : `<span class="lc-muted" style="font-size:calc(10px * var(--font-scale,1))">Location unavailable</span>`;
         return `
         <div class="search-result">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
@@ -410,10 +415,12 @@
               <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">${t('search.result.folder')}</button>
               <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">${t('search.result.inspect')}</button>
               ${browseBtn}
+              ${ctxBtn}
             </div>
           </div>
           ${snippet}
-        </div>`;
+        </div>
+        <div id="${ctxId}" class="lc-context-panel" style="display:none"></div>`;
       }).join('');
     }
 
@@ -767,8 +774,13 @@
       const sourcesHtml = uniqueSources.length ? `
         <div class="chat-sources">
           <div class="chat-sources-title">${t('search.ask.sources')}</div>
-          ${uniqueSources.map(s => {
+          ${uniqueSources.map((s, idx) => {
             const safePath = (s.file_path || '').replace(/"/g, '&quot;');
+            const sCtxId = `rag-ctx-${escapeHtml(s.file_hash || String(idx))}`;
+            const sHasOffset = s.chunk_offset !== null && s.chunk_offset !== undefined;
+            const sCtxBtn = sHasOffset
+              ? `<button class="search-action-btn" onclick="_buildContextPanel('${sCtxId}','${escapeHtml(s.file_hash || '')}',${s.chunk_offset},${s.chunk_size})">View in context</button>`
+              : '';
             return `
             <div class="chat-source-row">
               <span class="chat-source-path" title="${escapeHtml(s.file_path)}">${escapeHtml(formatPath(s.file_path))}</span>
@@ -776,8 +788,10 @@
                 <button data-path="${safePath}" onclick="openFile(this.dataset.path)" class="search-action-btn">${t('search.result.open')}</button>
                 <button data-path="${safePath}" onclick="openFolder(this.dataset.path)" class="search-action-btn">${t('search.result.folder')}</button>
                 <button data-path="${safePath}" onclick="inspectFile(this.dataset.path)" class="search-action-btn">${t('search.result.inspect')}</button>
+                ${sCtxBtn}
               </div>
-            </div>`;
+            </div>
+            <div id="${sCtxId}" class="lc-context-panel" style="display:none"></div>`;
           }).join('')}
         </div>` : '';
 
@@ -806,6 +820,55 @@
 
     function escapeHtml(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Span Grounding — inline context viewer ────────────────────────────────
+    const _spanTextCache = new Map();
+
+    async function _fetchExtractedText(fileHash) {
+      if (_spanTextCache.has(fileHash)) return _spanTextCache.get(fileHash);
+      try {
+        const resp = await fetch(`/api/catalog/${fileHash}/text`);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        _spanTextCache.set(fileHash, data.extracted_text || '');
+        return data.extracted_text || '';
+      } catch {
+        return null;
+      }
+    }
+
+    function _buildContextPanel(containerId, fileHash, chunkOffset, chunkSize) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      if (container.dataset.loaded === '1') {
+        container.style.display = container.style.display === 'none' ? '' : 'none';
+        return;
+      }
+      container.dataset.loaded = '1';
+      container.innerHTML = '<span class="lc-muted">Loading…</span>';
+      container.style.display = '';
+      _fetchExtractedText(fileHash).then(text => {
+        if (!text) {
+          container.innerHTML = '<span class="lc-muted">Text not available for this document.</span>';
+          return;
+        }
+        const offset = chunkOffset ?? 0;
+        const size = chunkSize ?? 600;
+        const ctxStart = Math.max(0, offset - 800);
+        const ctxEnd   = Math.min(text.length, offset + size + 800);
+        const before  = _escHtml(text.slice(ctxStart, offset));
+        const match   = _escHtml(text.slice(offset, offset + size));
+        const after   = _escHtml(text.slice(offset + size, ctxEnd));
+        container.innerHTML =
+          `<pre class="lc-context-pre">${before}<mark class="lc-span-highlight">${match}</mark>${after}</pre>`;
+        const mark = container.querySelector('mark');
+        if (mark) mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
+    }
+
+    function _escHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function scoreBadgeHtml(score) {
