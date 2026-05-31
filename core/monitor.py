@@ -406,8 +406,18 @@ def ollama_governor(kind: str = 'chat'):
             from core.settings import settings
             n = max(1, int(settings.get('workers:embed_concurrency') or 1))
             _embed_semaphore = threading.Semaphore(n)
-        with _embed_semaphore:
+        from core.settings import settings
+        slot_timeout = int(settings.get('ollama:embed_slot_timeout') or 10)
+        acquired = _embed_semaphore.acquire(timeout=slot_timeout)
+        if not acquired:
+            raise RuntimeError(
+                f"Embed slot unavailable after {slot_timeout}s — "
+                f"embedding worker may be busy. Semantic search skipped."
+            )
+        try:
             yield
+        finally:
+            _embed_semaphore.release()
         return
 
     from core.settings import settings

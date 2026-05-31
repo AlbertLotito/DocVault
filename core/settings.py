@@ -54,6 +54,12 @@ class Settings:
                 'description': 'How long to wait for a chat concurrency slot before failing with an error. '
                                'Prevents new queries from queuing silently behind a stuck request.',
             },
+            'ollama:embed_slot_timeout': {
+                'type': 'int', 'default': 10, 'label': 'Embed Slot Timeout (s)', 'group': 'ollama',
+                'description': 'How long a search query waits for the embed semaphore before giving up '
+                               'and falling back to FTS-only results. Prevents queries hanging while '
+                               'the background embedding worker processes a large batch.',
+            },
             'ollama:num_ctx': {
                 'type': 'int', 'default': 8192, 'label': 'Context Window (tokens)', 'group': 'ollama',
                 'description': 'Maximum number of tokens the model can see at once, including retrieved chunks and conversation history. Larger values use more VRAM. Must not exceed the model\'s own maximum context length.',
