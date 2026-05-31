@@ -17,9 +17,14 @@ function Write-Fail { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')    
 
 # --- 1. Ollama ---
 # Port 11434 falls in a Windows/Hyper-V excluded range on this machine.
-# Use 11600 instead. Set OLLAMA_HOST so both `ollama serve` and the
-# ollama Python client bind/connect to the same port.
-$env:OLLAMA_HOST = '127.0.0.1:11600'
+# Use 11600 instead. Set OLLAMA_HOST persistently (user scope) so every
+# terminal picks it up, and for this session immediately.
+$ollamaHost = '127.0.0.1:11600'
+if ([System.Environment]::GetEnvironmentVariable('OLLAMA_HOST', 'User') -ne $ollamaHost) {
+    [System.Environment]::SetEnvironmentVariable('OLLAMA_HOST', $ollamaHost, 'User')
+    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [OK] OLLAMA_HOST set persistently to $ollamaHost" -ForegroundColor Green
+}
+$env:OLLAMA_HOST = $ollamaHost
 $ollamaUrl = 'http://127.0.0.1:11600'
 
 Write-Step "Checking Ollama (port 11600)"
@@ -61,7 +66,13 @@ if ($ollamaOk) {
             if ($ollamaList -like "*$m*") {
                 Write-OK "Model: $m"
             } else {
-                Write-Warn "Model not pulled: $m  -- run: ollama pull $m"
+                Write-Host "$(Get-Date -Format 'HH:mm:ss')     [..] Pulling missing model: $m ..." -ForegroundColor Gray
+                & ollama pull $m
+                if ($LASTEXITCODE -eq 0) {
+                    Write-OK "Model pulled: $m"
+                } else {
+                    Write-Warn "Failed to pull $m - run manually: ollama pull $m"
+                }
             }
         }
     } catch {
