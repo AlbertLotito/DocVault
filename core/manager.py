@@ -600,6 +600,23 @@ def get_task(db_path, file_hash):
         return dict(row) if row else None
 
 
+def get_extracted_texts(db_path: str, file_hashes: list) -> dict:
+    """Batch-fetch extracted_text for multiple file_hashes. Returns {hash: text}."""
+    if not file_hashes:
+        return {}
+    try:
+        with _connect(db_path) as conn:
+            placeholders = ','.join('?' * len(file_hashes))
+            rows = conn.execute(
+                f"SELECT file_hash, extracted_text FROM extracted_texts "
+                f"WHERE file_hash IN ({placeholders})",
+                list(file_hashes),
+            ).fetchall()
+            return {r['file_hash']: r['extracted_text'] or '' for r in rows}
+    except Exception:
+        return {}
+
+
 def list_tasks(db_path, status=None, file_type=None, filename=None, vault_id=None, limit=50, offset=0, sort_by='last_update', sort_order='DESC'):
     with _connect(db_path) as conn:
         # Prevent SQL injection by validating sort parameters

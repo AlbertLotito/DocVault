@@ -84,3 +84,53 @@ def test_paragraph_number_no_breaks():
     from search.spans import paragraph_number
     text = 'Single paragraph text here'
     assert paragraph_number(text, 10) == 1
+
+
+# ── manager.get_extracted_texts ───────────────────────────────────────────────
+
+def test_get_extracted_texts_returns_dict(tmp_path):
+    """get_extracted_texts returns a {hash: text} dict for known hashes."""
+    import sqlite3
+    from core import manager
+
+    db = str(tmp_path / 'test.db')
+    manager.init_db(db)
+
+    # Insert into extracted_texts (not tasks.extracted_text — that column doesn't exist)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO tasks (file_hash, file_path, file_type, status) "
+            "VALUES ('aaa', '/a.txt', 'txt', 'COMPLETED')"
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO tasks (file_hash, file_path, file_type, status) "
+            "VALUES ('bbb', '/b.txt', 'txt', 'COMPLETED')"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text, stored_at) "
+            "VALUES ('aaa', 'hello world', datetime('now'))"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text, stored_at) "
+            "VALUES ('bbb', 'foo bar', datetime('now'))"
+        )
+        conn.commit()
+
+    result = manager.get_extracted_texts(db, ['aaa', 'bbb'])
+    assert result == {'aaa': 'hello world', 'bbb': 'foo bar'}
+
+
+def test_get_extracted_texts_unknown_hash(tmp_path):
+    from core import manager
+    db = str(tmp_path / 'test2.db')
+    manager.init_db(db)
+    result = manager.get_extracted_texts(db, ['nonexistent'])
+    assert result == {}
+
+
+def test_get_extracted_texts_empty_list(tmp_path):
+    from core import manager
+    db = str(tmp_path / 'test3.db')
+    manager.init_db(db)
+    result = manager.get_extracted_texts(db, [])
+    assert result == {}
