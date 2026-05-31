@@ -135,23 +135,32 @@ async def rag_query_stream(req: QueryRequest):
         try:
             yield _sse({'type': 'status', 'text': 'Searching documents...'})
 
-            hash_filter = manager.get_filtered_hashes(
-                db,
-                file_type=req.file_type,
-                date_from=req.date_from,
-                date_to=req.date_to,
-                vault_ids=vault_id_list,
+            hash_filter = await asyncio.wait_for(
+                asyncio.to_thread(
+                    manager.get_filtered_hashes, db,
+                    req.file_type, req.date_from, req.date_to, vault_id_list,
+                ),
+                timeout=15,
             )
-            results, _ = await hybrid.async_search(
-                db_path=db,
-                query=req.question,
-                top_k=top_k,
-                file_type=req.file_type,
-                date_from=req.date_from,
-                date_to=req.date_to,
-                hash_filter=hash_filter,
-                vault_ids=vault_id_list,
+
+            yield _sse({'type': 'status', 'text': 'Embedding query...'})
+
+            results, _ = await asyncio.wait_for(
+                hybrid.async_search(
+                    db_path=db,
+                    query=req.question,
+                    top_k=top_k,
+                    file_type=req.file_type,
+                    date_from=req.date_from,
+                    date_to=req.date_to,
+                    hash_filter=hash_filter,
+                    vault_ids=vault_id_list,
+                ),
+                timeout=60,
             )
+
+            yield _sse({'type': 'status', 'text': 'Preparing context...'})
+
             try:
                 manager.substitute_vault_paths(db, results, vault_id_list)
             except Exception:
