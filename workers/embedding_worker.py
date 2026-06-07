@@ -1,11 +1,38 @@
 import os
 import socket
+import threading
 import time
 from core import manager, logger
 from core.settings import settings
 from embeddings import chunker, embedder
 from embeddings.vector_store import VectorStore
 from workers.utils import interruptible_sleep, paused_sleep, should_pause_or_throttle, get_throttle_sleep
+
+_index_lock = threading.Lock()
+_MIN_INDEX_ROWS = 1_000
+_batches_since_index = 0
+
+
+def _rebuild_index(vs: VectorStore) -> None:
+    """Rebuild (or build) the IVF-PQ index — runs in a daemon thread.
+
+    Skipped if another rebuild is already in progress.  LanceDB's optimize()
+    crashes under load on large tables (native stack overrun), so we use a full
+    create_vector_index() on a periodic schedule instead.
+    """
+    if not _index_lock.acquire(blocking=False):
+        return
+    try:
+        n = vs.count()
+        if n < _MIN_INDEX_ROWS:
+            return
+        logger.info(f"[embed] Rebuilding vector index on {n:,} rows...")
+        vs.create_vector_index()
+        logger.info("[embed] Vector index rebuild complete.")
+    except Exception as e:
+        logger.warn(f"[embed] Vector index rebuild failed: {e}")
+    finally:
+        _index_lock.release()
 
 
 def _load_vector_store():
@@ -105,6 +132,15 @@ def process_task_batch(db_path, tasks, vs):
     inputs = [e[3] for e in all_entries]
     vectors = []
     for i in range(0, len(inputs), max_chunks):
+        skip, _ = should_pause_or_throttle()
+        if skip:
+            logger.info("Embedding worker paused mid-batch — resetting tasks to EXTRACTED.")
+            for fh in task_by_hash:
+                try:
+                    manager.update_task_status(db_path, fh, status='EXTRACTED')
+                except Exception:
+                    pass
+            return
         vectors.extend(embedder.embed_batch(inputs[i:i + max_chunks]))
 
     # Phase 3: group vectors back by document
@@ -208,6 +244,14 @@ def run(db_path, shutdown_event=None, worker_id=None):
                 process_task_batch(db_path, tasks, vs)
             except Exception as e:
                 logger.error(f"Embedding batch failed: {e}. Retrying in 10s.")
+                continue
+
+            global _batches_since_index
+            _batches_since_index += 1
+            rebuild_every = int(settings.get('workers:index_rebuild_every') or 100)
+            if _batches_since_index >= rebuild_every:
+                _batches_since_index = 0
+                threading.Thread(target=_rebuild_index, args=(vs,), daemon=True).start()
         else:
             try:
                 interruptible_sleep(db_path, 10)

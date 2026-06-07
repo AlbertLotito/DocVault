@@ -58,9 +58,18 @@ async def async_search(db_path: str, query: str, top_k: int = 10,
     Returns (results, qdrant_offline) where qdrant_offline=True means Qdrant was
     unreachable and results are FTS-only.
     """
+    from core.settings import settings
+    sem_timeout = float(settings.get('search:semantic_timeout') or 20)
+
     fts_task      = asyncio.to_thread(fts.search, db_path, query, top_k * 2,
                                       file_type, date_from, date_to, vault_ids)
-    semantic_task = semantic.async_search(query, top_k=top_k * 2, hash_filter=hash_filter)
+    # Wrap semantic search with a short timeout so a busy Ollama (all slots used by
+    # vision/chat workers) falls back to FTS-only quickly rather than blocking until
+    # the outer query/stream timeout fires.
+    semantic_task = asyncio.wait_for(
+        semantic.async_search(query, top_k=top_k * 2, hash_filter=hash_filter),
+        timeout=sem_timeout,
+    )
 
     fts_r, sem_r = await asyncio.gather(fts_task, semantic_task, return_exceptions=True)
 
@@ -69,9 +78,14 @@ async def async_search(db_path: str, query: str, top_k: int = 10,
     if isinstance(fts_r, Exception):
         fts_r = []
     if isinstance(sem_r, Exception):
+        from core import logger
+        if isinstance(sem_r, asyncio.TimeoutError):
+            logger.warn(f"[hybrid] Semantic search timed out after {sem_timeout}s — falling back to FTS-only")
+        else:
+            logger.warn(f"[hybrid] Semantic search failed ({sem_r}) — falling back to FTS-only")
         sem_r = None
 
-    # None means Qdrant actually failed; [] means it worked but found nothing
+    # None means semantic unavailable; [] means it worked but found nothing
     qdrant_offline = sem_r is None
     merged = merge(fts_r, sem_r or [])
     return merged[:top_k], qdrant_offline

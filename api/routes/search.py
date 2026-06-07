@@ -90,25 +90,18 @@ async def search(q: str = Query(..., min_length=1),
         _enrich_with_offsets(db, results)
         return JSONResponse(content={'results': results, 'degraded': False})
 
-    results, qdrant_offline = await hybrid.async_search(
+    results, semantic_offline = await hybrid.async_search(
         db_path=db, query=q, top_k=n,
         file_type=file_type, date_from=date_from, date_to=date_to,
         hash_filter=hash_filter, vault_ids=vault_id_list
     )
-    if qdrant_offline:
-        # Qdrant offline — fall back to FTS-only and tell the UI
-        fts_results = fts.search(db, q, n,
-                                 file_type=file_type, date_from=date_from, date_to=date_to,
-                                 vault_ids=vault_id_list)
-        _enrich_with_offsets(db, fts_results)
-        return JSONResponse(content={
-            'results': fts_results,
-            'degraded': True,
-            'degraded_reason': 'Qdrant unavailable — showing full-text results only',
-        })
     manager.substitute_vault_paths(db, results, vault_id_list)
     _enrich_with_offsets(db, results)
-    return JSONResponse(content={'results': results, 'degraded': False})
+    return JSONResponse(content={
+        'results': results,
+        'degraded': semantic_offline,
+        'degraded_reason': 'Semantic search unavailable — showing full-text results only' if semantic_offline else '',
+    })
 
 
 @router.get("/search/filename")

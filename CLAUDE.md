@@ -2,16 +2,17 @@
 
 ## On Every Session Start
 
-Read the following files in full before doing anything else:
+Read the following in full before doing anything else:
 
-1. `docs/internals/status/2026-03-15-project-status.md` — authoritative current state of the project
-2. `docs/internals/plans/2026-03-02-future-architecture.md` — planned future architecture (vaults, logs.db, resource governor)
-3. `docs/internals/plans/2026-02-26-docvault-design.md` — original design document
-4. `docs/internals/plans/2026-02-26-docvault-implementation.md` — original implementation plan
+### 1. Current Status (authoritative project state)
 
-When a new status document appears (e.g. `docs/internals/status/2026-03-06-project-status.md`), read it instead of the previous one — it supersedes all earlier status docs.
+The status doc is the most recently dated file in `docs/internals/status/`. Always read the newest one — it supersedes all earlier status docs. As of the last update the file is:
 
-Also read all memory topic files referenced in MEMORY.md (the index is auto-loaded but individual files are not):
+`docs/internals/status/2026-05-31-project-status.md`
+
+If a newer file exists in that directory, read that instead.
+
+### 2. Memory Files (the index MEMORY.md is auto-loaded; read the individual files below)
 
 - `C:\Users\Albert\.claude\projects\E--DocVault\memory\session-notes.md`
 - `C:\Users\Albert\.claude\projects\E--DocVault\memory\common-bugs.md`
@@ -20,7 +21,9 @@ Also read all memory topic files referenced in MEMORY.md (the index is auto-load
 - `C:\Users\Albert\.claude\projects\E--DocVault\memory\feedback_ui_text_size.md`
 - `C:\Users\Albert\.claude\projects\E--DocVault\memory\feedback_visual_companion_windows.md`
 
-If a file listed above does not exist, skip it silently.
+Also check `C:\Users\Albert\.claude\projects\E--DocVault\memory\MEMORY.md` for any additional topic files added since this list was last updated and read those too.
+
+If any file listed above does not exist, skip it silently.
 
 ## Project Location
 

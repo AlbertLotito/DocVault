@@ -54,6 +54,11 @@ class Settings:
                 'description': 'How long to wait for a chat concurrency slot before failing with an error. '
                                'Prevents new queries from queuing silently behind a stuck request.',
             },
+            'ollama:query_embed_timeout': {
+                'type': 'int', 'default': 15, 'label': 'Query Embed Timeout (s)', 'group': 'ollama',
+                'description': 'HTTP timeout for query-time embedding calls. Kept short so a busy Ollama '
+                               'fails fast and the search falls back to FTS-only rather than blocking.',
+            },
             'ollama:embed_slot_timeout': {
                 'type': 'int', 'default': 10, 'label': 'Embed Slot Timeout (s)', 'group': 'ollama',
                 'description': 'How long a search query waits for the embed semaphore before giving up '
@@ -159,6 +164,12 @@ class Settings:
                                'and runs a concurrent Ollama embed call. Requires OLLAMA_NUM_PARALLEL > 1 '
                                'and sufficient VRAM. The embed semaphore is sized to this value at startup — '
                                'restart required for changes to take effect.',
+            },
+            'workers:index_rebuild_every': {
+                'type': 'int', 'default': 100, 'label': 'Index rebuild interval (batches)', 'group': 'embeddings',
+                'description': 'Rebuild the LanceDB vector index every N embedding batches to keep ANN search fast '
+                               'as new vectors accumulate. Each rebuild runs in a background thread and takes '
+                               'several minutes for large tables. Set higher to reduce rebuild frequency.',
             },
             'workers:extract_age_weight': {
                 'type': 'int', 'default': 3600,

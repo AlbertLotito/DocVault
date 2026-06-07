@@ -309,6 +309,33 @@ def reindex_all():
     return {'status': 'ok', 'reset_tasks': reset_count}
 
 
+@router.post("/utils/build_vector_index")
+def build_vector_index():
+    """Build (or rebuild) the IVF-PQ vector index for fast semantic search.
+
+    Runs in a background thread — returns immediately.  Without an index,
+    every search does a full linear scan (O(n) disk reads); this is the fix.
+    Safe to call on a live table; searches continue working during the build.
+    """
+    import threading
+    from embeddings.vector_store import VectorStore
+    from core import logger
+
+    def _build():
+        try:
+            vs = VectorStore()
+            n = vs.count()
+            logger.info(f"[vector_index] Building IVF-PQ index on {n:,} rows…")
+            vs.create_vector_index()
+            logger.info("[vector_index] Index build complete.")
+        except Exception as e:
+            logger.error(f"[vector_index] Index build failed: {e}")
+
+    t = threading.Thread(target=_build, daemon=True)
+    t.start()
+    return {'status': 'building', 'message': 'Index build started in background — check server log for completion.'}
+
+
 @router.get("/utils/gdrive_status")
 def gdrive_status():
     """Check whether Google Drive OAuth token exists."""

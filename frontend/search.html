@@ -497,7 +497,9 @@
         const browseBtn = isArchive
           ? `<button data-path="${safePath}" onclick="browseArchive(this.dataset.path, this)" class="search-action-btn">Browse &#9654;</button>`
           : '';
-        const snippet = isArchive ? '' : `<div class="search-result-snippet">${escapeHtml(r.snippet || r.chunk_text || '')}</div>`;
+        const snippetRaw = escapeHtml(r.snippet || r.chunk_text || '')
+          .replace(/&lt;b&gt;/g, '<b>').replace(/&lt;\/b&gt;/g, '</b>');
+        const snippet = isArchive ? '' : `<div class="search-result-snippet">${snippetRaw}</div>`;
         const ctxId = `ctx-${escapeHtml(r.file_hash || '')}-${r.chunk_index ?? i}`;
         const hasOffset = r.chunk_offset !== null && r.chunk_offset !== undefined;
         const ctxBtn = hasOffset

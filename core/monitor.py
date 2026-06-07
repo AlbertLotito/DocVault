@@ -594,7 +594,10 @@ class HardwareMonitor:
             from core.settings import settings as s
             threshold_mins = int(s.get('monitor:stall_threshold_mins') or 30)
 
-            from core.manager import get_logs_db_path, get_db_path, _connect
+            from core.manager import get_logs_db_path, get_db_path, _connect, get_pause_state, get_search_mode
+            if get_pause_state() or get_search_mode():
+                _set_stall_state(False, 0)
+                return
             from datetime import datetime, timezone, timedelta
 
             with _connect(get_logs_db_path()) as lconn:
@@ -653,7 +656,10 @@ class HardwareMonitor:
             from core.settings import settings as s
             threshold_mins = int(s.get('monitor:embed_stall_threshold_mins') or 5)
 
-            from core.manager import get_logs_db_path, get_db_path, _connect
+            from core.manager import get_logs_db_path, get_db_path, _connect, get_pause_state, get_search_mode
+            if get_pause_state() or get_search_mode():
+                _set_embed_stall_state(False, 0)
+                return
             from datetime import datetime, timezone
 
             # Step 1: count EXTRACTED tasks (separate connection — docvault.db)

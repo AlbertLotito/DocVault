@@ -143,6 +143,20 @@ class VectorStore:
             db.drop_table(self.collection)
         self._table = db.create_table(self.collection, schema=_SCHEMA)
 
+    def create_vector_index(self) -> None:
+        """Build (or rebuild) an IVF-PQ vector index for fast ANN search.
+
+        Required once the table grows beyond a handful of rows — without it every
+        search is a full linear scan (O(n) disk reads).  Safe to call on an already-
+        indexed table (replace=True).  Takes O(minutes) for large tables; run it in
+        a background thread so the server stays responsive.
+        """
+        self._table.create_index(
+            metric='cosine',
+            vector_column_name='vector',
+            replace=True,
+        )
+
     def count(self) -> int:
         return self._table.count_rows()
 

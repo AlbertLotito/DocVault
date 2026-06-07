@@ -23,6 +23,12 @@ credentials/
 # Qdrant vector store data (large, regenerable via Rebuild Index)
 qdrant_storage/
 
+# LanceDB vector store data (large, regenerable via Rebuild Index)
+lancedb_storage/
+
+# Stray shortcuts
+*.lnk
+
 # Third-party binaries (Poppler, etc.)
 bin/
 
