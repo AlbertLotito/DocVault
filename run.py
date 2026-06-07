@@ -2,6 +2,28 @@
 DocVault entry point.
 Starts the FastAPI web server and spawns background workers in threads.
 """
+# --- Windows WMI hang workaround (must run before anything imports `ollama`) ---
+# On this machine, _wmi.exec_query() (used internally by platform.uname()'s
+# Win32 fallback path) hangs indefinitely instead of raising OSError. The
+# `ollama` package builds a User-Agent header from platform.machine()/system()
+# on every ollama.Client() construction, so the embed client hangs before any
+# HTTP request is even sent — silently eating the configured embed timeouts and
+# surfacing ~20s later as "Semantic search unavailable" once hybrid.py's outer
+# asyncio.wait_for gives up. Pre-populating platform._uname_cache from fast,
+# WMI-free env vars short-circuits uname() so the hang never triggers.
+import os as _os
+import platform as _platform
+import sys as _sys
+if _sys.platform == 'win32' and _platform._uname_cache is None:
+    _platform._uname_cache = _platform.uname_result(
+        'Windows',
+        _os.environ.get('COMPUTERNAME', ''),
+        '',
+        '',
+        _os.environ.get('PROCESSOR_ARCHITECTURE', ''),
+    )
+del _os, _platform, _sys
+
 import asyncio
 import json
 import threading
