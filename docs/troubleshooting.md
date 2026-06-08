@@ -1,42 +1,35 @@
 # DocVault Troubleshooting Guide
 
-DocVault is a local-first document intelligence platform. FastAPI backend on port 8000, Qdrant vector DB in Docker on port 6333, Ollama LLM on port 11434, SQLite databases (`docvault.db`, `settings.db`, `logs.db`).
+DocVault is a local-first document intelligence platform. FastAPI backend on port 8050, embedded LanceDB vector store (no external service — data lives in `lancedb_storage/`), Ollama LLM on port 11434 (configurable — see `ollama:host`), SQLite databases (`docvault.db`, `settings.db`, `logs.db`).
 
 ---
 
 ## 1. Common Startup Failures
 
-### Port 8000 already in use
+### Port 8050 already in use
 
 ```
-Error: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8000)
+Error: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8050)
 ```
 
-Find the process using port 8000 and stop it.
+Find the process using port 8050 and stop it.
 
-- Windows: `netstat -ano | findstr :8000`, then `taskkill /PID <pid> /F`
-- Linux/macOS: `lsof -i :8000`, then `kill <pid>`
+- Windows: `netstat -ano | findstr :8050`, then `taskkill /PID <pid> /F`
+- Linux/macOS: `lsof -i :8050`, then `kill <pid>`
 
-Or change DocVault's bind port in the Settings UI (`server:port` key).
+Or change DocVault's bind port in `config.ini` (`[server] port`) or the Settings UI (`server:port` key).
 
 ---
 
-### Qdrant not connecting
+### "Semantic search unavailable" banner in Search UI
 
-```
-ConnectionRefusedError: [Errno 111] Connection refused
-```
+An amber banner appears in Search when the semantic search step times out or errors — hybrid search falls back to FTS-only and the response includes `degraded: true`. Since LanceDB is an embedded library (not a separate service), this almost always means one of:
 
-1. `docker ps` — is `docvault-qdrant-1` listed as running?
-2. If not running: `docker start docvault-qdrant-1`
-3. If the container does not exist: `docker compose up -d qdrant`
-4. Wait 10 seconds, then verify: `curl http://localhost:6333/collections`
+1. **Ollama is unreachable or slow to respond** — embedding the query requires a live Ollama connection. Check `ollama serve` is running and reachable at `ollama:host`.
+2. **The semantic step exceeded `search:semantic_timeout`** (default 20s) — often caused by Ollama being busy with worker embedding batches. The query-embed path (`embedder.query_embed()`) bypasses the worker's embed semaphore specifically to avoid this; if it's still slow, check Ollama's load on the Telemetry dashboard.
+3. **A previous bug** (fixed): scoping a search to a large vault (100K+ documents) caused `VectorStore.search()` to build a multi-megabyte SQL filter string, which LanceDB took 30s+ to evaluate. This is fixed — large hash filters now use an over-fetch + Python `set` post-filter instead of an inline SQL `IN (...)` clause (`embeddings/vector_store.py`).
 
----
-
-### Qdrant degraded mode banner in Search UI
-
-An amber banner appears in Search when Qdrant is unreachable. DocVault continues working — semantic search returns empty results, and hybrid search falls back to FTS-only. The banner disappears automatically when Qdrant reconnects. Fix Qdrant first (see above), then retry your search.
+The banner disappears automatically once a search completes within the timeout. No action is needed beyond addressing the cause above — DocVault continues to work in degraded mode (FTS-only) the whole time.
 
 ---
 
@@ -53,14 +46,14 @@ Run `ollama serve` in a separate terminal. DocVault starts successfully without 
 ### Model not pulled
 
 ```
-[!!] Model not pulled: deepseek-r1:14b  -- run: ollama pull deepseek-r1:14b
+[!!] Model not pulled: qwen2.5:14b  -- run: ollama pull qwen2.5:14b
 ```
 
-Run `ollama pull <model-name>`. Required models:
+Run `ollama pull <model-name>`. Required models (defaults — configurable in Settings):
 
-- `nomic-embed-text`
-- `minicpm-v`
-- `deepseek-r1:14b`
+- `nomic-embed-text` — embeddings
+- `minicpm-v` — vision/OCR
+- `qwen2.5:14b` — RAG chat
 
 ---
 
@@ -144,32 +137,25 @@ Run `reset.ps1`:
 .\reset.ps1
 ```
 
-This deletes `docvault.db` and Qdrant vectors. `settings.db` is never touched — your config, API keys, and vault settings are preserved. Re-ingestion starts automatically on next `start.ps1`.
+This deletes `docvault.db` and the LanceDB vector tables. `settings.db` is never touched — your config, API keys, and vault settings are preserved. Re-ingestion starts automatically on next `start.ps1`.
 
 ---
 
-### Qdrant storage corruption (Qdrant refuses to start)
+### LanceDB storage corruption / search behaving oddly after a crash
 
-```bash
-docker stop docvault-qdrant-1
-```
+LanceDB is an embedded library — its data lives entirely in `lancedb_storage/` on disk, with no separate process to restart. If a hard crash leaves it in a bad state:
 
 Windows:
 ```powershell
-Remove-Item qdrant_storage\collections\docvault -Recurse -Force
+Remove-Item lancedb_storage -Recurse -Force
 ```
 
 Linux/macOS:
 ```bash
-rm -rf qdrant_storage/collections/docvault
+rm -rf lancedb_storage
 ```
 
-Then:
-```bash
-docker start docvault-qdrant-1
-```
-
-Use the **Utilities page → Rebuild Index** to re-embed all extracted content. The `art_index` collection (in `qdrant_storage/collections/art_index`) is separate and unaffected.
+Then use the **Utilities page → Rebuild Index** (`POST /api/utils/reindex`) to recreate the table and re-embed all extracted content — this also resets `COMPLETED` tasks back to `EXTRACTED` so the embedding worker picks them up again. The `art_index` table is separate and unaffected.
 
 ---
 
@@ -183,11 +169,11 @@ Work through this checklist:
 |---|---|
 | `PENDING` | Worker is running but file is queued. Normal for large collections. |
 | `PROCESSING` for >30 minutes | Stuck. Use Utilities → Reset stuck tasks. |
-| `EXTRACTED` but never `EMBEDDED` | Qdrant or Ollama may be down. |
+| `EXTRACTED` but never `EMBEDDED` | Ollama may be down/unreachable, or the embedding worker is paused (Search Mode pauses workers). |
 | `ERROR` | See the error message in the Vault Log. |
 
-**2. Check worker status** on the Index page — are all three workers running?
+**2. Check worker status** on the Vault Status page — are all three workers running, and not paused?
 
-**3. Check Qdrant** — is the degraded banner showing in Search? If so, fix Qdrant first (see section 1).
+**3. Check semantic search health** — is the "Semantic search unavailable" banner showing in Search? If so, see section 1 above (almost always an Ollama reachability/timeout issue, not a LanceDB issue — LanceDB is embedded and has no separate process to fail).
 
 **4. Re-trigger embedding** — if tasks are stuck at `EXTRACTED`, use **Utilities → Retry embed errors** to push them back through.

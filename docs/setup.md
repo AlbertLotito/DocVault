@@ -1,6 +1,8 @@
 # DocVault — First-Time Setup Guide
 
-DocVault is a local-first document intelligence platform: FastAPI backend, SQLite (3 databases), Qdrant vector store, and Ollama LLM runtime. The reference platform is Windows 11 native. Linux and macOS users follow the Docker path below.
+DocVault is a local-first document intelligence platform: FastAPI backend, SQLite (3 databases), an embedded LanceDB vector store, and Ollama LLM runtime. The reference platform is Windows 11 native. Linux and macOS users follow the manual path in section 3.
+
+LanceDB runs in-process — there is **no Docker requirement** and no external vector database service to install or run. Everything except Ollama runs as a single native Python process.
 
 ---
 
@@ -9,7 +11,6 @@ DocVault is a local-first document intelligence platform: FastAPI backend, SQLit
 ### All platforms
 
 - Python 3.11+
-- Docker Desktop — used to run the Qdrant vector database
 - Ollama — LLM runtime; `ollama serve` must be running before you start DocVault
 - Git
 
@@ -21,7 +22,7 @@ DocVault is a local-first document intelligence platform: FastAPI backend, SQLit
 
 ### Linux / macOS
 
-The native setup script (`setup.ps1`) is Windows-only. Linux and macOS users should follow the Docker path in section 3.
+The setup script (`setup.ps1`) is Windows-only (PowerShell). Linux and macOS users should follow the manual setup in section 3 — the resulting DocVault process is identical.
 
 ---
 
@@ -42,12 +43,9 @@ cd docvault
    - Tesseract install path
    - Poppler bin path
    - Ollama host and model names
-   - Qdrant host and port
 4. Writes `config.ini` with your answers
-5. Removes any orphaned Docker containers from previous runs
-6. Starts the Qdrant container: `docker compose up -d qdrant`
-7. Pulls the required Ollama models: `nomic-embed-text`, `minicpm-v`, `deepseek-r1:14b`
-8. Confirms Tesseract is reachable at the configured path
+5. Pulls the required Ollama models: `nomic-embed-text`, `minicpm-v`, `qwen2.5:14b`
+6. Confirms Tesseract is reachable at the configured path
 
 ### Starting DocVault
 
@@ -57,22 +55,21 @@ After setup, start every session with:
 .\start.ps1
 ```
 
-Then open http://localhost:8000.
+`start.ps1` checks that Ollama is running (auto-launching `ollama serve` and pulling any missing models if not), then launches DocVault with an exponential-backoff restart loop in case of crashes.
+
+Then open http://localhost:8050.
 
 ---
 
-## 3. Docker Path (Linux / macOS / Windows)
+## 3. Manual Setup (Linux / macOS / Windows without `setup.ps1`)
 
-`docker compose up` starts **Qdrant only**. DocVault itself always runs as a native Python process — this avoids packaging GPU drivers and large AI model weights inside a container.
+DocVault always runs as a single native Python process — there's no container to build or run.
 
 ### Ubuntu / Debian
 
 ```bash
 git clone https://github.com/your-org/docvault.git
 cd docvault
-
-# Start Qdrant
-docker compose up -d
 
 # Install system dependencies
 sudo apt install python3.11 python3.11-venv tesseract-ocr poppler-utils ffmpeg
@@ -81,7 +78,7 @@ sudo apt install python3.11 python3.11-venv tesseract-ocr poppler-utils ffmpeg
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull nomic-embed-text
 ollama pull minicpm-v
-ollama pull deepseek-r1:14b
+ollama pull qwen2.5:14b
 
 # Set up Python environment
 python3.11 -m venv venv
@@ -121,8 +118,8 @@ On Linux and macOS the `wmi` package (used for CPU temperature monitoring on Win
 | Model | Used for | Approximate size |
 |---|---|---|
 | `nomic-embed-text` | Semantic embeddings | ~275 MB |
-| `minicpm-v` | Image description, vision AI | ~5 GB |
-| `deepseek-r1:14b` | RAG chat, code analysis | ~9 GB |
+| `minicpm-v` | Image description, vision AI / OCR | ~5.5 GB on disk (~19 GB in VRAM when loaded) |
+| `qwen2.5:14b` | RAG chat | ~9 GB |
 
 If Ollama is not running when DocVault starts, embedding and RAG features will fail until it comes online. Text extraction and FTS (full-text) search continue to work without Ollama.
 
@@ -130,10 +127,10 @@ If Ollama is not running when DocVault starts, embedding and RAG features will f
 
 ## 5. Verification
 
-After `.\start.ps1` (or `python run.py`), open http://localhost:8000.
+After `.\start.ps1` (or `python run.py`), open http://localhost:8050.
 
-- **Index page** — shows vault status and worker health; green indicators confirm workers are running.
-- **Settings → System Health** — confirms Qdrant, Ollama, and the databases are reachable.
+- **Vault Status page** — shows vault status and worker health; green indicators confirm workers are running.
+- **Settings → System Health** — confirms Ollama and the databases are reachable. LanceDB is embedded — there's no separate service to check.
 - **Search tab** — run a simple filename search to confirm the system is live end-to-end.
 
 If anything is wrong, see [docs/troubleshooting.md](troubleshooting.md).

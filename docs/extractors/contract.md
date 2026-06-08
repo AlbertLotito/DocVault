@@ -162,7 +162,7 @@ The return envelope for a successful extraction.
 | `metadata` | `dict` | Structured key-value metadata (author, date, dimensions, codec, etc.). |
 | `images` | `list[dict]` | Extracted images. Each dict has `path`, `caption`, `page_number`. |
 | `child_tasks` | `list[dict]` | Files to dispatch as new ingestion tasks. Each dict has `file_path`, `source_hash`. |
-| `enrichments` | `dict` | Extra payload merged into the Qdrant vector payload (searchable fields). |
+| `enrichments` | `dict` | Extra payload merged into the LanceDB vector record (searchable fields). |
 | `errors` | `list[ExtractorError]` | Non-fatal errors (logged but do not fail the task). |
 | `status` | `str` | `"ok"` / `"partial"` / `"empty"`. |
 | `extractor_name` | `str` | Set automatically by the framework. Do not set manually. |

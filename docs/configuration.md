@@ -47,8 +47,8 @@ DocVault resolves settings in priority order (highest first):
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `host` | `http://localhost:11434` | Ollama server URL. |
-| `chat_model` | `deepseek-r1:14b` | Model used for RAG and chat. |
+| `host` | `http://localhost:11434` | Ollama server URL. Override if Ollama runs on a non-default port (e.g. when 11434 falls in a Hyper-V/WSL excluded port range — see [troubleshooting.md](troubleshooting.md)). |
+| `chat_model` | `qwen2.5:14b` | Model used for RAG and chat. |
 | `embed_model` | `nomic-embed-text` | Model used for semantic embeddings. |
 | `num_ctx` | `8192` | Context window size for chat. |
 | `temperature` | `0.1` | Sampling temperature (0.0–1.0). Lower = more deterministic. |
@@ -57,12 +57,11 @@ DocVault resolves settings in priority order (highest first):
 | `repeat_penalty` | `1.1` | Penalty for repeated tokens. |
 | `max_parallel` | `1` | Max concurrent Ollama requests. Increase with caution on GPU. |
 
-### [qdrant]
+### [lancedb]
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `host` | `localhost` | Qdrant server host. |
-| `port` | `6333` | Qdrant server port. |
+| `path` | `lancedb_storage` | Directory where LanceDB stores vector data (relative to project root). LanceDB is an embedded library — no external server or Docker container required. |
 
 ### [pdf]
 

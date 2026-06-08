@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Docker-lightgrey)](docs/setup.md)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](docs/setup.md)
 
 A local-first document intelligence platform — scan your files, extract every meaningful signal, search everything.
 
@@ -25,9 +25,9 @@ A local-first document intelligence platform — scan your files, extract every 
 
 ### Search
 - Full-text search (SQLite FTS5) with wildcard (`*`, `?`) and regex (`/pattern/`) modes
-- Semantic search via Qdrant vector database
-- Hybrid FTS + semantic scoring
-- RAG — ask questions in natural language, get cited answers from your own documents
+- Semantic search via an embedded LanceDB vector store (no external service or Docker required)
+- Hybrid FTS + semantic scoring with graceful degradation to FTS-only if the semantic step is slow or unavailable
+- RAG — ask questions in natural language, get cited, span-grounded answers from your own documents (streaming responses)
 - Filename search with the same wildcard/regex auto-detection
 
 ### Management
@@ -39,7 +39,7 @@ A local-first document intelligence platform — scan your files, extract every 
 
 ### Local-First
 - All processing runs on your machine. No cloud calls unless you explicitly configure them.
-- Ollama provides the LLM and vision layer; Qdrant provides vector search — both self-hosted.
+- Ollama provides the LLM and vision layer (self-hosted); LanceDB provides vector search as an embedded library — no separate database service to run.
 
 ---
 
@@ -63,28 +63,30 @@ A local-first document intelligence platform — scan your files, extract every 
 
 ## Quickstart
 
-### Native (Windows)
+DocVault runs as a single native Python process — no Docker, no external database service. Vector search (LanceDB) is an embedded library that lives alongside the app.
+
+### Windows
 
 ```powershell
 git clone https://github.com/your-org/docvault.git
 cd docvault
-.\setup.ps1      # one-time: venv, config, Ollama models, Qdrant
-.\start.ps1      # every time: checks dependencies, starts app
+.\setup.ps1      # one-time: venv, config, Ollama model pulls
+.\start.ps1      # every time: checks Ollama, starts app with auto-restart
 ```
 
-Open http://localhost:8000
+Open http://localhost:8050
 
-### Docker (Linux / macOS / Windows)
+### Linux / macOS
 
 ```bash
 git clone https://github.com/your-org/docvault.git
 cd docvault
-docker compose up
+python3.11 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python run.py
 ```
 
-Open http://localhost:8000
-
-The Docker path starts Qdrant only. DocVault itself runs as a native Python process — see [docs/setup.md](docs/setup.md) for the full Linux/macOS walkthrough.
+Open http://localhost:8050 — see [docs/setup.md](docs/setup.md) for the full prerequisites and walkthrough (Tesseract, Poppler, Ollama models).
 
 ---
 
@@ -107,9 +109,9 @@ The Docker path starts Qdrant only. DocVault itself runs as a native Python proc
 
 ## Architecture
 
-Three daemon workers share a SQLite task queue: the extraction worker reads files and runs extraction kernels, the embedding worker chunks extracted text and upserts vectors to Qdrant, and the art enrichment worker identifies artworks and enriches metadata. A resource governor runs as a background daemon, monitoring CPU, GPU, and disk pressure and throttling workers automatically when the system is under load.
+Three daemon workers share a SQLite task queue: the extraction worker reads files and runs extraction kernels, the embedding worker chunks extracted text and upserts vectors to LanceDB, and the art enrichment worker identifies artworks and enriches metadata. A resource governor runs as a background daemon, monitoring CPU, GPU, and disk pressure and throttling workers automatically when the system is under load.
 
-Three SQLite databases keep concerns separated: `docvault.db` holds the task queue and extracted content (safe to delete and rebuild), `settings.db` holds user configuration, vault definitions, and API keys (survives data resets), and `logs.db` records per-task timings, worker errors, extractor statistics, and system sensor samples. Qdrant stores the semantic embedding vectors.
+Three SQLite databases keep concerns separated: `docvault.db` holds the task queue and extracted content (safe to delete and rebuild), `settings.db` holds user configuration, vault definitions, and API keys (survives data resets), and `logs.db` records per-task timings, worker errors, extractor statistics, and system sensor samples. LanceDB — an embedded vector database, no external service required — stores the semantic embedding vectors in `lancedb_storage/`.
 
 See [docs/architecture.md](docs/architecture.md) for the full component map and data-flow diagram.
 
@@ -124,9 +126,9 @@ DocVault's extraction system is built on a kernel contract: a Python file with a
 ## Management Scripts
 
 ```
-.\setup.ps1   One-time setup: venv, config.ini, Ollama model pulls, Qdrant container
-.\start.ps1   Start the system: checks Docker, Qdrant, Ollama, then launches DocVault
-.\reset.ps1   Clean slate: deletes docvault.db and Qdrant vectors; preserves settings.db
+.\setup.ps1   One-time setup: venv, config.ini, Ollama model pulls
+.\start.ps1   Start the system: checks/launches Ollama, then launches DocVault (with auto-restart)
+.\reset.ps1   Clean slate: deletes docvault.db and LanceDB vectors; preserves settings.db
 ```
 
 ---
