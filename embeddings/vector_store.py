@@ -12,6 +12,10 @@ def _db_path() -> str:
     return p
 
 
+# Above this many hashes, skip the inline SQL `IN (...)` filter (see search()).
+_HASH_FILTER_INLINE_MAX = 500
+_POST_FILTER_OVERFETCH = 20
+
 _SCHEMA = pa.schema([
     pa.field('id',          pa.string()),
     pa.field('file_hash',   pa.string()),
@@ -107,19 +111,29 @@ class VectorStore:
         if hash_filter is not None and len(hash_filter) == 0:
             return []
 
-        q = (
-            self._table.search(query_vector, vector_column_name='vector')
-            .metric('cosine')
-            .limit(top_k)
-        )
-        if hash_filter is not None:
-            escaped = ', '.join(f"'{_esc(h)}'" for h in hash_filter)
-            q = q.where(f"file_hash IN ({escaped})", prefilter=True)
+        # Inlining a `file_hash IN (...)` clause for large filters builds a
+        # multi-megabyte SQL string that LanceDB's planner takes 30s+ (or hangs)
+        # to evaluate — that's what produced "Semantic search unavailable" once
+        # a vault grew past ~100K documents. Past this size, fetch a larger
+        # unfiltered candidate pool and filter by set membership in Python instead.
+        post_filter_set = None
+        fetch_limit = top_k
 
-        rows = q.to_list()
+        q = self._table.search(query_vector, vector_column_name='vector').metric('cosine')
+        if hash_filter is not None:
+            if len(hash_filter) <= _HASH_FILTER_INLINE_MAX:
+                escaped = ', '.join(f"'{_esc(h)}'" for h in hash_filter)
+                q = q.where(f"file_hash IN ({escaped})", prefilter=True)
+            else:
+                post_filter_set = set(hash_filter)
+                fetch_limit = top_k * _POST_FILTER_OVERFETCH
+
+        rows = q.limit(fetch_limit).to_list()
 
         results = []
         for r in rows:
+            if post_filter_set is not None and r['file_hash'] not in post_filter_set:
+                continue
             # LanceDB cosine returns distance (0=identical, 2=opposite).
             # Convert to similarity score: score = 1 - (distance / 2)
             score = 1.0 - (r['_distance'] / 2.0)
@@ -132,6 +146,8 @@ class VectorStore:
                 'chunk_text':  r['chunk_text'],
                 'chunk_index': r['chunk_index'],
             })
+            if len(results) >= top_k:
+                break
         return results
 
     # ── Admin ──────────────────────────────────────────────────────────────────

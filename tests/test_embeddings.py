@@ -87,3 +87,33 @@ class TestVectorStore:
             assert len(results) == 1
             assert results[0]['file_hash'] == 'abc'
             assert results[0]['score'] >= 0.99  # near-identical vector → high similarity
+
+    def test_search_with_large_hash_filter_avoids_inline_sql(self, tmp_path):
+        with patch('embeddings.vector_store._db_path', return_value=str(tmp_path)):
+            vs = vector_store.VectorStore(collection='test')
+            vec = [0.1] * 768
+            vs.upsert('match', 0, vec, {'file_path': '/match.pdf', 'chunk_text': 'hello'})
+
+            # A filter this large would build a multi-megabyte `IN (...)` SQL string
+            # if inlined — that's what made LanceDB queries take 30s+ in production.
+            huge_filter = [f'fake-hash-{i}' for i in range(2000)] + ['match']
+            with patch('embeddings.vector_store._esc', wraps=vector_store._esc) as esc_spy:
+                results = vs.search(vec, top_k=5, hash_filter=huge_filter)
+
+            esc_spy.assert_not_called()
+            assert len(results) == 1
+            assert results[0]['file_hash'] == 'match'
+
+    def test_search_with_small_hash_filter_uses_inline_sql(self, tmp_path):
+        with patch('embeddings.vector_store._db_path', return_value=str(tmp_path)):
+            vs = vector_store.VectorStore(collection='test')
+            vec = [0.1] * 768
+            vs.upsert('match', 0, vec, {'file_path': '/match.pdf', 'chunk_text': 'hello'})
+            vs.upsert('other', 0, vec, {'file_path': '/other.pdf', 'chunk_text': 'world'})
+
+            with patch('embeddings.vector_store._esc', wraps=vector_store._esc) as esc_spy:
+                results = vs.search(vec, top_k=5, hash_filter=['match'])
+
+            esc_spy.assert_called()
+            assert len(results) == 1
+            assert results[0]['file_hash'] == 'match'
