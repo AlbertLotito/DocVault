@@ -3,9 +3,9 @@ Art Enrichment Worker — idle daemon.
 
 Identification pipeline (per image):
 
-  Tier 1 — Local CLIP + Qdrant Art Index
-    Zero cost, fully private. Requires a pre-built 'art_index' Qdrant
-    collection (WikiArt / MET / similar). If the collection is absent or
+  Tier 1 — Local CLIP + LanceDB Art Index
+    Zero cost, fully private. Requires a pre-built 'art_index' LanceDB
+    table (WikiArt / MET / similar). If the table is absent or
     CLIP is not installed, this tier is silently skipped.
 
     - confidence >= art:clip_accept_threshold  → accept, skip cloud
@@ -320,9 +320,9 @@ def _ensure_clip_loaded() -> bool:
         return False
 
 
-def _call_clip_local(image_path: str, collection: str) -> dict | None:
+def _call_clip_local(image_path: str, table_name: str) -> dict | None:
     """
-    Generate a CLIP embedding for image_path and query the Qdrant art index.
+    Generate a CLIP embedding for image_path and query the LanceDB art index.
     Returns a result dict or None if unavailable.
     """
     if not _ensure_clip_loaded():
@@ -331,8 +331,7 @@ def _call_clip_local(image_path: str, collection: str) -> dict | None:
     try:
         import torch
         from PIL import Image
-        from qdrant_client import QdrantClient
-        from core.settings import settings
+        from embeddings.art_vector_store import ArtVectorStore
 
         # Build CLIP embedding
         pil_img = Image.open(image_path).convert('RGB')
@@ -342,32 +341,18 @@ def _call_clip_local(image_path: str, collection: str) -> dict | None:
             emb = emb / emb.norm(dim=-1, keepdim=True)
         vec = emb[0].cpu().numpy().tolist()
 
-        client = QdrantClient(
-            host=settings.get('qdrant:host') or 'localhost',
-            port=int(settings.get('qdrant:port') or 6333),
-        )
-
-        # Silently skip if collection not built yet
-        existing = [c.name for c in client.get_collections().collections]
-        if collection not in existing:
-            return None
-
-        hits = client.query_points(
-            collection_name=collection,
-            query=vec,
-            limit=1,
-        ).points
+        store = ArtVectorStore(table_name)
+        hits  = store.search(vec, top_k=1)
 
         if not hits:
             return None
 
-        best    = hits[0]
-        payload = best.payload or {}
+        best = hits[0]
         return {
-            'artist':     payload.get('artist', ''),
-            'title':      payload.get('title', ''),
-            'confidence': float(best.score),
-            'source_url': payload.get('source_url', ''),
+            'artist':     best.get('artist', ''),
+            'title':      best.get('title', ''),
+            'confidence': float(best['score']),
+            'source_url': best.get('source_url', ''),
             'tier':       'clip',
         }
 
@@ -563,14 +548,14 @@ def _identify_artwork(image_path: str) -> dict | None:
     from core.settings import settings
 
     # ── Tier 1: Local CLIP ─────────────────────────────────────────────────
-    clip_enabled   = str(settings.get('art:clip_enabled') or 'true').lower() == 'true'
-    clip_collection = settings.get('art:clip_qdrant_collection') or 'art_index'
-    clip_accept    = float(settings.get('art:clip_accept_threshold') or 0.80)
-    clip_fallback  = float(settings.get('art:clip_fallback_threshold') or 0.70)
+    clip_enabled  = str(settings.get('art:clip_enabled') or 'true').lower() == 'true'
+    clip_table    = settings.get('art:clip_table') or 'art_index'
+    clip_accept   = float(settings.get('art:clip_accept_threshold') or 0.80)
+    clip_fallback = float(settings.get('art:clip_fallback_threshold') or 0.70)
 
     clip_result = None
     if clip_enabled:
-        clip_result = _call_clip_local(image_path, clip_collection)
+        clip_result = _call_clip_local(image_path, clip_table)
         if clip_result:
             conf = clip_result['confidence']
             artist = clip_result.get('artist', '')

@@ -480,7 +480,7 @@ def get_vault_paths(db_path, file_hashes, vault_id):
 def substitute_vault_paths(db_path, results, vault_id_list):
     """Replace file_path in results with vault-specific path when single vault selected.
 
-    Safe to call when Qdrant is the path source (semantic/hybrid results carry origin paths).
+    Safe to call when the vector store is the path source (semantic/hybrid results carry origin paths).
     No-op when vault_id_list has != 1 entry, results is empty, or get_vault_paths fails.
     """
     if not (vault_id_list and len(vault_id_list) == 1 and results):
@@ -1092,7 +1092,7 @@ def filename_search(db_path, query, limit=50, file_type=None, date_from=None, da
 def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None, vault_ids=None):
     """Return list of file_hashes matching constraints, or None if no constraints active."""
     if not any([file_type, date_from, date_to, vault_ids]):
-        return None  # no filter — caller should not restrict Qdrant
+        return None  # no filter — caller should not restrict the vector store
 
     if vault_ids:
         # Use file_vault as the membership source; join tasks for attribute filters

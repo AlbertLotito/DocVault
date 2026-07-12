@@ -1,29 +1,13 @@
 services:
-  qdrant:
-    image: qdrant/qdrant
-    restart: unless-stopped
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - ./qdrant_storage:/qdrant/storage
-    # This healthcheck ensures the docvault service will wait until Qdrant is
-    # actually ready to accept connections before starting.
-    healthcheck:
-      test: ["CMD", "/usr/bin/health_check"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   docvault:
     build: .
     ports:
-      - "8000:8000"
+      - "8050:8050"
     volumes:
       # Mount the entire project directory into the container.
       # This allows you to edit code on your machine and see the
       # changes instantly inside the container without rebuilding.
       - .:/app
-    depends_on:
-      qdrant:
-        condition: service_healthy
+    # No external services required: the main document vector store and the
+    # optional CLIP art-identification index both run on embedded LanceDB
+    # (lancedb_storage/). DocVault runs standalone.

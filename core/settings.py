@@ -234,11 +234,11 @@ class Settings:
             # Art — Tier 1: Local CLIP
             'art:clip_enabled': {
                 'type': 'string', 'default': 'true', 'label': 'Enable local CLIP lookup', 'group': 'art',
-                'description': 'Set to "true" to query a local Qdrant art index using CLIP embeddings before calling any cloud API. Zero cost and fully private. Requires the art index to be pre-built (see docs). If the index is absent, this tier is silently skipped.',
+                'description': 'Set to "true" to query a local LanceDB art index using CLIP embeddings before calling any cloud API. Zero cost and fully private. Requires the art index to be pre-built (see docs). If the index is absent, this tier is silently skipped.',
             },
-            'art:clip_qdrant_collection': {
-                'type': 'string', 'default': 'art_index', 'label': 'Art index collection name', 'group': 'art',
-                'description': 'Name of the Qdrant collection that holds the pre-indexed art dataset (WikiArt, MET, etc.). Must be populated separately before CLIP lookup will return results.',
+            'art:clip_table': {
+                'type': 'string', 'default': 'art_index', 'label': 'Art index table name', 'group': 'art',
+                'description': 'Name of the LanceDB table (in lancedb_storage/) that holds the pre-indexed art dataset (WikiArt, MET, etc.). Must be populated separately before CLIP lookup will return results.',
             },
             'art:clip_accept_threshold': {
                 'type': 'float', 'default': 0.80, 'label': 'CLIP accept threshold', 'group': 'art',

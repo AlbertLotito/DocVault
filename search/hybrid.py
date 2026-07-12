@@ -55,8 +55,8 @@ async def async_search(db_path: str, query: str, top_k: int = 10,
                        vault_ids: list | None = None) -> tuple[list[dict], bool]:
     """
     Perform a hybrid search: FTS and Semantic in parallel, then RRF merge.
-    Returns (results, qdrant_offline) where qdrant_offline=True means Qdrant was
-    unreachable and results are FTS-only.
+    Returns (results, semantic_offline) where semantic_offline=True means the
+    vector store was unreachable/timed out and results are FTS-only.
     """
     from core.settings import settings
     sem_timeout = float(settings.get('search:semantic_timeout') or 20)
@@ -73,8 +73,8 @@ async def async_search(db_path: str, query: str, top_k: int = 10,
 
     fts_r, sem_r = await asyncio.gather(fts_task, semantic_task, return_exceptions=True)
 
-    # Handle exceptions from either task (semantic already returns [] on Qdrant failure,
-    # but guard here too in case of unexpected errors)
+    # Handle exceptions from either task (semantic already returns [] on vector
+    # store failure, but guard here too in case of unexpected errors)
     if isinstance(fts_r, Exception):
         fts_r = []
     if isinstance(sem_r, Exception):
@@ -86,6 +86,6 @@ async def async_search(db_path: str, query: str, top_k: int = 10,
         sem_r = None
 
     # None means semantic unavailable; [] means it worked but found nothing
-    qdrant_offline = sem_r is None
+    semantic_offline = sem_r is None
     merged = merge(fts_r, sem_r or [])
-    return merged[:top_k], qdrant_offline
+    return merged[:top_k], semantic_offline

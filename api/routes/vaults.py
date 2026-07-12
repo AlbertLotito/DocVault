@@ -93,7 +93,7 @@ def ignore_preview(vault_id: str):
 @router.post("/{vault_id}/apply-ignore")
 def apply_ignore(vault_id: str):
     """Remove already-indexed files matching this vault's current ignore rules.
-    Removes file_vault membership. Purges tasks/FTS/images/Qdrant if no other vault claims the file.
+    Removes file_vault membership. Purges tasks/FTS/images/vectors if no other vault claims the file.
     """
     import fnmatch as _fnmatch
     import sqlite3 as _sqlite3

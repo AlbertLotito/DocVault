@@ -32,7 +32,7 @@ Running tests:
 python -m pytest tests/ -v
 ```
 
-> **Note:** The test suite does not require a running server, Qdrant, or Ollama. Integration checks in `check_*.py` at the repo root do require the server to be running.
+> **Note:** The test suite does not require a running server or Ollama. Integration checks in `check_*.py` at the repo root do require the server to be running.
 
 ---
 
@@ -46,18 +46,18 @@ Claims a `PENDING` task from the queue, selects the highest-priority kernel from
 
 ### Embedding worker (`workers/embedding_worker.py`)
 
-Claims an `EXTRACTED` task, chunks the text, calls Ollama to generate embeddings, upserts vectors into Qdrant, and advances the task to `EMBEDDED`.
+Claims an `EXTRACTED` task, chunks the text, calls Ollama to generate embeddings, upserts vectors into the main **LanceDB** store, and advances the task to `EMBEDDED`.
 
-### Art enrichment worker (`workers/art_worker.py`)
+### Art enrichment worker (`workers/art_enrichment_worker.py`)
 
-Runs vision AI against images to identify artworks and enriches the Qdrant payload with art metadata (artist, title, medium, provenance signals).
+Runs vision AI against images to identify artworks and enriches results with art metadata (artist, title, medium, provenance signals). It queries a separate, pre-built CLIP embedding table — `art_index` — which lives in its own **LanceDB** table (`embeddings/art_vector_store.py`), distinct from the main document table (`docvault`) but in the same embedded `lancedb_storage/` directory. See [docs/tools/build-art-index.md](docs/tools/build-art-index.md) and [docs/internals/vision.md](docs/internals/vision.md) for how it's built.
 
 ### What belongs at each level
 
 | Level | Responsibilities |
 |---|---|
 | Extractor / kernel | Reading the file, parsing structure, calling OCR or vision APIs, emitting `IngestResult` |
-| Worker | Task state management, Qdrant upsert, priority scheduling, error recovery |
+| Worker | Task state management, vector store upsert, priority scheduling, error recovery |
 
 Keep file-format logic in kernels and pipeline orchestration in workers — do not let them bleed into each other.
 
@@ -170,14 +170,17 @@ class MyModel(BaseModel):
     name: str = None
 ```
 
-**qdrant-client v1.17+**
+**LanceDB (all vector storage — main store and art_index alike)**
+
+There is no external database service anywhere in DocVault. Both `embeddings/vector_store.py` (main document store, table `docvault`) and `embeddings/art_vector_store.py` (art identification, table `art_index`) are thin wrappers over the same embedded `lancedb_storage/` directory.
 
 ```python
-# Correct
-client.query_points(...)
+# Correct — merge_insert is the upsert path
+table.merge_insert("id").when_matched_update_all().when_not_matched_insert_all().execute(records)
 
-# Wrong — removed in v1.17
-client.search(...)
+# LanceDB's list_tables() returns a ListTablesResponse — use .tables to check membership
+if "docvault" in db.list_tables().tables:
+    ...
 ```
 
 **Primary key**

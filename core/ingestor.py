@@ -65,7 +65,7 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
     Walk directory, hash each file, and:
       - Insert new files with full metadata (size, created, modified).
       - Detect moved/renamed files (same hash, different path) and update
-        the path in SQLite and Qdrant without re-embedding.
+        the path in SQLite and the vector store without re-embedding.
     Returns (added, moved) counts.
     """
     from extractors.image_extractor import _cache_dir
@@ -166,7 +166,7 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
                         # File has moved within this vault — update vault-specific path
                         manager.upsert_file_vault(db_path, file_hash, vault_id, file_path)
                         if existing['vault_id'] == vault_id:
-                            # Origin vault: also update canonical path in tasks + Qdrant
+                            # Origin vault: also update canonical path in tasks + vector store
                             manager.update_task_path(db_path, file_hash, file_path)
                             _update_vector_path(file_hash, file_path)
                             moved += 1

@@ -20,8 +20,11 @@ credentials/
 # Extracted artefact cache (large, regenerable)
 .cache/
 
-# Qdrant vector store data (large, regenerable via Rebuild Index)
+# Qdrant vector store data — decommissioned 2026-07 (migrated to LanceDB art_index
+# table); kept as a backup pending user cleanup, not regenerable without re-running
+# tools/build_art_index.py from scratch
 qdrant_storage/
+qdrant_storage.migrated-backup/
 
 # LanceDB vector store data (large, regenerable via Rebuild Index)
 lancedb_storage/

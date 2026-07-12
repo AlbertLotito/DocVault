@@ -150,6 +150,18 @@ class VectorStore:
                 break
         return results
 
+    def get_chunks_by_hash(self, file_hash: str) -> list[dict]:
+        """Return all chunks for a document, sorted by chunk_index. Plain filter
+        scan via an empty-query search() — no vector similarity involved."""
+        rows = (
+            self._table.search()
+            .where(f"file_hash = '{_esc(file_hash)}'")
+            .limit(500)
+            .to_list()
+        )
+        rows.sort(key=lambda r: r['chunk_index'])
+        return [{'index': r['chunk_index'], 'text': r['chunk_text']} for r in rows]
+
     # ── Admin ──────────────────────────────────────────────────────────────────
 
     def drop_and_recreate(self):

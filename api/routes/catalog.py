@@ -31,7 +31,7 @@ def list_catalog(status: str = None, file_type: str = None,
 
 @router.get("/catalog/inspect")
 def inspect_file(path: str = Query(...)):
-    """Return full DB record + Qdrant chunks + extracted images for a file path."""
+    """Return full DB record + vector store chunks + extracted images for a file path."""
     db = get_db()
 
     # Look up task by file_path
@@ -49,27 +49,10 @@ def inspect_file(path: str = Query(...)):
         ).fetchall()
         images = [dict(r) for r in img_rows]
 
-    # Qdrant chunks
     chunks = []
     try:
-        from qdrant_client import QdrantClient
-        from qdrant_client.http import models as qm
-        from core.settings import settings
-        client = QdrantClient(host=settings.get('qdrant:host'), port=int(settings.get('qdrant:port')))
-        results, _ = client.scroll(
-            collection_name='docvault',
-            scroll_filter=qm.Filter(must=[
-                qm.FieldCondition(key='file_hash', match=qm.MatchValue(value=task['file_hash']))
-            ]),
-            limit=200,
-            with_payload=True,
-            with_vectors=False,
-        )
-        chunks = sorted(
-            [{'index': p.payload.get('chunk_index', i), 'text': p.payload.get('chunk_text', '')}
-             for i, p in enumerate(results)],
-            key=lambda x: x['index']
-        )
+        from embeddings.vector_store import VectorStore
+        chunks = VectorStore().get_chunks_by_hash(task['file_hash'])
     except Exception:
         pass
 

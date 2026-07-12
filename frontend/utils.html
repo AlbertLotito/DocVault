@@ -84,14 +84,14 @@
         <div class="lc-bar-badge" onclick="lcAccordion(this)">
           <div class="lc-bar-tab" style="background:#2a3300;">&#11041;</div>
           <div class="lc-bar-body">
-            <div class="lc-bar-name" data-i18n="utils.qdrant_title">Qdrant</div>
-            <div class="lc-bar-desc" data-i18n="utils.qdrant_desc">Vector store health and collection info</div>
+            <div class="lc-bar-name" data-i18n="utils.vector_store_title">Vector Store</div>
+            <div class="lc-bar-desc" data-i18n="utils.vector_store_desc">Vector store health and table info</div>
             <div class="lc-bar-arrow">&#9654;</div>
           </div>
         </div>
-        <div class="lc-bar-expand" id="qdrant-expand">
-          <button class="lc-btn lc-btn-sm" onclick="runQdrantCheck()" data-i18n="utils.qdrant_check">Check Qdrant</button>
-          <div id="qdrant-results" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
+        <div class="lc-bar-expand" id="vector-store-expand">
+          <button class="lc-btn lc-btn-sm" onclick="runVectorStoreCheck()" data-i18n="utils.vector_store_check">Check Vector Store</button>
+          <div id="vector-store-results" style="margin-top:10px;font-size:11px;color:var(--c-label);"></div>
         </div>
 
         <div class="lc-bar-badge" onclick="lcAccordion(this)">
@@ -241,18 +241,18 @@
       try { await api(`/utils/${action}`, { method: 'POST' }); runHealthCheck(); } catch(e) { btn.disabled = false; }
     }
 
-    async function runQdrantCheck() {
-      const res = document.getElementById('qdrant-results');
-      res.innerHTML = `<span style="color:var(--c-warn);">${t('utils.qdrant_running')}</span>`;
+    async function runVectorStoreCheck() {
+      const res = document.getElementById('vector-store-results');
+      res.innerHTML = `<span style="color:var(--c-warn);">${t('utils.vector_store_running')}</span>`;
       try {
-        const result = await api('/utils/qdrant_check');
+        const result = await api('/utils/vector_store_check');
         if (result.status === 'ok') {
-          res.innerHTML = `<span style="color:var(--c-ok);">${result.message}</span>`;
+          res.innerHTML = `<span style="color:var(--c-ok);">OK — ${result.vectors.toLocaleString()} vectors indexed</span>`;
         } else {
-          res.innerHTML = `<span style="color:var(--c-error);">${result.message}</span>`;
+          res.innerHTML = `<span style="color:var(--c-error);">${result.detail}</span>`;
         }
       } catch (err) {
-        res.innerHTML = `<span style="color:var(--c-error);">${t('utils.qdrant_failed')}</span>`;
+        res.innerHTML = `<span style="color:var(--c-error);">${t('utils.vector_store_failed')}</span>`;
       }
     }
 

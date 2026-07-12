@@ -1,7 +1,7 @@
 """
 Span grounding utilities for RAG and search.
 
-Resolves character offsets for Qdrant/FTS chunks using a two-step strategy:
+Resolves character offsets for LanceDB/FTS chunks using a two-step strategy:
   1. Formula: offset = chunk_index × (chunk_size − chunk_overlap)  [exact under normal conditions]
   2. Fallback: str.find() on chunk_text[:120]                      [handles settings-change edge cases]
 """

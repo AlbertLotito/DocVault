@@ -77,7 +77,7 @@ Image
 ┌─────────────────────────────────────┐
 │  Tier 1: CLIP Local (free, instant) │
 │  openai/clip ViT-B/32               │
-│  Qdrant art_index collection        │
+│  LanceDB art_index table            │
 └─────────────────────────────────────┘
        │
        ├─ score ≥ 0.80 AND named artist → ACCEPT (return immediately, no cloud call)
@@ -113,9 +113,9 @@ CLIP (Contrastive Language-Image Pretraining, OpenAI, ViT-B/32) encodes images i
 
 The art index stores CLIP embeddings of known artworks. Given a query image, we find the nearest neighbours in the index.
 
-### The art_index Collection
+### The art_index Table
 
-The Qdrant `art_index` collection holds pre-computed CLIP embeddings with payload:
+The LanceDB `art_index` table (`embeddings/art_vector_store.py`, in `lancedb_storage/`) holds pre-computed CLIP embeddings with payload:
 
 ```json
 {
@@ -265,7 +265,7 @@ Bing Visual Search has not been extensively tested in production (no Bing API ke
 
 ### build_art_index.py
 
-`tools/build_art_index.py` is a standalone CLI for seeding the `art_index` Qdrant collection. It is **not** run automatically — it is run once (or when you want to expand coverage) from the command line.
+`tools/build_art_index.py` is a standalone CLI for seeding the `art_index` LanceDB table. It is **not** run automatically — it is run once (or when you want to expand coverage) from the command line.
 
 ```bash
 # Seed from both sources
@@ -362,7 +362,7 @@ identified_at = 2026-03-05T10:14:32.441Z
 | Key | Group | Default | Description |
 |-----|-------|---------|-------------|
 | `art:clip_enabled` | art | `true` | Enable local CLIP tier |
-| `art:clip_qdrant_collection` | art | `art_index` | Qdrant collection for art embeddings |
+| `art:clip_table` | art | `art_index` | LanceDB table name for art embeddings |
 | `art:clip_accept_threshold` | art | `0.80` | Min CLIP score to accept without cloud (named artist required) |
 | `art:clip_fallback_threshold` | art | `0.70` | Min CLIP score to keep as candidate |
 | `art:cloud_provider` | art | `google` | Primary cloud provider (`google` or `bing`) |

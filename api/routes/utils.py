@@ -271,8 +271,8 @@ def optimizer_abort():
     return {"state": "aborting"}
 
 
-@router.get("/utils/qdrant_check")
-def run_qdrant_check():
+@router.get("/utils/vector_store_check")
+def run_vector_store_check():
     """Health check for the vector store."""
     try:
         from embeddings.vector_store import VectorStore
@@ -415,21 +415,21 @@ def system_health():
             })
 
         # 2. Embedding failures (safe to retry — transient vector store error)
-        qdrant_errs = conn.execute(
+        embed_errs = conn.execute(
             """SELECT COUNT(*) as n FROM tasks
                WHERE status='ERROR'
-               AND (error_log LIKE '%upsert%' OR error_log LIKE '%Qdrant%'
+               AND (error_log LIKE '%upsert%' OR error_log LIKE '%vector store%'
                     OR error_log LIKE '%timed out%')"""
         ).fetchone()['n']
-        if qdrant_errs:
+        if embed_errs:
             issues.append({
-                'id': 'qdrant_errors',
+                'id': 'embed_errors',
                 'severity': 'warning',
-                'title': f'{qdrant_errs} embedding failure{"s" if qdrant_errs != 1 else ""}',
+                'title': f'{embed_errs} embedding failure{"s" if embed_errs != 1 else ""}',
                 'detail': 'Extracted text is intact. Failed only at the embedding/upload step. Safe to retry.',
                 'action': 'retry_embed_errors',
-                'action_label': f'Retry {qdrant_errs} (reset to EXTRACTED)',
-                'count': qdrant_errs,
+                'action_label': f'Retry {embed_errs} (reset to EXTRACTED)',
+                'count': embed_errs,
             })
 
         # 3. Encoding errors (need a code fix — don't auto-retry)
@@ -450,7 +450,7 @@ def system_health():
             })
 
         # 4. Other errors (empty files, genuine failures — info only)
-        other_errs = counts.get('ERROR', 0) - qdrant_errs - enc_errs
+        other_errs = counts.get('ERROR', 0) - embed_errs - enc_errs
         if other_errs > 0:
             issues.append({
                 'id': 'other_errors',
@@ -473,7 +473,7 @@ def system_health():
         vs_ok = True
     except Exception as e:
         issues.append({
-            'id': 'qdrant_down',
+            'id': 'vector_store_down',
             'severity': 'error',
             'title': 'Vector store unavailable',
             'detail': f'Embedding worker cannot store vectors: {e}',
@@ -485,7 +485,7 @@ def system_health():
     return {
         'issues': issues,
         'counts': counts,
-        'qdrant': {'ok': vs_ok, 'points': vs_points},
+        'vector_store': {'ok': vs_ok, 'points': vs_points},
     }
 
 
@@ -937,7 +937,7 @@ def retry_embed_errors():
     n = _db_write(DB_PATH,
         """UPDATE tasks SET status='EXTRACTED', worker_id=NULL, last_update=datetime('now')
            WHERE status='ERROR'
-           AND (error_log LIKE '%upsert%' OR error_log LIKE '%Qdrant%'
+           AND (error_log LIKE '%upsert%' OR error_log LIKE '%vector store%'
                 OR error_log LIKE '%timed out%')"""
     )
     return {'ok': True, 'reset': n}

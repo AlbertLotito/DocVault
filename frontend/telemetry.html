@@ -851,9 +851,9 @@
                 .map(s => `<a href="/vault?status=${s}" class="health-badge ${badgeClasses[s]}">${s} ${data.counts[s]}</a>`)
                 .join('');
 
-            // Qdrant Status
-            const qColor = data.qdrant.ok ? 'badge-emerald' : 'badge-ruby';
-            html += `<span class="health-badge ${qColor}">QDRANT ${data.qdrant.ok ? 'OK' : 'OFFLINE'}</span>`;
+            // Vector store status
+            const vsColor = data.vector_store.ok ? 'badge-emerald' : 'badge-ruby';
+            html += `<span class="health-badge ${vsColor}">VECTORS ${data.vector_store.ok ? 'OK' : 'OFFLINE'}</span>`;
 
             summaryEl.innerHTML = html;
 

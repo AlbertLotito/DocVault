@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build the local CLIP art identification index in Qdrant (`art_index` collection).
+Build the local CLIP art identification index in LanceDB (`art_index` table).
 
 Downloads and indexes two open art datasets:
 
@@ -9,7 +9,9 @@ Downloads and indexes two open art datasets:
                (metadata CSV from GitHub + images from the MET CDN)
 
 Downloaded files are kept in the DocVault cache directory for your review.
-The Qdrant `art_index` collection (~2 GB) is the only permanent artefact.
+The LanceDB `art_index` table (~2 GB, in lancedb_storage/) is the only
+permanent artefact. No external service required — LanceDB is embedded,
+same as the main document vector store.
 
 Usage
 -----
@@ -29,18 +31,18 @@ Usage
   # Override cache directory
   python tools/build_art_index.py --cache-dir D:\\art_staging
 
-  # Override Qdrant connection
-  python tools/build_art_index.py --qdrant-host localhost --qdrant-port 6333
+  # Use a non-default LanceDB table name
+  python tools/build_art_index.py --table art_index_v2
 
 Requirements (one-time install)
 --------------------------------
-  pip install openai-clip torch torchvision datasets tqdm requests qdrant-client
+  pip install openai-clip torch torchvision datasets tqdm requests
 
 Staging storage needed
 ----------------------
-  WikiArt (HuggingFace cache)  ~50 GB
-  MET images                   ~18 GB
-  Qdrant art_index (permanent) ~2 GB
+  WikiArt (HuggingFace cache)   ~50 GB
+  MET images                    ~18 GB
+  LanceDB art_index (permanent) ~2 GB
 """
 
 import argparse
@@ -63,13 +65,12 @@ sys.path.insert(0, str(_ROOT))
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-COLLECTION      = 'art_index'
+TABLE_NAME      = 'art_index'
 CLIP_DIM        = 512          # ViT-B/32 output dimension
 MET_CSV_URL     = (
     'https://github.com/metmuseum/openaccess/raw/master/MetObjects.csv'
 )
 MET_WORKERS     = 10           # concurrent image download threads
-QDRANT_TIMEOUT  = 60           # seconds
 
 _ID_NAMESPACE = uuid.UUID('12345678-1234-5678-1234-567812345678')
 
@@ -155,16 +156,6 @@ def _read_cache_dir() -> str:
     return str(_ROOT / '.cache' / 'extracted_images')
 
 
-def _read_qdrant_config() -> tuple[str, int]:
-    try:
-        from core.settings import settings
-        host = settings.get('qdrant:host') or 'localhost'
-        port = int(settings.get('qdrant:port') or 6333)
-        return host, port
-    except Exception:
-        return 'localhost', 6333
-
-
 # ── CLIP ──────────────────────────────────────────────────────────────────────
 
 _clip_model      = None
@@ -203,42 +194,22 @@ def embed_pil_images(pil_images: list) -> list[list[float]]:
     return emb.cpu().numpy().tolist()
 
 
-# ── Qdrant ────────────────────────────────────────────────────────────────────
+# ── LanceDB ───────────────────────────────────────────────────────────────────
 
-def ensure_collection(client, collection: str):
-    from qdrant_client.models import Distance, VectorParams
-    existing = {c.name for c in client.get_collections().collections}
-    if collection not in existing:
-        print(f"Creating Qdrant collection '{collection}' (dim={CLIP_DIM}, cosine) …")
-        client.create_collection(
-            collection_name=collection,
-            vectors_config=VectorParams(size=CLIP_DIM, distance=Distance.COSINE),
-        )
+def ensure_table(store):
+    if store.exists():
+        print(f"Table '{store.table_name}' exists ({store.count()} rows).")
     else:
-        info = client.get_collection(collection)
-        actual_dim = info.config.params.vectors.size
-        if actual_dim != CLIP_DIM:
-            print(
-                f"ERROR: collection '{collection}' exists with dim={actual_dim}, "
-                f"expected {CLIP_DIM}. Delete it and re-run, or use --collection.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        print(f"Collection '{collection}' exists ({info.points_count} points).")
+        print(f"Table '{store.table_name}' will be created on first upsert (dim={CLIP_DIM}, cosine).")
 
 
-def upsert_batch(client, collection: str, ids: list, vectors: list, payloads: list):
-    from qdrant_client.models import PointStruct
-    points = [
-        PointStruct(id=i, vector=v, payload=p)
-        for i, v, p in zip(ids, vectors, payloads)
-    ]
-    client.upsert(collection_name=collection, points=points)
+def upsert_batch(store, ids: list, vectors: list, payloads: list):
+    store.upsert_batch(ids, vectors, payloads)
 
 
 # ── WikiArt ───────────────────────────────────────────────────────────────────
 
-def index_wikiart(client, args, progress: ProgressDB):
+def index_wikiart(store, args, progress: ProgressDB):
     """Download and index WikiArt via HuggingFace Datasets."""
     try:
         from datasets import load_dataset
@@ -339,7 +310,7 @@ def index_wikiart(client, args, progress: ProgressDB):
 
         if len(batch_ids) >= args.batch:
             vectors = embed_pil_images(batch_imgs)
-            upsert_batch(client, args.collection, batch_ids, vectors, batch_payloads)
+            upsert_batch(store, batch_ids, vectors, batch_payloads)
             for pid_ in batch_ids:
                 progress.mark_done(pid_, 'wikiart')
             indexed += len(batch_ids)
@@ -348,7 +319,7 @@ def index_wikiart(client, args, progress: ProgressDB):
     # Flush remainder
     if batch_ids:
         vectors = embed_pil_images(batch_imgs)
-        upsert_batch(client, args.collection, batch_ids, vectors, batch_payloads)
+        upsert_batch(store, batch_ids, vectors, batch_payloads)
         for pid_ in batch_ids:
             progress.mark_done(pid_, 'wikiart')
         indexed += len(batch_ids)
@@ -443,7 +414,7 @@ def _download_image(row: dict, images_dir: str, progress: 'ProgressDB') -> str |
         return None
 
 
-def index_met(client, args, progress: ProgressDB):
+def index_met(store, args, progress: ProgressDB):
     """Download and index MET Open Access dataset."""
     try:
         from tqdm import tqdm
@@ -528,7 +499,7 @@ def index_met(client, args, progress: ProgressDB):
 
         if len(batch_ids) >= args.batch:
             vectors = embed_pil_images(batch_imgs)
-            upsert_batch(client, args.collection, batch_ids, vectors, batch_payloads)
+            upsert_batch(store, batch_ids, vectors, batch_payloads)
             for pid_ in batch_ids:
                 progress.mark_done(pid_, 'met')
             indexed += len(batch_ids)
@@ -537,7 +508,7 @@ def index_met(client, args, progress: ProgressDB):
     # Flush remainder
     if batch_ids:
         vectors = embed_pil_images(batch_imgs)
-        upsert_batch(client, args.collection, batch_ids, vectors, batch_payloads)
+        upsert_batch(store, batch_ids, vectors, batch_payloads)
         for pid_ in batch_ids:
             progress.mark_done(pid_, 'met')
         indexed += len(batch_ids)
@@ -547,11 +518,11 @@ def index_met(client, args, progress: ProgressDB):
 
 # ── Verify ────────────────────────────────────────────────────────────────────
 
-def verify(client, args):
+def verify(store, args):
     """
     Spot-check the index by querying a handful of known artworks.
     Loads test images from the already-downloaded MET cache and prints the
-    top match from Qdrant so you can eyeball quality.
+    top match from LanceDB so you can eyeball quality.
     """
     from PIL import Image
     import random
@@ -567,23 +538,18 @@ def verify(client, args):
     )
 
     load_clip()
-    print(f"\nVerifying {len(sample)} random images against '{args.collection}' …\n")
+    print(f"\nVerifying {len(sample)} random images against '{store.table_name}' …\n")
 
     for fname in sample:
         img_path = os.path.join(images_dir, fname)
-        obj_id   = fname.replace('.jpg', '')
         try:
             img     = Image.open(img_path)
             vectors = embed_pil_images([img])
-            hits    = client.query_points(
-                collection_name=args.collection,
-                query=vectors[0],
-                limit=1,
-            ).points
+            hits    = store.search(vectors[0], top_k=1)
             if hits:
-                p = hits[0].payload
+                p = hits[0]
                 print(
-                    f"  {fname:20s}  score={hits[0].score:.3f}  "
+                    f"  {fname:20s}  score={p['score']:.3f}  "
                     f"{p.get('artist','?')} — {p.get('title','?')}  "
                     f"[{p.get('dataset','?')}]"
                 )
@@ -597,7 +563,7 @@ def verify(client, args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Build the DocVault local CLIP art index in Qdrant.',
+        description='Build the DocVault local CLIP art index in LanceDB.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -609,8 +575,8 @@ def main():
         help='Override the DocVault cache directory for dataset storage',
     )
     parser.add_argument(
-        '--collection', default=COLLECTION,
-        help=f'Qdrant collection name (default: {COLLECTION})',
+        '--table', default=TABLE_NAME,
+        help=f'LanceDB table name (default: {TABLE_NAME})',
     )
     parser.add_argument(
         '--batch', type=int, default=64,
@@ -619,14 +585,6 @@ def main():
     parser.add_argument(
         '--limit', type=int, default=None,
         help='Cap items per source — useful for smoke-testing',
-    )
-    parser.add_argument(
-        '--qdrant-host', default=None,
-        help='Qdrant host (default: from DocVault settings)',
-    )
-    parser.add_argument(
-        '--qdrant-port', type=int, default=None,
-        help='Qdrant port (default: from DocVault settings)',
     )
     parser.add_argument(
         '--hf-token', default=None,
@@ -646,37 +604,22 @@ def main():
     if args.cache_dir is None:
         args.cache_dir = _read_cache_dir()
 
-    cfg_host, cfg_port = _read_qdrant_config()
-    qdrant_host = args.qdrant_host or cfg_host
-    qdrant_port = args.qdrant_port or cfg_port
+    from embeddings.art_vector_store import ArtVectorStore
+    store = ArtVectorStore(args.table)
 
     print(f"DocVault cache dir : {args.cache_dir}")
-    print(f"Qdrant             : {qdrant_host}:{qdrant_port}  collection={args.collection}")
+    print(f"LanceDB table      : {args.table}  (lancedb_storage/)")
     if args.limit:
         print(f"Limit              : {args.limit} items per source  (smoke-test mode)")
-
-    # ── Connect to Qdrant ─────────────────────────────────────────────────────
-    try:
-        from qdrant_client import QdrantClient
-    except ImportError:
-        print("ERROR: qdrant-client not installed. Run: pip install qdrant-client", file=sys.stderr)
-        sys.exit(1)
-
-    client = QdrantClient(host=qdrant_host, port=qdrant_port, timeout=QDRANT_TIMEOUT)
-    try:
-        client.get_collections()
-    except Exception as e:
-        print(f"ERROR: Cannot connect to Qdrant at {qdrant_host}:{qdrant_port}: {e}", file=sys.stderr)
-        sys.exit(1)
 
     # ── Verify mode ───────────────────────────────────────────────────────────
     if args.verify:
         load_clip()
-        verify(client, args)
+        verify(store, args)
         return
 
     # ── Build mode ────────────────────────────────────────────────────────────
-    ensure_collection(client, args.collection)
+    ensure_table(store)
     load_clip()
 
     progress_path = os.path.join(args.cache_dir, 'art_datasets', '.index_progress.db')
@@ -689,19 +632,18 @@ def main():
     t_start = time.monotonic()
 
     if args.source in ('wikiart', 'all'):
-        index_wikiart(client, args, progress)
+        index_wikiart(store, args, progress)
 
     if args.source in ('met', 'all'):
-        index_met(client, args, progress)
+        index_met(store, args, progress)
 
     elapsed = time.monotonic() - t_start
     total   = progress.count()
 
-    coll_info = client.get_collection(args.collection)
     print(f"\n{'='*60}")
     print(f"Done in {elapsed/60:.1f} min")
     print(f"Progress DB total  : {total} indexed")
-    print(f"Qdrant point count : {coll_info.points_count}")
+    print(f"LanceDB row count  : {store.count()}")
     print(f"{'='*60}")
     print(f"\nDownloaded data is in: {os.path.join(args.cache_dir, 'art_datasets')}")
     print("The art_index is ready. The enrichment worker will use it automatically.")
