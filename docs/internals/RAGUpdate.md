@@ -1,8 +1,10 @@
 # DocVault: RAG Strategy Update — Chunk-Level Hybrid Search
 
 **Date:** 2026-03-04
-**Status:** Proposed Architecture
+**Status:** IMPLEMENTED — see note below
 **Goal:** Improve RAG precision by aligning Keyword (FTS5) and Semantic (Vector) search at the chunk level.
+
+> **Implementation note (2026-07):** This proposal has shipped. `core/manager.py`'s `fts_index` table is chunk-level (`chunk_index` column, one row per chunk), and `search/hybrid.py` fuses FTS + semantic results via RRF at the chunk level exactly as proposed below. This document is kept as the design rationale, not as a pending backlog item. Note also that the vector side described here as "Qdrant" refers to the *main* document store, which was later migrated to LanceDB (2026-04-25) — the RRF/chunk-alignment design itself was unaffected by that migration. See [docs/architecture.md](../architecture.md) §7 for the current search architecture.
 
 ---
 

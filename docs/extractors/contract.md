@@ -160,26 +160,29 @@ The return envelope for a successful extraction.
 |-------|------|-------------|
 | `text` | `str \| None` | Primary extracted text. Will be FTS5-indexed and chunked for embeddings. |
 | `metadata` | `dict` | Structured key-value metadata (author, date, dimensions, codec, etc.). |
-| `images` | `list[dict]` | Extracted images. Each dict has `path`, `caption`, `page_number`. |
-| `child_tasks` | `list[dict]` | Files to dispatch as new ingestion tasks. Each dict has `file_path`, `source_hash`. |
-| `enrichments` | `dict` | Extra payload merged into the LanceDB vector record (searchable fields). |
-| `errors` | `list[ExtractorError]` | Non-fatal errors (logged but do not fail the task). |
-| `status` | `str` | `"ok"` / `"partial"` / `"empty"`. |
+| `images` | `list[ExtractedImage]` | Extracted images. Each has `file_path`, `page_num`, `image_index`, `width`, `height` (all but `file_path` optional). |
+| `child_tasks` | `list[ChildTask]` | Files to dispatch as new ingestion tasks. Each has `file_path`, `file_type`, `vault_id`, plus optional `file_hash` and `priority` (default `10`). |
+| `enrichments` | `list[Enrichment]` | Derived metadata records. Each has `kind` (e.g. `'summary'`, `'tags'`, `'entities'`) and `value`. |
+| `errors` | `list[ExtractError]` | Non-fatal errors (logged but do not fail the task). Each has `extractor_name`, `error_type`, `message`, optional `tb`. |
+| `status` | `str` | `"success"` / `"partial"` / `"failed"` / `"cancelled"`. |
 | `extractor_name` | `str` | Set automatically by the framework. Do not set manually. |
 | `elapsed_secs` | `float` | Set automatically by the framework. Do not set manually. |
+
+All dataclasses (`ExtractedImage`, `ChildTask`, `Enrichment`, `ExtractError`) live in `core/extractors/base.py` alongside `IngestResult` itself.
 
 ### Status values
 
 | Value | When to use |
 |-------|-------------|
-| `"ok"` | Full extraction succeeded |
+| `"success"` | Full extraction succeeded (this is also the field's default) |
 | `"partial"` | Some content extracted but parts failed (use `errors` to describe) |
-| `"empty"` | File is valid but contains no extractable content |
+| `"failed"` | Extraction did not produce usable content |
+| `"cancelled"` | Aborted because `ctx.cancel_token` was set mid-extraction |
 
 ### Minimal valid result
 
 ```python
-IngestResult(text="Hello world", status="ok")
+IngestResult(text="Hello world", status="success")
 ```
 
 All fields other than `status` are optional and default to empty/`None`.
@@ -250,9 +253,9 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         return None, f"Failed to read file: {e}"
 
     if not text.strip():
-        return IngestResult(text=None, status="empty"), None
+        return IngestResult(text=None, status="failed"), None
 
-    return IngestResult(text=text, metadata={"char_count": len(text)}, status="ok"), None
+    return IngestResult(text=text, metadata={"char_count": len(text)}, status="success"), None
 ```
 
 ---
@@ -270,4 +273,4 @@ Before submitting or certifying a kernel, verify:
 - [ ] Long loops check `ctx.cancel_token.is_set()`
 - [ ] Uses `ctx.logger` instead of `print()`
 - [ ] Reads settings via `ctx.settings.get()` at call time, not at import time
-- [ ] `status` field set to `"ok"`, `"partial"`, or `"empty"`
+- [ ] `status` field set to `"success"`, `"partial"`, `"failed"`, or `"cancelled"`

@@ -74,7 +74,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             "key_count":          len(lines),
             "top_level_sections": list(data.keys()),
         },
-        status="ok" if text else "empty",
+        status="success" if text else "failed",
     )
     return result, None
 ```
@@ -100,7 +100,7 @@ If the audit fails, the error message tells you exactly which check failed and w
 
 ### Step 5 — Certify in the Extractor Lab
 
-Open http://localhost:8000/lab. Your new kernel appears in the sidebar with status `unverified`.
+Open http://localhost:8050/lab. Your new kernel appears in the sidebar with status `unverified`.
 
 1. Click the kernel name to select it.
 2. Click **Certify** in the Certification panel.

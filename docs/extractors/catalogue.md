@@ -123,10 +123,10 @@ Required by: `intelligent_image_extractor`, `photo_intelligence_extractor`, `mul
 1. Install Ollama from <https://ollama.com>
 2. Pull the required models:
    ```bash
-   ollama pull minicpm-v      # vision (default)
-   ollama pull deepseek-r1:14b  # chat / reasoning (default)
+   ollama pull minicpm-v       # vision (default)
+   ollama pull qwen2.5:14b     # chat / RAG (default)
    ```
-3. Confirm Ollama is running at `http://localhost:11434` (configurable via `ollama:url` in Settings)
+3. Confirm Ollama is running at `http://localhost:11434` (configurable via `ollama:host` in Settings)
 
 ### face_recognition / dlib (face identity)
 

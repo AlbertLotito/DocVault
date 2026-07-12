@@ -18,6 +18,13 @@ DocVault resolves settings in priority order (highest first):
 
 ## 2. Full Settings Reference
 
+### [server]
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `host` | `127.0.0.1` | Bind address for the FastAPI server. Set to `0.0.0.0` to expose on the local network — see the security note in [troubleshooting.md](troubleshooting.md) before doing this, DocVault has no authentication layer. |
+| `port` | `8050` | Bind port. Change here or via the Settings UI (`server:port`) if 8050 is already in use. |
+
 ### [paths]
 
 | Key | Default | Description |

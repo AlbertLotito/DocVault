@@ -15,5 +15,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Define the command to run the application
-# The server will be accessible on port 8000 inside the container
+# The server binds to config.ini's [server] port (default 8050) inside the container
 CMD ["python", "run.py"]

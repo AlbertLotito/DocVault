@@ -12,6 +12,37 @@ A local-first document intelligence platform — scan your files, extract every 
 
 ---
 
+## Philosophy & Design
+
+DocVault exists because most "search my files" tools stop at the text layer. A PDF is more than the words `pdfminer` can pull out of it — it's also the scanned page images inside it, which have their own text and content. A photo is more than pixels — it's GPS coordinates, camera settings, faces, and a scene an AI can describe in words. An audio file is a transcript waiting to happen. DocVault's guiding principle is **maximum extraction**: every file should yield as much structured, searchable signal as it possibly can, using whatever combination of parsing, OCR, vision AI, and transcription applies. Where most systems pick the single "best" extractor per file type, DocVault deliberately runs every kernel that matches — a `.jpg` is processed by an OCR pass, an EXIF/GPS pass, a scene-description pass, and a face-detection pass, each contributing a different layer to the same document record (see [the overlapping-kernels table](docs/extractors/catalogue.md#4-notes-on-overlapping-kernels)).
+
+**Local-first is a hard constraint, not a checkbox.** Every piece of AI inference — embeddings, vision descriptions, RAG chat — runs against a local Ollama instance. The vector store (LanceDB) is an embedded library with no server process to run or secure. Nothing leaves the machine unless a user deliberately configures an external API key for an optional feature (e.g. cloud fallback for art identification). This constraint is why LanceDB replaced an earlier Qdrant-based design for the main document store: an external database service is one more thing to install, secure, and keep running, and "local-first" should mean the software actually behaves that way by default, not just that it's *capable* of running offline.
+
+**The system is architected like a small, self-governing operating system**, and thinking of it that way is the fastest way to understand the codebase:
+
+| OS concept | DocVault component | Role |
+|---|---|---|
+| Kernel / registry | `core/manager.py` | SQLite-backed task queue and content store — tracks every document and its processing state |
+| Mount manager | `core/vault_manager.py` | Vaults are mounted namespaces, each with its own priority, settings, and lifecycle |
+| Scheduler | `workers/*.py` | Three daemon workers claim tasks by composite priority, process them, and hand off to the next stage |
+| Interrupt vector table | `core/router.py` | Maps file extensions to the ordered list of kernels that should run against them |
+| Drivers | `extractors/*.py` | Each kernel implements one fixed contract — `extract(file_path, ctx) -> (IngestResult, error)` — so the scheduler never needs to know *how* a file was processed, only what came back |
+| Power/thermal management | `core/monitor.py` | The resource governor samples CPU/GPU/disk and throttles workers under load, the same way an OS avoids cooking the hardware |
+| Syscall interface | `api/` (FastAPI) | The only way the frontend touches the system's internals |
+| Shell | `frontend/*.html` | The user-facing view onto vault state, search, and telemetry |
+
+**Nothing gets to starve.** The task queue orders work by `((10 - vault_priority) * extractor_priority) + (age_seconds / 3600)`. A vault marked low-priority still gets processed — the age term grows every hour a task waits, so eventually it outranks anything newer. This is the same aging technique OS schedulers use to prevent priority inversion from starving background work forever.
+
+**Degrade, don't crash.** Nearly every subsystem has a documented fallback path rather than a failure mode: semantic search that times out falls back to FTS-only with a visible "degraded" banner instead of erroring; a CPU temperature sensor that WMI can't reach is swapped for a dummy 0°C reading instead of taking down the resource governor; a worker that can't reach Ollama keeps extracting text and indexing FTS while embeddings queue up for later. The rule of thumb throughout the codebase: a missing piece should shrink the feature set, never take down the whole system.
+
+**Three databases, three lifecycles.** `docvault.db` (tasks, extracted text, FTS5 index) is treated as disposable — safe to delete and let re-extraction rebuild it. `settings.db` (vault definitions, user configuration, API keys) must survive that reset, so it lives in its own file and `reset.ps1` never touches it. `logs.db` (timings, errors, sensor history) is pure observability and can be cleared without losing anything that matters to the running system. Splitting these into separate files makes the "which data is safe to nuke" question trivial to answer and enforce, rather than a convention someone has to remember.
+
+**Settings are resolved, not hardcoded**, through a four-tier chain — per-vault override → user setting in `settings.db` → `config.ini` deployment default → built-in schema default — and the one rule enforced everywhere in the codebase is that values are read *at call time*, never cached at import time. This exists because DocVault's workers are long-running daemon threads: a setting changed through the UI mid-run must take effect on the worker's next loop, not require a restart.
+
+**Simplicity over resilience where it's cheap to do so.** DocVault runs as a single native process with daemon worker threads and no graceful shutdown drain — `run.py` forces `os._exit(0)` shortly after a stop signal rather than waiting for in-flight work to finish cleanly. This trade only works because tasks are resumable by design: a task killed mid-extraction is picked back up from its last committed state on the next run, so there's nothing to lose by exiting hard. One command starts everything; Ctrl+C stops it.
+
+---
+
 ## Features
 
 ### Extraction
@@ -109,11 +140,7 @@ Open http://localhost:8050 — see [docs/setup.md](docs/setup.md) for the full p
 
 ## Architecture
 
-Three daemon workers share a SQLite task queue: the extraction worker reads files and runs extraction kernels, the embedding worker chunks extracted text and upserts vectors to LanceDB, and the art enrichment worker identifies artworks and enriches metadata. A resource governor runs as a background daemon, monitoring CPU, GPU, and disk pressure and throttling workers automatically when the system is under load.
-
-Three SQLite databases keep concerns separated: `docvault.db` holds the task queue and extracted content (safe to delete and rebuild), `settings.db` holds user configuration, vault definitions, and API keys (survives data resets), and `logs.db` records per-task timings, worker errors, extractor statistics, and system sensor samples. LanceDB — an embedded vector database, no external service required — stores the semantic embedding vectors in `lancedb_storage/`.
-
-See [docs/architecture.md](docs/architecture.md) for the full component map and data-flow diagram.
+Three daemon workers share a SQLite task queue: the extraction worker reads files and runs extraction kernels, the embedding worker chunks extracted text and upserts vectors to LanceDB, and the art enrichment worker identifies artworks and enriches metadata. A resource governor runs as a background daemon, monitoring CPU, GPU, and disk pressure and throttling workers automatically when the system is under load. See [Philosophy & Design](#philosophy--design) above for why the system is shaped this way, and [docs/architecture.md](docs/architecture.md) for the full component map and data-flow diagram.
 
 ---
 
