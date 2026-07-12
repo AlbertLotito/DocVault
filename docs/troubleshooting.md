@@ -43,6 +43,25 @@ Run `ollama serve` in a separate terminal. DocVault starts successfully without 
 
 ---
 
+### `Ollama did not respond after 10 s` (Windows port-exclusion collision)
+
+```
+[..] Ollama not detected on 11600 - launching ollama serve...
+[!!] Ollama did not respond after 10 s. LLM features may fail.
+```
+
+Cause: Windows/Hyper-V (including WSL2's NAT) reserves dynamic TCP port-exclusion ranges that are **re-randomised on every reboot**. Whatever port `config.ini`'s `[ollama] host` points at can work for months and then suddenly start refusing binds — `ollama serve` itself would report `bind: An attempt was made to access a socket in a way forbidden by its access permissions` if run directly (this real error is easy to miss since `start.ps1` launches Ollama hidden and only sees the resulting timeout). Check current exclusions with:
+
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+Fix: `start.ps1` handles this automatically as of 2026-07 — on every run it checks whether the configured port is still free, and if not, picks a new free port, rewrites `config.ini`'s `[ollama] host` to match, and persists the new `OLLAMA_HOST`. It also clears any stale/locked native `ollama.exe` process before relaunching (the Windows Ollama app's single-instance lock can otherwise silently no-op a relaunch attempt with no visible error). Just re-run `.\start.ps1` — no manual intervention should be needed. If it still fails after that, run `ollama serve` manually in a separate terminal to see the real bind error.
+
+> **Note:** if a separate Ollama instance happens to be reachable on the *default* port 11434 (e.g. one running inside a WSL2 distro for unrelated purposes), it can look like DocVault's Ollama is "working" when it's actually answering from a completely different installation. Compare `ollama --version` output, or check `%LOCALAPPDATA%\Ollama\server.log`'s own `OLLAMA_HOST` line, against what `config.ini` actually points at.
+
+---
+
 ### Model not pulled
 
 ```

@@ -56,7 +56,7 @@ If any file listed above does not exist, skip it silently.
 - `file_hash` (SHA-256) is the primary key for all documents
 - Route ordering: specific routes (e.g. `/catalog/inspect`) must be declared BEFORE parameterised routes (`/catalog/{hash}`)
 - Worker threads are daemon threads — no graceful drain on exit
-- qdrant-client v1.17+: use `query_points()` not `search()`
+- Vector storage is LanceDB only (no external service) — `merge_insert()` for upsert, `list_tables().tables` for membership checks; see `embeddings/vector_store.py` (main store) and `embeddings/art_vector_store.py` (art_index)
 - Pydantic v2: optional fields need `str | None = None` not `str = None`
 - New API endpoints require a server restart before they are available
 
@@ -72,6 +72,7 @@ If any file listed above does not exist, skip it silently.
 
 - `credentials/` — OAuth secrets, gitignored
 - `.cache/` — extracted artefacts, regenerable
-- `qdrant_storage/` — vector data, regenerable via Rebuild Index
+- `lancedb_storage/` — vector data (main store + art_index), regenerable via Rebuild Index
+- `qdrant_storage.migrated-backup/` — decommissioned Qdrant data, kept as a backup pending cleanup (see 2026-07 status doc); not regenerable without re-running `tools/build_art_index.py`
 - `venv/` — Python environment
 - `.claude/temp/` — ephemeral Gemini analysis buffers, do not modify
