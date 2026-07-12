@@ -1,8 +1,8 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    One-time DocVault setup. Creates the venv, writes config.ini, pulls Ollama
-    models, and starts Qdrant. Re-running is safe - it skips steps already done.
+    One-time DocVault setup. Creates the venv, writes config.ini, and pulls
+    Ollama models. Re-running is safe - it skips steps already done.
 .EXAMPLE
     .\setup.ps1
 #>
@@ -77,12 +77,13 @@ $defaults = @{
     sqlite_path         = 'E:\DocVault\docvault.db'
     tesseract_path      = 'C:\Program Files\Tesseract-OCR\tesseract.exe'
     poppler_path        = 'E:\DocVault\bin\poppler\Library\bin'
-    ollama_host         = 'http://localhost:11434'
-    ollama_chat_model   = 'deepseek-r1:14b'
+    server_host         = '127.0.0.1'
+    server_port         = '8050'
+    ollama_host         = 'http://localhost:11600'
+    ollama_chat_model   = 'qwen2.5:14b'
     ollama_embed_model  = 'nomic-embed-text'
     ollama_vision_model = 'minicpm-v'
-    qdrant_host         = 'localhost'
-    qdrant_port         = '6333'
+    lancedb_path        = 'lancedb_storage'
 }
 
 Write-Host "    Scan directory (primary vault root):"
@@ -98,15 +99,21 @@ $chatModel    = Prompt-With-Default "  Chat model"          $defaults.ollama_cha
 $embedModel   = Prompt-With-Default "  Embed model"         $defaults.ollama_embed_model
 $visionModel  = Prompt-With-Default "  Vision model"        $defaults.ollama_vision_model
 
-Write-Host "    Qdrant:"
-$qdrantHost   = Prompt-With-Default "  Qdrant host"         $defaults.qdrant_host
-$qdrantPort   = Prompt-With-Default "  Qdrant port"         $defaults.qdrant_port
-
 $cacheDir     = $defaults.cache_directory
 $sqlitePath   = $defaults.sqlite_path
+$serverHost   = $defaults.server_host
+$serverPort   = $defaults.server_port
+$lancedbPath  = $defaults.lancedb_path
 
 # Write config.ini
+# Note: start.ps1 re-verifies the Ollama port on every run and rewrites
+# [ollama] host here automatically if Windows' dynamic port-exclusion ranges
+# (which shift on reboot) collide with whatever is written below.
 $configContent = @"
+[server]
+host = $serverHost
+port = $serverPort
+
 [paths]
 scan_directory = $scanDir
 cache_directory = $cacheDir
@@ -130,9 +137,8 @@ num_predict = -1
 top_p = 0.9
 repeat_penalty = 1.1
 
-[qdrant]
-host = $qdrantHost
-port = $qdrantPort
+[lancedb]
+path = $lancedbPath
 
 [pdf]
 poppler_path = $poppler
@@ -167,82 +173,17 @@ Set-Content -Path $configPath -Value $configContent -Encoding UTF8
 Write-OK "config.ini written"
 
 # ---
-# 4. One-time cleanup: remove orphaned docvault-app containers
-#    (from a previous docker-compose attempt for the app itself)
-# ---
-Write-Step "Cleaning up orphaned containers"
-$orphans = @('hopeful_edison', 'strange_payne', 'docvault-docvault-1')
-foreach ($name in $orphans) {
-    $exists = docker inspect $name 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        docker rm -f $name 2>&1 | Out-Null
-        Write-OK "Removed $name"
-    }
-}
-Write-OK "Cleanup done"
-
-# ---
-# 5. Docker check
-# ---
-Write-Step "Checking Docker"
-try {
-    docker version 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw }
-    Write-OK "Docker daemon running"
-} catch {
-    Write-Warn "Docker is not running - skipping Qdrant setup."
-    Write-Warn "Start Docker Desktop, then run start.ps1 to continue."
-    $skipQdrant = $true
-}
-
-# ---
-# 6. Qdrant
-# ---
-if (-not $skipQdrant) {
-    Write-Step "Starting Qdrant"
-    $qdrantContainer = 'docvault-qdrant-1'
-    $containerExists = $false
-    try {
-        docker inspect $qdrantContainer 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) { $containerExists = $true }
-    } catch {}
-
-    if ($containerExists) {
-        # Apply restart policy in case it's missing
-        docker update --restart=unless-stopped $qdrantContainer 2>&1 | Out-Null
-        $s = docker inspect $qdrantContainer --format '{{.State.Status}}' 2>&1
-        if ($s.Trim() -ne 'running') {
-            docker start $qdrantContainer 2>&1 | Out-Null
-        }
-        Write-OK "Qdrant container started (restart=unless-stopped applied)"
-    } else {
-        Write-Host "    Creating Qdrant container via docker compose..." -ForegroundColor Gray
-        Push-Location $scriptDir
-        docker compose up -d qdrant 2>&1
-        Pop-Location
-        Write-OK "Qdrant container created"
-    }
-
-    # Wait for health
-    $ready = $false
-    for ($i = 0; $i -lt 30; $i++) {
-        try {
-            $r = Invoke-RestMethod -Uri 'http://localhost:6333/collections' -TimeoutSec 2
-            if ($r.status -eq 'ok') { $ready = $true; break }
-        } catch {}
-        Start-Sleep -Seconds 1
-    }
-    if ($ready) { Write-OK "Qdrant healthy" }
-    else { Write-Warn "Qdrant did not respond after 30s - check: docker logs $qdrantContainer" }
-}
-
-# ---
-# 7. Ollama models
+# 4. Ollama models
 # ---
 Write-Step "Pulling Ollama models"
+$ollamaApiBase = $ollamaHost -replace '/+$', ''
+# `ollama pull`/`ollama list` read OLLAMA_HOST from the environment, not from
+# config.ini - set it for this process so the CLI targets the same instance
+# config.ini points at, rather than whatever port happens to be persisted.
+$env:OLLAMA_HOST = ($ollamaApiBase -replace '^https?://', '')
 $ollamaRunning = $false
 try {
-    Invoke-RestMethod -Uri 'http://localhost:11434/api/version' -TimeoutSec 3 | Out-Null
+    Invoke-RestMethod -Uri "$ollamaApiBase/api/version" -TimeoutSec 3 | Out-Null
     $ollamaRunning = $true
 } catch {}
 
@@ -254,7 +195,7 @@ if (-not $ollamaRunning) {
 } else {
     $pullModels = @($embedModel, $visionModel, $chatModel)
     try {
-        $tags = (Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -TimeoutSec 5).models.name
+        $tags = (Invoke-RestMethod -Uri "$ollamaApiBase/api/tags" -TimeoutSec 5).models.name
     } catch { $tags = @() }
 
     foreach ($m in $pullModels) {
@@ -270,7 +211,7 @@ if (-not $ollamaRunning) {
 }
 
 # ---
-# 8. Tesseract sanity check
+# 5. Tesseract sanity check
 # ---
 Write-Step "Checking Tesseract"
 if (Test-Path $tesseract) {

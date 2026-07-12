@@ -16,41 +16,134 @@ function Write-Warn { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')    
 function Write-Fail { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')     [XX] $msg" -ForegroundColor Red }
 
 # --- 1. Ollama ---
-# Port 11434 falls in a Windows/Hyper-V excluded range on this machine.
-# Use 11600 instead. Set OLLAMA_HOST persistently (user scope) so every
-# terminal picks it up, and for this session immediately.
-$ollamaHost = '127.0.0.1:11600'
-if ([System.Environment]::GetEnvironmentVariable('OLLAMA_HOST', 'User') -ne $ollamaHost) {
-    [System.Environment]::SetEnvironmentVariable('OLLAMA_HOST', $ollamaHost, 'User')
-    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [OK] OLLAMA_HOST set persistently to $ollamaHost" -ForegroundColor Green
-}
-$env:OLLAMA_HOST = $ollamaHost
-$ollamaUrl = 'http://127.0.0.1:11600'
+# Windows/Hyper-V (and WSL2's NAT) reserve dynamic TCP port-exclusion ranges
+# that are re-randomised on every reboot. A port that's free today can start
+# failing with "bind: An attempt was made to access a socket in a way
+# forbidden by its access permissions" after the next reboot with zero
+# warning - that's what took down port 11434 originally, and later 11600.
+# Rather than trust a hardcoded port, verify it's still clear on every start
+# and transparently move to a free one (updating config.ini + OLLAMA_HOST)
+# if it isn't.
 
-Write-Step "Checking Ollama (port 11600)"
+$configPath = Join-Path $scriptDir 'config.ini'
+
+function Get-ExcludedTcpRanges {
+    $ranges = @()
+    netsh interface ipv4 show excludedportrange protocol=tcp 2>$null | ForEach-Object {
+        if ($_ -match '^\s*(\d+)\s+(\d+)\s*\*?\s*$') {
+            $ranges += [PSCustomObject]@{ Start = [int]$Matches[1]; End = [int]$Matches[2] }
+        }
+    }
+    return $ranges
+}
+
+function Test-PortFree {
+    param([int]$Port, [array]$ExcludedRanges)
+    foreach ($r in $ExcludedRanges) {
+        if ($Port -ge $r.Start -and $Port -le $r.End) { return $false }
+    }
+    return -not (Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue)
+}
+
+function Find-FreeOllamaPort {
+    param([int]$Preferred)
+    $excluded = Get-ExcludedTcpRanges
+    if (Test-PortFree -Port $Preferred -ExcludedRanges $excluded) { return $Preferred }
+    Write-Warn "Port $Preferred is now inside a Windows/Hyper-V excluded range (or in use) - picking a new one"
+    foreach ($candidate in 11600..11699) {
+        if (Test-PortFree -Port $candidate -ExcludedRanges $excluded) { return $candidate }
+    }
+    return $null
+}
+
+function Update-ConfigOllamaHost {
+    param([string]$NewUrl)
+    $lines = Get-Content $configPath
+    $inOllamaSection = $false
+    $out = foreach ($line in $lines) {
+        if ($line -match '^\[(.+)\]\s*$') { $inOllamaSection = ($Matches[1] -eq 'ollama') }
+        if ($inOllamaSection -and $line -match '^host\s*=') {
+            "host = $NewUrl"
+        } else {
+            $line
+        }
+    }
+    Set-Content -Path $configPath -Value $out -Encoding UTF8
+}
+
+# Preferred port: whatever config.ini currently has for [ollama] host,
+# falling back to 11600 if that can't be parsed.
+$preferredPort = 11600
+if ((Get-Content $configPath -Raw) -match '(?ms)^\[ollama\][^\[]*?^host\s*=\s*http://[^:]+:(\d+)') {
+    $preferredPort = [int]$Matches[1]
+}
+
+$ollamaPort = Find-FreeOllamaPort -Preferred $preferredPort
+if (-not $ollamaPort) {
+    Write-Fail "Could not find any free TCP port for Ollama in range 11600-11699. LLM features will fail."
+    $ollamaPort = $preferredPort
+} elseif ($ollamaPort -ne $preferredPort) {
+    Update-ConfigOllamaHost -NewUrl "http://localhost:$ollamaPort"
+    Write-OK "config.ini [ollama] host updated to port $ollamaPort (was $preferredPort)"
+}
+
+$ollamaHostEnv = "127.0.0.1:$ollamaPort"
+if ([System.Environment]::GetEnvironmentVariable('OLLAMA_HOST', 'User') -ne $ollamaHostEnv) {
+    [System.Environment]::SetEnvironmentVariable('OLLAMA_HOST', $ollamaHostEnv, 'User')
+    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [OK] OLLAMA_HOST set persistently to $ollamaHostEnv" -ForegroundColor Green
+}
+$env:OLLAMA_HOST = $ollamaHostEnv
+$ollamaUrl = "http://127.0.0.1:$ollamaPort"
+
+function Start-OllamaOnPort {
+    param([string]$Url)
+    # The Windows Ollama app enforces a single-instance lock that is
+    # independent of which port it ends up bound to. If a previous run
+    # left a stale process (or a stale lock with no visible process) behind,
+    # a fresh `ollama serve` silently no-ops ("existing instance found,
+    # exiting" in %LOCALAPPDATA%\Ollama\app.log) instead of binding the
+    # requested port. Clearing any native ollama.exe process first avoids that.
+    Get-Process -Name 'ollama*' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+    Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden -ErrorAction Stop
+    $waited = 0
+    while ($waited -lt 10) {
+        Start-Sleep -Seconds 1
+        $waited++
+        try {
+            Invoke-RestMethod -Uri "$Url/api/version" -TimeoutSec 1 | Out-Null
+            return $waited
+        } catch {}
+    }
+    return $null
+}
+
+Write-Step "Checking Ollama (port $ollamaPort)"
 $ollamaOk = $false
 try {
     Invoke-RestMethod -Uri "$ollamaUrl/api/version" -TimeoutSec 3 | Out-Null
     $ollamaOk = $true
     Write-OK "Ollama is running"
 } catch {
-    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [..] Ollama not detected - launching ollama serve..." -ForegroundColor Gray
+    Write-Host "$(Get-Date -Format 'HH:mm:ss')     [..] Ollama not detected on $ollamaPort - launching ollama serve..." -ForegroundColor Gray
     try {
-        Start-Process -FilePath 'ollama' -ArgumentList 'serve' -WindowStyle Hidden -ErrorAction Stop
-        # Wait up to 10 s for it to come up
-        $waited = 0
-        while ($waited -lt 10) {
-            Start-Sleep -Seconds 1
-            $waited++
-            try {
-                Invoke-RestMethod -Uri "$ollamaUrl/api/version" -TimeoutSec 1 | Out-Null
+        $waited = Start-OllamaOnPort -Url $ollamaUrl
+        if ($waited) {
+            $ollamaOk = $true
+            Write-OK "Ollama started (after $waited s)"
+        } else {
+            # One retry: the single-instance lock can still be settling
+            # from the process we just killed.
+            Write-Host "$(Get-Date -Format 'HH:mm:ss')     [..] Retrying once (stale instance lock)..." -ForegroundColor Gray
+            $waited = Start-OllamaOnPort -Url $ollamaUrl
+            if ($waited) {
                 $ollamaOk = $true
-                Write-OK "Ollama started (after $waited s)"
-                break
-            } catch {}
+                Write-OK "Ollama started (after $waited s, retry)"
+            }
         }
         if (-not $ollamaOk) {
-            Write-Warn "Ollama did not respond after 10 s. LLM features may fail."
+            Write-Warn "Ollama did not respond on $ollamaPort after retrying. LLM features may fail."
+            Write-Host "    Run 'ollama serve' manually in another terminal to see the real bind error." -ForegroundColor Gray
         }
     } catch {
         Write-Warn "Could not launch ollama serve: $_"
