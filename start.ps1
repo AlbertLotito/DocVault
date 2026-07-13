@@ -68,7 +68,12 @@ function Update-ConfigOllamaHost {
             $line
         }
     }
-    Set-Content -Path $configPath -Value $out -Encoding UTF8
+    # Set-Content -Encoding UTF8 writes a BOM, which Python's configparser
+    # (core/settings.py) chokes on with "File contains no section headers".
+    # -Encoding utf8NoBOM only exists on PowerShell 6+; this .NET call works
+    # on both 5.1 and 7+ (script requires 5.1).
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllLines($configPath, $out, $utf8NoBom)
 }
 
 # Preferred port: whatever config.ini currently has for [ollama] host,

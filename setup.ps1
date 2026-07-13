@@ -169,7 +169,12 @@ credentials_path = $scriptDir\credentials\google_credentials.json
 token_path = $scriptDir\credentials\google_token.json
 "@
 
-Set-Content -Path $configPath -Value $configContent -Encoding UTF8
+# Set-Content -Encoding UTF8 writes a BOM, which Python's configparser
+# (core/settings.py) chokes on with "File contains no section headers".
+# -Encoding utf8NoBOM only exists on PowerShell 6+; this .NET call works
+# on both 5.1 and 7+ (script requires 5.1).
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($configPath, $configContent, $utf8NoBom)
 Write-OK "config.ini written"
 
 # ---
