@@ -757,6 +757,15 @@ def run(db_path: str, shutdown_event=None):
                     result = _identify_artwork(image_path)
                 except requests.HTTPError as e:
                     status_code = e.response.status_code if e.response is not None else 0
+                    # Truncated response body - this is what actually tells you
+                    # WHY (bad key, billing disabled, daily quota, key restrictions),
+                    # not just that it failed. Never surfaced before this.
+                    body = ''
+                    if e.response is not None:
+                        try:
+                            body = e.response.text[:300]
+                        except Exception:
+                            pass
                     if status_code == 429:
                         current_backoff = getattr(run, '_backoff_secs', 60)
                         run._backoff_secs = min(current_backoff * 2, 3600)
@@ -765,27 +774,52 @@ def run(db_path: str, shutdown_event=None):
                         )
                         logger.warn(
                             f"Art enrichment: 429 rate limit — backing off "
-                            f"{run._backoff_secs}s.", ext="art"
+                            f"{run._backoff_secs}s. {body}", ext="art"
                         )
                         _write_nfo(image_path, {
                             'artist': '', 'title': '', 'confidence': '0',
                             'identified_at': today,
                             'original_name': os.path.basename(image_path),
                             'renamed_to': '(failed)',
-                            'error': f'HTTP {status_code} — rate limited',
+                            'error': f'HTTP {status_code} — rate limited: {body}',
+                        })
+                        break
+                    elif status_code == 403:
+                        # 403 is almost always systemic (billing disabled, daily
+                        # quota exhausted, key restrictions changed) rather than
+                        # a per-image problem - retrying the next image in the
+                        # queue immediately just reproduces the same failure.
+                        # Back off like 429 instead of hammering every image.
+                        current_backoff = getattr(run, '_backoff_secs', 60)
+                        run._backoff_secs = min(current_backoff * 2, 3600)
+                        backoff_until = datetime.now(timezone.utc) + timedelta(
+                            seconds=run._backoff_secs
+                        )
+                        logger.error(
+                            f"Art enrichment: 403 from cloud API — likely billing, "
+                            f"quota, or API-key-restriction issue, not a per-image "
+                            f"problem. Backing off {run._backoff_secs}s. {body}",
+                            ext="art"
+                        )
+                        _write_nfo(image_path, {
+                            'artist': '', 'title': '', 'confidence': '0',
+                            'identified_at': today,
+                            'original_name': os.path.basename(image_path),
+                            'renamed_to': '(failed)',
+                            'error': f'HTTP 403: {body}',
                         })
                         break
                     else:
                         logger.error(
                             f"Art enrichment: API error {status_code} for "
-                            f"{os.path.basename(image_path)}", ext="art"
+                            f"{os.path.basename(image_path)}: {body}", ext="art"
                         )
                         _write_nfo(image_path, {
                             'artist': '', 'title': '', 'confidence': '0',
                             'identified_at': today,
                             'original_name': os.path.basename(image_path),
                             'renamed_to': '(failed)',
-                            'error': f'HTTP {status_code}',
+                            'error': f'HTTP {status_code}: {body}',
                         })
                         continue
                 except Exception as e:
