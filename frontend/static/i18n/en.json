@@ -211,6 +211,8 @@
   "utils.vector_store_desc": "Vector store health and table info",
   "utils.vector_store_check": "Check Vector Store",
   "utils.vector_store_failed": "Failed to reach vector store.",
+  "utils.art_issues_title": "Art Enrichment Issues",
+  "utils.art_issues_desc": "Failed and low-confidence art identifications — filter, reprocess, or dismiss",
   "utils.diag_title": "Diagnostics",
   "utils.diag_desc": "Clear logs database (task timings, worker errors, system stats)",
   "utils.diag_clear": "Clear Logs Database",

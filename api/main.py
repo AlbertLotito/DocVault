@@ -5,7 +5,7 @@ from fastapi import FastAPI
 _server = None
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
-from api.routes import catalog, search, query, workers, utils, settings as settings_routes
+from api.routes import catalog, search, query, workers, utils, art, settings as settings_routes
 from api.routes.vaults  import router as vaults_router
 from api.routes.monitor import router as monitor_router
 from api.routes.identity import router as identity_router
@@ -23,6 +23,7 @@ app.include_router(search.router, prefix="/api")
 app.include_router(query.router, prefix="/api")
 app.include_router(workers.router, prefix="/api")
 app.include_router(utils.router, prefix="/api")
+app.include_router(art.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
 app.include_router(vaults_router)
 app.include_router(monitor_router)

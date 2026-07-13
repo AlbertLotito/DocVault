@@ -266,6 +266,20 @@ def init_db(db_path=None):
                 detected_at    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS art_enrichment_issues (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_hash    TEXT,
+                file_path    TEXT NOT NULL UNIQUE,
+                vault_id     TEXT,
+                status       TEXT NOT NULL, -- 'failed' | 'review'
+                tier         TEXT,          -- 'clip' | 'google' | 'bing' | ''
+                artist       TEXT,
+                title        TEXT,
+                confidence   REAL,
+                error        TEXT,
+                occurred_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS file_vault (
                 file_hash TEXT NOT NULL REFERENCES tasks(file_hash),
                 vault_id  TEXT NOT NULL REFERENCES vaults(vault_id),
@@ -300,6 +314,10 @@ def init_db(db_path=None):
                 ON extracted_images(source_hash);
             CREATE INDEX IF NOT EXISTS idx_face_detections_cluster_id
                 ON face_detections(cluster_id);
+            CREATE INDEX IF NOT EXISTS idx_art_issues_status
+                ON art_enrichment_issues(status);
+            CREATE INDEX IF NOT EXISTS idx_art_issues_vault_id
+                ON art_enrichment_issues(vault_id);
         """)
 
         # Schema migrations
@@ -1268,3 +1286,107 @@ def hash_exists(db_path, file_hash):
             "SELECT 1 FROM tasks WHERE file_hash = ?", (file_hash,)
         ).fetchone()
         return row is not None
+
+
+# ---------------------------------------------------------------------------
+# Art enrichment issues — live worklist of failed / needs-review identifications
+# ---------------------------------------------------------------------------
+
+def upsert_art_issue(db_path, file_path, vault_id, status, tier,
+                      artist, title, confidence, error):
+    """Record (or refresh) an outstanding art-enrichment issue for file_path."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT file_hash FROM tasks WHERE file_path = ?", (file_path,)
+        ).fetchone()
+        file_hash = row['file_hash'] if row else None
+        conn.execute(
+            """INSERT INTO art_enrichment_issues
+                   (file_hash, file_path, vault_id, status, tier, artist, title, confidence, error)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(file_path) DO UPDATE SET
+                   file_hash=excluded.file_hash, vault_id=excluded.vault_id,
+                   status=excluded.status, tier=excluded.tier, artist=excluded.artist,
+                   title=excluded.title, confidence=excluded.confidence, error=excluded.error,
+                   occurred_at=CURRENT_TIMESTAMP""",
+            (file_hash, file_path, vault_id, status, tier, artist, title, confidence, error)
+        )
+        conn.commit()
+
+
+def clear_art_issue(db_path, file_path):
+    """Remove the issue row for file_path (e.g. it was successfully identified)."""
+    with _connect(db_path) as conn:
+        conn.execute("DELETE FROM art_enrichment_issues WHERE file_path = ?", (file_path,))
+        conn.commit()
+
+
+def list_art_issues(db_path, status=None, vault_id=None, q=None, limit=50, offset=0):
+    with _connect(db_path) as conn:
+        where, params = [], []
+        if status:
+            where.append("status = ?"); params.append(status)
+        if vault_id:
+            where.append("vault_id = ?"); params.append(vault_id)
+        if q and q.strip():
+            where.append("(artist LIKE ? OR title LIKE ? OR file_path LIKE ?)")
+            like = f"%{q.strip()}%"
+            params.extend([like, like, like])
+
+        clause = f"WHERE {' AND '.join(where)}" if where else ""
+
+        total_matches = conn.execute(
+            f"SELECT COUNT(*) FROM art_enrichment_issues {clause}", params
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            f"""SELECT * FROM art_enrichment_issues {clause}
+                ORDER BY occurred_at DESC LIMIT ? OFFSET ?""",
+            params + [limit, offset]
+        ).fetchall()
+
+        return {
+            "issues": [dict(r) for r in rows],
+            "total_matches": total_matches,
+        }
+
+
+def get_art_issues_by_ids(db_path, ids):
+    if not ids:
+        return []
+    with _connect(db_path) as conn:
+        placeholders = ', '.join('?' for _ in ids)
+        rows = conn.execute(
+            f"SELECT * FROM art_enrichment_issues WHERE id IN ({placeholders})", ids
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def delete_art_issues(db_path, ids):
+    """Delete specific issue rows by id. Returns count deleted."""
+    if not ids:
+        return 0
+    with _connect(db_path) as conn:
+        placeholders = ', '.join('?' for _ in ids)
+        cur = conn.execute(f"DELETE FROM art_enrichment_issues WHERE id IN ({placeholders})", ids)
+        conn.commit()
+        return cur.rowcount
+
+
+def delete_art_issues_by_filter(db_path, status=None, vault_id=None, q=None):
+    """Delete every issue row matching the given filter (used by 'dismiss all').
+    Returns count deleted."""
+    with _connect(db_path) as conn:
+        where, params = [], []
+        if status:
+            where.append("status = ?"); params.append(status)
+        if vault_id:
+            where.append("vault_id = ?"); params.append(vault_id)
+        if q and q.strip():
+            where.append("(artist LIKE ? OR title LIKE ? OR file_path LIKE ?)")
+            like = f"%{q.strip()}%"
+            params.extend([like, like, like])
+        clause = f"WHERE {' AND '.join(where)}" if where else ""
+        cur = conn.execute(f"DELETE FROM art_enrichment_issues {clause}", params)
+        conn.commit()
+        return cur.rowcount

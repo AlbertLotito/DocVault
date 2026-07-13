@@ -75,6 +75,38 @@ def _write_nfo(image_path: str, data: dict):
         cfg.write(f)
 
 
+def _resolve_vault_id(image_path: str, vault_dir_map: dict) -> str | None:
+    """Find which vault's scan_directory contains image_path."""
+    norm = os.path.normpath(image_path)
+    for vault_dir, vault_id in vault_dir_map.items():
+        if norm.startswith(vault_dir + os.sep):
+            return vault_id
+    return None
+
+
+def _track_issue(db_path: str, image_path: str, vault_id: str | None, status: str,
+                  tier: str = '', artist: str = '', title: str = '',
+                  confidence: float = 0.0, error: str = ''):
+    """Upsert an outstanding issue row (status: 'failed' or 'review')."""
+    try:
+        from core import manager
+        manager.upsert_art_issue(
+            db_path, image_path, vault_id, status, tier,
+            artist, title, confidence, error
+        )
+    except Exception as e:
+        logger.warn(f"[art-enrich] Could not record issue for {os.path.basename(image_path)}: {e}", ext="art")
+
+
+def _clear_issue(db_path: str, image_path: str):
+    """Remove a previously-tracked issue row (e.g. it was just resolved)."""
+    try:
+        from core import manager
+        manager.clear_art_issue(db_path, image_path)
+    except Exception as e:
+        logger.warn(f"[art-enrich] Could not clear issue for {os.path.basename(image_path)}: {e}", ext="art")
+
+
 # ── Name sanitisation ─────────────────────────────────────────────────────────
 
 def _sanitise(name: str, max_len: int = 100) -> str:
@@ -708,6 +740,10 @@ def run(db_path: str, shutdown_event=None):
                 v['scan_directory'] for v in vaults
                 if v['state'] in ('active', 'archived')
             ]
+            vault_dir_map = {
+                os.path.normpath(v['scan_directory']): v['vault_id']
+                for v in vaults if v['state'] in ('active', 'archived')
+            }
         except Exception as e:
             logger.error(f"Art enrichment: could not load vaults: {e}", ext="art")
             time.sleep(60)
@@ -752,6 +788,7 @@ def run(db_path: str, shutdown_event=None):
                 bucket.consume()
 
                 today = datetime.now().isoformat()[:10]
+                vault_id = _resolve_vault_id(image_path, vault_dir_map)
 
                 try:
                     result = _identify_artwork(image_path)
@@ -783,6 +820,8 @@ def run(db_path: str, shutdown_event=None):
                             'renamed_to': '(failed)',
                             'error': f'HTTP {status_code} — rate limited: {body}',
                         })
+                        _track_issue(db_path, image_path, vault_id, 'failed',
+                                     error=f'HTTP {status_code} — rate limited: {body}')
                         break
                     elif status_code == 403:
                         # 403 is almost always systemic (billing disabled, daily
@@ -808,6 +847,8 @@ def run(db_path: str, shutdown_event=None):
                             'renamed_to': '(failed)',
                             'error': f'HTTP 403: {body}',
                         })
+                        _track_issue(db_path, image_path, vault_id, 'failed',
+                                     error=f'HTTP 403: {body}')
                         break
                     else:
                         logger.error(
@@ -821,6 +862,8 @@ def run(db_path: str, shutdown_event=None):
                             'renamed_to': '(failed)',
                             'error': f'HTTP {status_code}: {body}',
                         })
+                        _track_issue(db_path, image_path, vault_id, 'failed',
+                                     error=f'HTTP {status_code}: {body}')
                         continue
                 except Exception as e:
                     logger.error(
@@ -834,6 +877,7 @@ def run(db_path: str, shutdown_event=None):
                         'renamed_to': '(failed)',
                         'error': str(e),
                     })
+                    _track_issue(db_path, image_path, vault_id, 'failed', error=str(e))
                     continue
 
                 if result is None:
@@ -845,6 +889,8 @@ def run(db_path: str, shutdown_event=None):
                         'renamed_to': '(failed)',
                         'error': 'no identification method available',
                     })
+                    _track_issue(db_path, image_path, vault_id, 'failed',
+                                 error='no identification method available')
                     continue
 
                 # Reset backoff on success
@@ -878,6 +924,8 @@ def run(db_path: str, shutdown_event=None):
                             f"[{tier_used}] (confidence {confidence:.2f})", ext="art"
                         )
                         _write_nfo(result_path, nfo_data)
+                        # Resolved - clear any previously-tracked issue for the old path.
+                        _clear_issue(db_path, image_path)
                     else:
                         nfo_data['renamed_to'] = '(failed)'
                         nfo_data['error']      = result_path
@@ -886,12 +934,16 @@ def run(db_path: str, shutdown_event=None):
                             f"{os.path.basename(image_path)}: {result_path}", ext="art"
                         )
                         # _transactional_rename already wrote the .nfo
+                        _track_issue(db_path, image_path, vault_id, 'failed', tier_used,
+                                     artist, title, confidence, error=result_path)
                 else:
                     _write_nfo(image_path, nfo_data)
                     logger.info(
                         f"Art enrichment: [{tier_used}] low confidence ({confidence:.2f}) for "
                         f"{os.path.basename(image_path)} — .nfo written, file unchanged.", ext="art"
                     )
+                    _track_issue(db_path, image_path, vault_id, 'review', tier_used,
+                                 artist, title, confidence)
             except Exception as _loop_err:
                 logger.error(
                     f"Art enrichment: unhandled error for "

@@ -211,6 +211,8 @@
   "utils.vector_store_desc": "Salud del almac\u00e9n vectorial e informaci\u00f3n de tabla",
   "utils.vector_store_check": "Comprobar Almac\u00e9n Vectorial",
   "utils.vector_store_failed": "No se pudo alcanzar el almac\u00e9n vectorial.",
+  "utils.art_issues_title": "Problemas de Enriquecimiento de Arte",
+  "utils.art_issues_desc": "Identificaciones de arte fallidas o de baja confianza \u2014 filtrar, reprocesar o descartar",
   "utils.diag_title": "Diagn\u00f3sticos",
   "utils.diag_desc": "Limpiar base de datos de registros",
   "utils.diag_clear": "Limpiar Base de Datos de Registros",

@@ -95,6 +95,55 @@
         </div>
 
         <div class="lc-bar-badge" onclick="lcAccordion(this)">
+          <div class="lc-bar-tab" style="background:#440022;">&#9888;</div>
+          <div class="lc-bar-body">
+            <div class="lc-bar-name" data-i18n="utils.art_issues_title">Art Enrichment Issues</div>
+            <div class="lc-bar-desc" data-i18n="utils.art_issues_desc">Failed and low-confidence art identifications — filter, reprocess, or dismiss</div>
+            <div class="lc-bar-arrow">&#9654;</div>
+          </div>
+        </div>
+        <div class="lc-bar-expand" id="art-issues-expand">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+            <select id="art-status-filter" class="lc-select" onchange="loadArtIssues(0)">
+              <option value="">All statuses</option>
+              <option value="failed">Failed</option>
+              <option value="review">Needs review</option>
+            </select>
+            <select id="art-vault-filter" class="lc-select" onchange="loadArtIssues(0)">
+              <option value="">All vaults</option>
+            </select>
+            <input id="art-q-filter" class="lc-input" type="text" placeholder="Search artist / title / path..."
+                   style="flex:1;min-width:160px;" onkeyup="if(event.key==='Enter')loadArtIssues(0)">
+            <button class="lc-btn lc-btn-sm" onclick="loadArtIssues(0)">Search</button>
+            <button class="lc-btn lc-btn-sm" id="art-rescan-btn" onclick="rescanArtIssues()">Rescan Vault</button>
+          </div>
+          <div id="art-rescan-status" style="font-size:11px;color:var(--c-label-dim);margin-bottom:8px;"></div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button class="lc-btn lc-btn-sm" onclick="artIssuesAction('reprocess')">Reprocess Selected</button>
+            <button class="lc-btn lc-btn-sm" onclick="artIssuesAction('dismiss')">Dismiss Selected</button>
+            <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="dismissAllArtIssues()">Dismiss All (filtered)</button>
+          </div>
+          <div style="max-height:400px;overflow-y:auto;border:1px solid var(--c-border);border-radius:6px;">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+              <thead>
+                <tr style="background:var(--c-surface);position:sticky;top:0;">
+                  <th style="padding:6px;text-align:left;"><input type="checkbox" id="art-select-all" onchange="toggleAllArtIssues(this)"></th>
+                  <th style="padding:6px;text-align:left;">Status</th>
+                  <th style="padding:6px;text-align:left;">File</th>
+                  <th style="padding:6px;text-align:left;">Artist / Title</th>
+                  <th style="padding:6px;text-align:left;">Detail</th>
+                  <th style="padding:6px;text-align:left;">When</th>
+                </tr>
+              </thead>
+              <tbody id="art-issues-body">
+                <tr><td colspan="6" style="padding:10px;color:var(--c-label-dim);">Not loaded — expand this panel to load.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="art-issues-pager" style="margin-top:8px;font-size:11px;color:var(--c-label-dim);"></div>
+        </div>
+
+        <div class="lc-bar-badge" onclick="lcAccordion(this)">
           <div class="lc-bar-tab" style="background:#332200;">&#128465;</div>
           <div class="lc-bar-body">
             <div class="lc-bar-name" data-i18n="utils.diag_title">Diagnostics</div>
@@ -283,9 +332,147 @@
       }
     }
 
+    // ── Art Enrichment Issues ─────────────────────────────────────────────
+    let _artOffset = 0;
+    const _artLimit = 50;
+    let _artVaultsLoaded = false;
+
+    async function loadArtVaultFilter() {
+      if (_artVaultsLoaded) return;
+      try {
+        const vaults = await api('/vaults');
+        const sel = document.getElementById('art-vault-filter');
+        for (const v of (vaults || [])) {
+          const opt = document.createElement('option');
+          opt.value = v.vault_id;
+          opt.textContent = v.name;
+          sel.appendChild(opt);
+        }
+        _artVaultsLoaded = true;
+      } catch (_) {}
+    }
+
+    function _artQueryString(extra) {
+      const status = document.getElementById('art-status-filter').value;
+      const vault_id = document.getElementById('art-vault-filter').value;
+      const q = document.getElementById('art-q-filter').value.trim();
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (vault_id) params.set('vault_id', vault_id);
+      if (q) params.set('q', q);
+      Object.entries(extra || {}).forEach(([k, v]) => params.set(k, v));
+      return params.toString();
+    }
+
+    async function loadArtIssues(offset) {
+      _artOffset = offset || 0;
+      const body = document.getElementById('art-issues-body');
+      body.innerHTML = `<tr><td colspan="6" style="padding:10px;color:var(--c-label-dim);">Loading...</td></tr>`;
+      try {
+        const qs = _artQueryString({ limit: _artLimit, offset: _artOffset });
+        const data = await api(`/art/issues?${qs}`);
+        if (!data.issues || !data.issues.length) {
+          body.innerHTML = `<tr><td colspan="6" style="padding:10px;color:var(--c-ok);">No matching issues.</td></tr>`;
+        } else {
+          body.innerHTML = data.issues.map(row => `
+            <tr style="border-top:1px solid var(--c-border);">
+              <td style="padding:6px;"><input type="checkbox" class="art-issue-check" value="${row.id}"></td>
+              <td style="padding:6px;"><span style="color:${row.status === 'failed' ? 'var(--c-error)' : 'var(--c-warn)'};">${row.status}</span></td>
+              <td style="padding:6px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${row.file_path}">${formatPath(row.file_path)}</td>
+              <td style="padding:6px;">${[row.artist, row.title].filter(Boolean).join(' — ') || '—'}</td>
+              <td style="padding:6px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${row.error || ''}">${row.error || (row.confidence ? `confidence ${Number(row.confidence).toFixed(2)}` : '—')}</td>
+              <td style="padding:6px;color:var(--c-label-dim);">${row.occurred_at || ''}</td>
+            </tr>`).join('');
+        }
+        const total = data.total_matches || 0;
+        const shown = data.issues ? data.issues.length : 0;
+        document.getElementById('art-issues-pager').innerHTML =
+          `${_artOffset + 1}–${_artOffset + shown} of ${total}` +
+          (_artOffset > 0 ? ` &nbsp; <a href="#" onclick="loadArtIssues(${Math.max(0, _artOffset - _artLimit)});return false;">&laquo; prev</a>` : '') +
+          (_artOffset + shown < total ? ` &nbsp; <a href="#" onclick="loadArtIssues(${_artOffset + _artLimit});return false;">next &raquo;</a>` : '');
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="6" style="padding:10px;color:var(--c-error);">${err.message}</td></tr>`;
+      }
+    }
+
+    function toggleAllArtIssues(cb) {
+      document.querySelectorAll('.art-issue-check').forEach(el => { el.checked = cb.checked; });
+    }
+
+    function _selectedArtIssueIds() {
+      return Array.from(document.querySelectorAll('.art-issue-check:checked')).map(el => parseInt(el.value, 10));
+    }
+
+    async function artIssuesAction(action) {
+      const ids = _selectedArtIssueIds();
+      if (!ids.length) { lcToast('No issues selected'); return; }
+      const label = action === 'reprocess' ? 'Reprocess' : 'Dismiss';
+      if (!confirm(`${label} ${ids.length} selected issue(s)?`)) return;
+      try {
+        await api(`/art/issues/${action}`, { method: 'POST', body: JSON.stringify({ ids }) });
+        lcToast(`${label}ed ${ids.length} issue(s)`);
+        loadArtIssues(_artOffset);
+      } catch (err) {
+        lcToast('Error: ' + err.message);
+      }
+    }
+
+    async function dismissAllArtIssues() {
+      const status = document.getElementById('art-status-filter').value;
+      const vault_id = document.getElementById('art-vault-filter').value;
+      const q = document.getElementById('art-q-filter').value.trim();
+      const scope = status ? `all "${status}" issues` : 'ALL issues';
+      if (!confirm(`Dismiss ${scope} matching the current filter? This only clears the list — files and .nfo sidecars are untouched.`)) return;
+      try {
+        const body = { all: true };
+        if (status) body.status = status;
+        if (vault_id) body.vault_id = vault_id;
+        if (q) body.q = q;
+        const result = await api('/art/issues/dismiss', { method: 'POST', body: JSON.stringify(body) });
+        lcToast(`Dismissed ${result.rows_removed} issue(s)`);
+        loadArtIssues(0);
+      } catch (err) {
+        lcToast('Error: ' + err.message);
+      }
+    }
+
+    async function rescanArtIssues() {
+      const btn = document.getElementById('art-rescan-btn');
+      const status = document.getElementById('art-rescan-status');
+      btn.disabled = true;
+      status.textContent = 'Scanning vault for .nfo sidecars — this can take several minutes on large vaults...';
+      status.style.color = 'var(--c-warn)';
+      try {
+        await api('/art/issues/rescan', { method: 'POST' });
+        _pollArtRescan();
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+        status.style.color = 'var(--c-error)';
+        btn.disabled = false;
+      }
+    }
+
+    async function _pollArtRescan() {
+      try {
+        const s = await api('/art/issues/rescan/status');
+        if (s.running) {
+          setTimeout(_pollArtRescan, 5000);
+        } else {
+          document.getElementById('art-rescan-status').textContent = 'Rescan complete.';
+          document.getElementById('art-rescan-status').style.color = 'var(--c-ok)';
+          document.getElementById('art-rescan-btn').disabled = false;
+          loadArtIssues(0);
+        }
+      } catch (_) {
+        document.getElementById('art-rescan-btn').disabled = false;
+      }
+    }
+
     document.addEventListener('lc:ready', () => {
       loadSearchMode();
       loadGDriveStatus();
+      loadArtVaultFilter();
+      loadArtIssues(0);
     });
   </script>
 </body>

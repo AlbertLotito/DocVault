@@ -211,6 +211,8 @@
   "utils.vector_store_desc": "Sant\u00e9 du magasin vectoriel et informations de table",
   "utils.vector_store_check": "V\u00e9rifier le Magasin Vectoriel",
   "utils.vector_store_failed": "Impossible d'atteindre le magasin vectoriel.",
+  "utils.art_issues_title": "Problèmes d'Enrichissement Artistique",
+  "utils.art_issues_desc": "Identifications d'œuvres échouées ou peu fiables — filtrer, retraiter ou ignorer",
   "utils.diag_title": "Diagnostics",
   "utils.diag_desc": "Vider la base de donn\u00e9es des journaux",
   "utils.diag_clear": "Vider la Base de Donn\u00e9es des Journaux",
