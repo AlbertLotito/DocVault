@@ -4,24 +4,35 @@ from llm.base import BaseLLMProvider
 
 
 class ClaudeProvider(BaseLLMProvider):
+    _API_URL = 'https://api.anthropic.com/v1/messages'
+
     def __init__(self, api_key: str, model: str = 'claude-sonnet-5'):
         self.api_key = api_key
         self.model = model
 
+    def _headers(self) -> dict:
+        return {
+            'x-api-key': self.api_key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        }
+
+    def _payload(self, messages: list[dict], stream: bool = False) -> dict:
+        payload = {
+            'model': self.model,
+            'max_tokens': 1024,
+            'messages': messages,
+        }
+        if stream:
+            payload['stream'] = True
+        return payload
+
     def chat(self, messages: list[dict]) -> str:
         try:
             resp = httpx.post(
-                'https://api.anthropic.com/v1/messages',
-                headers={
-                    'x-api-key': self.api_key,
-                    'anthropic-version': '2023-06-01',
-                    'content-type': 'application/json',
-                },
-                json={
-                    'model': self.model,
-                    'max_tokens': 1024,
-                    'messages': messages,
-                },
+                self._API_URL,
+                headers=self._headers(),
+                json=self._payload(messages),
                 timeout=30,
             )
             resp.raise_for_status()
@@ -34,18 +45,9 @@ class ClaudeProvider(BaseLLMProvider):
         try:
             with httpx.stream(
                 'POST',
-                'https://api.anthropic.com/v1/messages',
-                headers={
-                    'x-api-key': self.api_key,
-                    'anthropic-version': '2023-06-01',
-                    'content-type': 'application/json',
-                },
-                json={
-                    'model': self.model,
-                    'max_tokens': 1024,
-                    'messages': messages,
-                    'stream': True,
-                },
+                self._API_URL,
+                headers=self._headers(),
+                json=self._payload(messages, stream=True),
                 timeout=30,
             ) as response:
                 response.raise_for_status()
