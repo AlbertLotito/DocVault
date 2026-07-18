@@ -32,7 +32,7 @@ Two new entries added next to the existing `llm:provider` entry, same `general` 
 'llm:api_key': {
     'type': 'string', 'default': '', 'label': 'Claude API Key', 'group': 'general',
     'description': 'Anthropic API key. Required only when llm:provider is set to "claude". '
-                   'Get a key from console.anthropic.com. A server restart is required after changing this.',
+                   'Get a key from console.anthropic.com. Takes effect on the next query — no restart needed.',
 },
 'llm:claude_model': {
     'type': 'string', 'default': 'claude-sonnet-5', 'label': 'Claude Model', 'group': 'general',
@@ -67,4 +67,4 @@ New `TestGetProvider` class in `tests/test_llm_providers.py`:
 
 ## 7. Rollout
 
-No migration needed — nothing currently has a working `llm.api_key` value in `config.ini` to preserve (the section exists but the option doesn't; today's code path errors before ever reading it successfully). Users who want the Claude provider set the key via the Settings UI after this ships. Requires a server restart to take effect, consistent with the existing `llm:provider` description.
+No migration needed — nothing currently has a working `llm.api_key` value in `config.ini` to preserve (the section exists but the option doesn't; today's code path errors before ever reading it successfully). Users who want the Claude provider set the key via the Settings UI after this ships. `get_provider()` is called fresh inside each query request handler (`api/routes/query.py`), not cached at startup, so both new settings take effect on the next query — no restart needed.
