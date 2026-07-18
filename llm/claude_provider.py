@@ -3,7 +3,7 @@ from llm.base import BaseLLMProvider
 
 
 class ClaudeProvider(BaseLLMProvider):
-    def __init__(self, api_key: str, model: str = 'claude-sonnet-4-6'):
+    def __init__(self, api_key: str, model: str = 'claude-sonnet-5'):
         self.api_key = api_key
         self.model = model
 

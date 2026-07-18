@@ -22,6 +22,16 @@ class Settings:
                 'type': 'string', 'default': 'ollama', 'label': 'LLM Provider', 'group': 'general',
                 'description': 'Which LLM backend powers the "Ask" chat. Currently supports "ollama" (local, via Ollama) and "claude" (Anthropic API). A server restart is required after changing this.',
             },
+            'llm:api_key': {
+                'type': 'string', 'default': '', 'label': 'Claude API Key', 'group': 'general',
+                'description': 'Anthropic API key. Required only when llm:provider is set to "claude". '
+                               'Get a key from console.anthropic.com. Takes effect on the next query — no restart needed.',
+            },
+            'llm:claude_model': {
+                'type': 'string', 'default': 'claude-sonnet-5', 'label': 'Claude Model', 'group': 'general',
+                'description': 'Anthropic model used for RAG answers when llm:provider is "claude". '
+                               'Default: claude-sonnet-5.',
+            },
             'tesseract:path': {
                 'type': 'string', 'default': r'C:\Program Files\Tesseract-OCR\tesseract.exe', 'label': 'Tesseract Path', 'group': 'general',
                 'description': 'Full path to the Tesseract OCR executable. Used as a fallback when the vision model is unavailable or disabled. The default Windows install path is C:\\Program Files\\Tesseract-OCR\\tesseract.exe.',

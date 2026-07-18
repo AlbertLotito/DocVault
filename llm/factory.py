@@ -11,9 +11,9 @@ def get_provider():
             host=settings.get('ollama:host'),
         )
     if provider == 'claude':
-        import configparser, os
         from llm.claude_provider import ClaudeProvider
-        cfg = configparser.ConfigParser()
-        cfg.read(os.path.join(os.path.dirname(__file__), '..', 'config.ini'))
-        return ClaudeProvider(api_key=cfg.get('llm', 'api_key'))
+        return ClaudeProvider(
+            api_key=settings.get('llm:api_key'),
+            model=settings.get('llm:claude_model'),
+        )
     raise ValueError(f"Unknown LLM provider: {provider}")
