@@ -1,4 +1,5 @@
 from unittest.mock import patch, MagicMock
+import json
 from llm.ollama_provider import OllamaProvider
 from llm.factory import get_provider
 from llm.claude_provider import ClaudeProvider
@@ -52,3 +53,29 @@ class TestGetProvider:
         assert isinstance(provider, ClaudeProvider)
         assert provider.api_key == 'sk-ant-test123'
         assert provider.model == 'claude-sonnet-5'
+
+
+class TestClaudeProvider:
+    @patch('llm.claude_provider.httpx.stream')
+    def test_chat_stream_yields_text_deltas(self, mock_stream):
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.iter_lines.return_value = [
+            'data: {"type": "message_start"}',
+            'data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Hello"}}',
+            'data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": " world"}}',
+            'data: {"type": "message_stop"}',
+        ]
+        mock_stream.return_value.__enter__.return_value = mock_response
+        provider = ClaudeProvider(api_key='test-key')
+        chunks = list(provider.chat_stream([{'role': 'user', 'content': 'hi'}]))
+        assert chunks == ['Hello', ' world']
+
+    @patch('llm.claude_provider.httpx.stream')
+    def test_chat_stream_yields_error_string_on_failure(self, mock_stream):
+        mock_stream.side_effect = Exception("Connection refused")
+        provider = ClaudeProvider(api_key='test-key')
+        chunks = list(provider.chat_stream([{'role': 'user', 'content': 'hi'}]))
+        assert len(chunks) == 1
+        assert 'Claude error' in chunks[0]
+        assert 'Connection refused' in chunks[0]
