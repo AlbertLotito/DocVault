@@ -196,3 +196,19 @@ Work through this checklist:
 **3. Check semantic search health** — is the "Semantic search unavailable" banner showing in Search? If so, see section 1 above (almost always an Ollama reachability/timeout issue, not a LanceDB issue — LanceDB is embedded and has no separate process to fail).
 
 **4. Re-trigger embedding** — if tasks are stuck at `EXTRACTED`, use **Utilities → Retry embed errors** to push them back through.
+
+---
+
+## 5. A Previously-Indexed File Disappeared From Search
+
+If a file used to appear in search results and now doesn't, check the Vault Log for its status:
+
+| Status | Meaning |
+|---|---|
+| `MISSING` | DocVault didn't find this file on disk for `ingestion:missing_after_scans` (default 3) consecutive scans. Nothing was deleted — extracted text, images, and embeddings are all still intact, just hidden from search/RAG results until resolved. |
+
+**If the file still exists at its original path:** check for a recent change to `ingestion:ignore_extensions`/`ignore_folders` (global or per-vault) that might now be excluding it — an ignored file is correctly skipped during ingestion, but should never be flagged `MISSING` for that reason (files under an ignored path are still tracked as "seen" specifically to prevent this). If the file is genuinely reachable and still shows `MISSING` after a few scan cycles, check that the vault's scan is actually completing (Vault Status page — is the vault active and not paused?).
+
+**If the file moved or the drive was temporarily unavailable:** just wait — the next successful scan that finds the file (at its original or a new registered path) automatically restores its previous status. No action needed.
+
+**If the file is genuinely gone:** open the **Missing Files** panel (Vault Log page, below the main table) to review and permanently purge it — this deletes the task record, extracted text, images, FTS entry, and vector embedding. This is the only way data for a `MISSING` file is ever deleted; DocVault never purges automatically.

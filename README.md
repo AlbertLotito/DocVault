@@ -67,10 +67,12 @@ DocVault exists because most "search my files" tools stop at the text layer. A P
 - Real-time resource governor — CPU, GPU, and disk monitoring with automatic worker throttling
 - Hardware telemetry dashboard — live sensor readings, throttle state, and historical stats
 - Identity Hub — face search across your photo collection
+- Deleted-file detection — a removed file is soft-flagged and hidden from search rather than left as a dead search result; extracted text, images, and embeddings are preserved and auto-restored if the file reappears; permanent purge is a manual, explicit action
 
 ### Local-First
-- All processing runs on your machine. No cloud calls unless you explicitly configure them.
+- All processing runs on your machine by default. No cloud calls unless you explicitly configure them.
 - Ollama provides the LLM and vision layer (self-hosted); LanceDB provides vector search as an embedded library — no separate database service to run.
+- RAG chat can optionally use the Anthropic API instead of Ollama (`llm:provider = claude` in Settings) — this is the one supported case where a request leaves the machine, and it only happens if you configure it.
 
 ---
 

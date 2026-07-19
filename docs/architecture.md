@@ -125,3 +125,19 @@ Three search modes, all returning `{results, degraded, degraded_reason}`:
 Graceful degradation: the UI shows an amber banner when in degraded mode. No crash, no error page — just FTS results with a notice.
 
 > **Vault-filtered search at scale:** when a search is scoped to a vault, `VectorStore.search()` avoids building a SQL `file_hash IN (...)` clause for very large hash sets (a vault with 100K+ documents would otherwise produce a multi-megabyte filter string that LanceDB takes 30s+ to evaluate). Past `_HASH_FILTER_INLINE_MAX` (500) hashes, it over-fetches an unfiltered ANN candidate pool and post-filters by Python `set` membership instead — see `embeddings/vector_store.py`.
+
+> **MISSING-file exclusion at scale:** the same principle applies to hiding deleted files (see §8 below) from semantic search. `search/semantic.py` never builds a LanceDB hash filter for this — it fetches the (expected-small) set of currently-`MISSING` file_hashes separately and post-filters already-returned ANN candidates in Python, deliberately avoiding the same giant-`IN`-clause failure mode fixed above.
+
+---
+
+## 8. Deleted-File Detection
+
+A file removed from a vault's scan directory doesn't disappear from DocVault instantly — its extracted text, embeddings, and search entries may have taken real time/compute to produce, and the absence could be transient (a network drive hiccup, a drive-letter change). Deletion is handled as a three-stage lifecycle: **soft-flag → exclude from search → manual purge.**
+
+**Detection (`core/ingestor.py`):** each vault scan (`ingest()`) tracks every file path actually seen on disk. After the walk, it reconciles this against `file_vault` — DocVault's per-(file_hash, vault_id) membership table, which already exists to support the same content being registered in more than one vault. Each row not seen this cycle increments a `miss_count`; each row seen resets it to 0. A row crossing `ingestion:missing_after_scans` (default 3 consecutive scans) is "missing in that vault" — but the task itself only flips to `tasks.status = 'MISSING'` once **every** `file_vault` row for that hash has crossed the threshold. This is why detection lives at the `file_vault` level rather than the `tasks` level: content shared across vaults must stay visible while any single copy still exists.
+
+**Restore:** if a file reappears, its `file_vault.miss_count` resets and, if the task was `MISSING`, `tasks.status` restores from `tasks.pre_missing_status` — with a safety mapping (`PROCESSING → PENDING`, `EMBEDDING → EXTRACTED`) so a file that vanished mid-processing doesn't resume a stale in-flight state no worker still owns.
+
+**Search exclusion:** `MISSING` tasks are invisible to FTS, filename, and semantic/RAG search (a plain SQL clause for the first two; a Python post-filter for the third — see the note above), but still visible in the Vault Log/catalog view, which is a diagnostic surface, not a "clean" content browser. Worker claim queries (`claim_pending_task`, etc.) already whitelist specific statuses, so `MISSING` tasks are automatically unclaimable — no separate exclusion needed there.
+
+**Purge:** nothing is ever deleted automatically. A user reviews flagged files on the Missing Files panel (Vault Log page) and explicitly purges confirmed deletions via `POST /api/catalog/missing/purge`, which always re-verifies `status = 'MISSING'` server-side before deleting — a stale or forged hash list can never be used to delete live data. The actual hard-delete (`tasks`, `fts_index`, `extracted_images`, `file_vault`; `extracted_texts` cascades via FK; vectors removed best-effort) is shared with `VaultManager._gut_vault` via `core/manager.py::purge_file_hashes`.

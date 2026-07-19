@@ -42,7 +42,9 @@ DocVault resolves settings in priority order (highest first):
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `provider` | `ollama` | LLM backend. Only `ollama` is currently supported. |
+| `provider` | `ollama` | LLM backend for RAG chat. `ollama` (local, self-hosted) or `claude` (Anthropic API — leaves the machine, requires `api_key` below). |
+| `api_key` | *(empty)* | Anthropic API key. Required only when `provider = claude`. Get a key from console.anthropic.com. Set via the Settings UI — takes effect on the next query, no restart needed. |
+| `claude_model` | `claude-sonnet-5` | Anthropic model used for RAG answers when `provider = claude`. |
 
 ### [tesseract]
 
@@ -115,6 +117,14 @@ DocVault resolves settings in priority order (highest first):
 |-----|---------|-------------|
 | `search_throttle_duration` | `30` | Seconds to pause extraction workers after a user search (to free resources). |
 | `stuck_task_threshold_mins` | `30` | Minutes before a PROCESSING task is flagged as stuck in the health check. |
+
+### [ingestion]
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `ignore_extensions` | `.bak, .tmp, .log` | Comma-separated file extensions skipped during ingestion, across all vaults (include the dot). |
+| `ignore_folders` | `temp*, __pycache__, .git` | Comma-separated glob patterns matched against folder name (not full path). |
+| `missing_after_scans` | `3` | A file must be absent for this many consecutive vault scans before it's flagged `MISSING` — see [architecture.md §8](architecture.md#8-deleted-file-detection). Protects against transient issues (network drive hiccups, drive-letter changes) causing a false flag. |
 
 ### [google]
 

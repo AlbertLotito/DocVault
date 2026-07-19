@@ -8,7 +8,7 @@ Read the following in full before doing anything else:
 
 The status doc is the most recently dated file in `docs/internals/status/`. Always read the newest one — it supersedes all earlier status docs. As of the last update the file is:
 
-`docs/internals/status/2026-05-31-project-status.md`
+`docs/internals/status/2026-07-19-project-status.md`
 
 If a newer file exists in that directory, read that instead.
 
