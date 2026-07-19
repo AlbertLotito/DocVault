@@ -132,6 +132,14 @@ class VaultManager:
                 "SELECT file_hash FROM tasks WHERE vault_id = ?", (vault_id,)
             ).fetchall()]
 
+        # Note: purge_file_hashes removes file_vault rows for these hashes
+        # across ALL vaults, not just this one -- if a hash is also registered
+        # in another vault (cross-vault content dedup), that vault's file_vault
+        # row is removed too. This is schema-forced: file_vault.file_hash
+        # references tasks(file_hash) with no ON DELETE CASCADE, and the tasks
+        # row for these hashes is being deleted regardless (they belong to
+        # this vault). The other vault will simply re-register the file as
+        # new content on its next scan -- same eventual outcome, no data loss.
         from core.manager import purge_file_hashes
         purge_file_hashes(self.db_path, hashes)
 

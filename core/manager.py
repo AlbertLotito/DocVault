@@ -1482,15 +1482,12 @@ def purge_file_hashes(db_path: str, file_hashes: list[str]) -> None:
         with _connect(db_path) as conn:
             conn.execute(f"DELETE FROM fts_index WHERE file_hash IN ({placeholders})", batch)
             conn.execute(f"DELETE FROM extracted_images WHERE source_hash IN ({placeholders})", batch)
+            # file_vault before tasks: FK (file_vault.file_hash REFERENCES
+            # tasks(file_hash), no ON DELETE CASCADE) requires the child row
+            # to go first under PRAGMA foreign_keys=ON.
+            conn.execute(f"DELETE FROM file_vault WHERE file_hash IN ({placeholders})", batch)
+            conn.execute(f"DELETE FROM tasks WHERE file_hash IN ({placeholders})", batch)
             conn.commit()
-    with _connect(db_path) as conn:
-        placeholders = ','.join('?' * len(file_hashes))
-        # file_vault.file_hash REFERENCES tasks(file_hash) with no ON DELETE
-        # CASCADE, so the child row must go before the parent under
-        # PRAGMA foreign_keys=ON.
-        conn.execute(f"DELETE FROM file_vault WHERE file_hash IN ({placeholders})", file_hashes)
-        conn.execute(f"DELETE FROM tasks WHERE file_hash IN ({placeholders})", file_hashes)
-        conn.commit()
 
 
 def purge_missing_files(db_path: str, file_hashes: list[str]) -> list[str]:

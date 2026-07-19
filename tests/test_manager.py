@@ -266,6 +266,30 @@ def test_purge_file_hashes_removes_all_rows(tmp_path):
         assert conn.execute("SELECT COUNT(*) FROM file_vault WHERE file_hash='h1'").fetchone()[0] == 0
 
 
+def test_purge_file_hashes_batches_across_multiple_chunks(tmp_path):
+    """Prove batching works past BATCH_SIZE (500): insert 520 hashes' worth of
+    tasks/file_vault rows, purge them all, and assert every row is gone --
+    this crosses one batch boundary for all four deletes."""
+    from core.manager import _connect
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    n = 520
+    hashes = [f"h{i}" for i in range(n)]
+    with _connect(db_path) as conn:
+        conn.execute("""INSERT INTO vaults (vault_id, name, scan_directory, priority, state, created_at, updated_at)
+                        VALUES ('v1', 'V1', '/v1', 5, 'active', '2024-01-01', '2024-01-01')""")
+        for h in hashes:
+            conn.execute("INSERT INTO tasks (file_hash, file_path, file_type) VALUES (?, ?, 'txt')", (h, f"/{h}.txt"))
+            conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES (?, 'v1', ?)", (h, f"/{h}.txt"))
+        conn.commit()
+
+    manager.purge_file_hashes(db_path, hashes)
+
+    with _connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM file_vault").fetchone()[0] == 0
+
+
 def test_purge_missing_files_only_purges_missing_status(tmp_path):
     from core.manager import _connect
     db_path = str(tmp_path / "test.db")
