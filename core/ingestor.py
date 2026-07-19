@@ -64,26 +64,59 @@ def _update_missing_flags(db_path, vault_id, seen_paths):
     """After a vault walk completes, reconcile file_vault.miss_count against what
     was actually seen on disk this cycle. Flips a task to MISSING once every
     file_vault row for its hash has crossed the configured threshold; restores
-    it if any row resets to 0 (the file reappeared)."""
+    it if any row resets to 0 (the file reappeared). Runs as one connection/one
+    transaction per vault -- avoids one write-lock acquisition per file on
+    large scans, and skips already-MISSING hashes so miss_count doesn't grow
+    forever for files that are left unpurged."""
     if not vault_id:
         return
     threshold = int(settings.get('ingestion:missing_after_scans') or 3)
-    rows = manager.get_file_vault_rows(db_path, vault_id)
+    BATCH_SIZE = 500
 
-    reappeared_hashes = set()
-    newly_crossed_hashes = set()
+    with manager._connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT file_hash, file_path, miss_count FROM file_vault WHERE vault_id = ?",
+            (vault_id,)
+        ).fetchall()
+        if not rows:
+            return
 
-    for row in rows:
-        path = os.path.normpath(row['file_path'])
-        if path in seen_paths:
-            if row['miss_count'] > 0:
-                manager.set_file_vault_miss_count(db_path, row['file_hash'], vault_id, 0)
-                reappeared_hashes.add(row['file_hash'])
-        else:
-            new_count = row['miss_count'] + 1
-            manager.set_file_vault_miss_count(db_path, row['file_hash'], vault_id, new_count)
-            if new_count >= threshold:
-                newly_crossed_hashes.add(row['file_hash'])
+        hashes = list({r['file_hash'] for r in rows})
+        already_missing = set()
+        for i in range(0, len(hashes), BATCH_SIZE):
+            batch = hashes[i:i + BATCH_SIZE]
+            placeholders = ','.join('?' * len(batch))
+            already_missing.update(
+                r['file_hash'] for r in conn.execute(
+                    f"SELECT file_hash FROM tasks WHERE status = 'MISSING' AND file_hash IN ({placeholders})",
+                    batch
+                ).fetchall()
+            )
+
+        reappeared_hashes = set()
+        newly_crossed_hashes = set()
+
+        for row in rows:
+            path = os.path.normpath(row['file_path'])
+            file_hash = row['file_hash']
+            if path in seen_paths:
+                if row['miss_count'] > 0:
+                    conn.execute(
+                        "UPDATE file_vault SET miss_count = 0 WHERE file_hash = ? AND vault_id = ?",
+                        (file_hash, vault_id)
+                    )
+                    if file_hash in already_missing:
+                        reappeared_hashes.add(file_hash)
+            elif file_hash not in already_missing:
+                new_count = row['miss_count'] + 1
+                conn.execute(
+                    "UPDATE file_vault SET miss_count = ? WHERE file_hash = ? AND vault_id = ?",
+                    (new_count, file_hash, vault_id)
+                )
+                if new_count >= threshold:
+                    newly_crossed_hashes.add(file_hash)
+
+        conn.commit()
 
     for file_hash in newly_crossed_hashes:
         if manager.all_file_vault_rows_missing(db_path, file_hash, threshold):

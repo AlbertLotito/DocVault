@@ -513,15 +513,6 @@ def get_file_vault_rows(db_path, vault_id):
         return [dict(r) for r in rows]
 
 
-def set_file_vault_miss_count(db_path, file_hash, vault_id, count):
-    with _connect(db_path) as conn:
-        conn.execute(
-            "UPDATE file_vault SET miss_count = ? WHERE file_hash = ? AND vault_id = ?",
-            (count, file_hash, vault_id)
-        )
-        conn.commit()
-
-
 def all_file_vault_rows_missing(db_path, file_hash, threshold):
     """True if every file_vault row for this hash has miss_count >= threshold
     (and at least one row exists for this hash)."""

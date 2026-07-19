@@ -88,6 +88,60 @@ def test_deleted_file_flags_missing_after_threshold(tmp_path):
     assert task['pre_missing_status'] == 'PENDING'
 
 
+def test_missing_file_miss_count_does_not_grow_after_flagged(tmp_path):
+    """Once a task is MISSING, further scan cycles must not keep incrementing
+    file_vault.miss_count -- _update_missing_flags should skip already-MISSING
+    hashes entirely so the count stays capped at whatever it was when the
+    task first crossed threshold."""
+    from unittest.mock import patch
+    from core.manager import _connect
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    f = docs / "gone.txt"
+    f.write_text("hello")
+    _make_vault(db_path, 'vault-a', str(docs))
+
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        ingestor.ingest(str(docs), db_path, vault_id='vault-a')
+
+    with _connect(db_path) as conn:
+        task = conn.execute("SELECT file_hash, status FROM tasks").fetchone()
+    file_hash = task['file_hash']
+
+    f.unlink()
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        for _ in range(3):  # default threshold -- crosses into MISSING
+            ingestor.ingest(str(docs), db_path, vault_id='vault-a')
+
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+        miss_count_at_flag = conn.execute(
+            "SELECT miss_count FROM file_vault WHERE file_hash = ? AND vault_id = ?",
+            (file_hash, 'vault-a')
+        ).fetchone()['miss_count']
+    assert task['status'] == 'MISSING'
+
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        for _ in range(3):  # file still absent -- should not keep incrementing
+            ingestor.ingest(str(docs), db_path, vault_id='vault-a')
+
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+        miss_count_after = conn.execute(
+            "SELECT miss_count FROM file_vault WHERE file_hash = ? AND vault_id = ?",
+            (file_hash, 'vault-a')
+        ).fetchone()['miss_count']
+    assert task['status'] == 'MISSING'
+    assert miss_count_after == miss_count_at_flag
+
+
 def test_deleted_file_not_flagged_before_threshold(tmp_path):
     from unittest.mock import patch
     from core.manager import _connect
