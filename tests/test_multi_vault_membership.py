@@ -289,3 +289,20 @@ def test_multi_vault_filter_no_path_substitution(vault_db):
     results = [{'file_hash': 'h1', 'file_path': path_a, 'score': 1.0}]
     manager.substitute_vault_paths(vault_db, results, ['vault-a', 'vault-b'])
     assert results[0]['file_path'] == path_a   # canonical unchanged
+
+
+# ── Test 13 ────────────────────────────────────────────────────────────────────
+
+def test_missing_detection_schema_columns_exist(db):
+    with _connect(db) as conn:
+        fv_cols = [r['name'] for r in conn.execute("PRAGMA table_info(file_vault)").fetchall()]
+        task_cols = [r['name'] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()]
+    assert 'miss_count' in fv_cols
+    assert 'pre_missing_status' in task_cols
+
+
+# ── Test 14 ────────────────────────────────────────────────────────────────────
+
+def test_missing_after_scans_setting_default():
+    from core.settings import settings
+    assert int(settings.get('ingestion:missing_after_scans')) == 3

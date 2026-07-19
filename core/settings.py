@@ -384,6 +384,13 @@ class Settings:
                 'description': 'Comma-separated glob patterns matched against folder name (not full path). '
                                'Examples: temp*, node_modules, *_data',
             },
+            'ingestion:missing_after_scans': {
+                'type': 'int', 'default': 3, 'label': 'Missing after N scans', 'group': 'ingestion',
+                'description': 'A file must be absent for this many consecutive vault scans before it is '
+                               'flagged MISSING. Protects against transient issues (network drive hiccups, '
+                               'drive-letter changes) causing a false flag. Default: 3 (~3 minutes at the '
+                               'default 60s scan interval).',
+            },
             # System
             'system:debug_mode': {
                 'type': 'string', 'default': 'false', 'label': 'Debug Mode', 'group': 'general',

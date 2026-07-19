@@ -340,6 +340,14 @@ def init_db(db_path=None):
         if 'parent_hash' not in columns:
             conn.execute("ALTER TABLE tasks ADD COLUMN parent_hash TEXT REFERENCES tasks(file_hash)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent_hash ON tasks(parent_hash)")
+        if 'pre_missing_status' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN pre_missing_status TEXT")
+
+        # file_vault migration
+        cursor = conn.execute("PRAGMA table_info(file_vault)")
+        fv_columns = [row['name'] for row in cursor.fetchall()]
+        if 'miss_count' not in fv_columns:
+            conn.execute("ALTER TABLE file_vault ADD COLUMN miss_count INTEGER DEFAULT 0")
 
         # extracted_images migration
         cursor = conn.execute("PRAGMA table_info(extracted_images)")
