@@ -118,10 +118,15 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
     for root, dirs, files in os.walk(directory):
         # ── Folder pruning (must be first — prunes before any stat/hash work) ─
         if ignore_folders_set:
-            dirs[:] = [
+            pruned = [
                 d for d in dirs
-                if not any(fnmatch.fnmatch(d.lower(), pat) for pat in ignore_folders_set)
+                if any(fnmatch.fnmatch(d.lower(), pat) for pat in ignore_folders_set)
             ]
+            for d in pruned:
+                for sub_root, _, sub_files in os.walk(os.path.join(root, d)):
+                    for sub_name in sub_files:
+                        seen_paths.add(os.path.normpath(os.path.join(sub_root, sub_name)))
+            dirs[:] = [d for d in dirs if d not in pruned]
 
         # ── Part 1: Folder Intelligence ──────────────────────────────────────
         # Check if the current folder itself should be a task unit

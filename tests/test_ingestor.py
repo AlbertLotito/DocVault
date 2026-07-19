@@ -181,3 +181,133 @@ def test_multi_vault_file_not_flagged_while_one_copy_survives(tmp_path):
             "SELECT status FROM tasks WHERE file_hash = ?", (expected_hash,)
         ).fetchone()
     assert task['status'] != 'MISSING'  # vault-b copy still exists
+
+
+def test_multi_vault_file_flagged_missing_when_both_copies_removed(tmp_path):
+    from unittest.mock import patch
+    from core.manager import _connect
+    import hashlib
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    content = b'shared content'
+    expected_hash = hashlib.sha256(content).hexdigest()
+
+    dir_a = tmp_path / "vault_a"
+    dir_a.mkdir()
+    (dir_a / "photo.jpg").write_bytes(content)
+    dir_b = tmp_path / "vault_b"
+    dir_b.mkdir()
+    (dir_b / "photo.jpg").write_bytes(content)
+    _make_vault(db_path, 'vault-a', str(dir_a))
+    _make_vault(db_path, 'vault-b', str(dir_b))
+
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        ingestor.ingest(str(dir_a), db_path, vault_id='vault-a')
+        ingestor.ingest(str(dir_b), db_path, vault_id='vault-b')
+
+        (dir_a / "photo.jpg").unlink()  # gone from vault-a
+        (dir_b / "photo.jpg").unlink()  # gone from vault-b too
+        for _ in range(3):
+            ingestor.ingest(str(dir_a), db_path, vault_id='vault-a')
+            ingestor.ingest(str(dir_b), db_path, vault_id='vault-b')
+
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status FROM tasks WHERE file_hash = ?", (expected_hash,)
+        ).fetchone()
+    assert task['status'] == 'MISSING'  # both copies gone -> flip to MISSING
+
+
+def test_pruned_ignore_folder_does_not_flag_files_missing(tmp_path):
+    from unittest.mock import patch
+    from core.manager import _connect
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    sub = docs / "sub"
+    sub.mkdir()
+    f = sub / "still_here.txt"
+    f.write_text("hello")
+    _make_vault(db_path, 'vault-a', str(docs))
+
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        # First ingest with no ignore rules -- file gets indexed normally.
+        ingestor.ingest(str(docs), db_path, vault_id='vault-a')
+
+    with _connect(db_path) as conn:
+        task = conn.execute("SELECT file_hash, status FROM tasks").fetchone()
+    file_hash = task['file_hash']
+    status_before = task['status']
+
+    # Now the user adds 'sub' to ignore_folders. The file is still physically
+    # present on disk the whole time -- this must never look like a deletion.
+    vault_row = {'ignore_folders': 'sub'}
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        for _ in range(3):  # default threshold
+            ingestor.ingest(str(docs), db_path, vault_id='vault-a', vault_row=vault_row)
+
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+    assert task['status'] != 'MISSING'
+    assert task['status'] == status_before
+
+
+def test_restore_from_missing_maps_processing_to_pending(tmp_path):
+    from core.manager import _connect
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    file_hash = 'a' * 64
+
+    manager.insert_task(db_path, file_hash, str(tmp_path / "f.txt"), 'txt', vault_id='vault-a')
+    with _connect(db_path) as conn:
+        conn.execute("UPDATE tasks SET status = 'PROCESSING' WHERE file_hash = ?", (file_hash,))
+        conn.commit()
+
+    manager.flag_task_missing(db_path, file_hash)
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status, pre_missing_status FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+    assert task['status'] == 'MISSING'
+    assert task['pre_missing_status'] == 'PROCESSING'
+
+    manager.restore_task_from_missing(db_path, file_hash)
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+    assert task['status'] == 'PENDING'
+
+
+def test_restore_from_missing_maps_embedding_to_extracted(tmp_path):
+    from core.manager import _connect
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    file_hash = 'b' * 64
+
+    manager.insert_task(db_path, file_hash, str(tmp_path / "f.txt"), 'txt', vault_id='vault-a')
+    with _connect(db_path) as conn:
+        conn.execute("UPDATE tasks SET status = 'EMBEDDING' WHERE file_hash = ?", (file_hash,))
+        conn.commit()
+
+    manager.flag_task_missing(db_path, file_hash)
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status, pre_missing_status FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+    assert task['status'] == 'MISSING'
+    assert task['pre_missing_status'] == 'EMBEDDING'
+
+    manager.restore_task_from_missing(db_path, file_hash)
+    with _connect(db_path) as conn:
+        task = conn.execute(
+            "SELECT status FROM tasks WHERE file_hash = ?", (file_hash,)
+        ).fetchone()
+    assert task['status'] == 'EXTRACTED'
