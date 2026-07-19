@@ -503,15 +503,6 @@ def get_vault_paths(db_path, file_hashes, vault_id):
         return {}
 
 
-def get_file_vault_rows(db_path, vault_id):
-    """Return [{file_hash, file_path, miss_count}, ...] for every file_vault row in this vault."""
-    with _connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT file_hash, file_path, miss_count FROM file_vault WHERE vault_id = ?",
-            (vault_id,)
-        ).fetchall()
-        return [dict(r) for r in rows]
-
 
 def all_file_vault_rows_missing(db_path, file_hash, threshold):
     """True if every file_vault row for this hash has miss_count >= threshold
