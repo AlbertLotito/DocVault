@@ -503,6 +503,74 @@ def get_vault_paths(db_path, file_hashes, vault_id):
         return {}
 
 
+def get_file_vault_rows(db_path, vault_id):
+    """Return [{file_hash, file_path, miss_count}, ...] for every file_vault row in this vault."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT file_hash, file_path, miss_count FROM file_vault WHERE vault_id = ?",
+            (vault_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def set_file_vault_miss_count(db_path, file_hash, vault_id, count):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE file_vault SET miss_count = ? WHERE file_hash = ? AND vault_id = ?",
+            (count, file_hash, vault_id)
+        )
+        conn.commit()
+
+
+def all_file_vault_rows_missing(db_path, file_hash, threshold):
+    """True if every file_vault row for this hash has miss_count >= threshold
+    (and at least one row exists for this hash)."""
+    with _connect(db_path) as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM file_vault WHERE file_hash = ?", (file_hash,)
+        ).fetchone()[0]
+        if total == 0:
+            return False
+        below_threshold = conn.execute(
+            "SELECT COUNT(*) FROM file_vault WHERE file_hash = ? AND miss_count < ?",
+            (file_hash, threshold)
+        ).fetchone()[0]
+        return below_threshold == 0
+
+
+_MISSING_RESTORE_MAP = {
+    'PROCESSING': 'PENDING',
+    'EMBEDDING': 'EXTRACTED',
+}
+
+
+def flag_task_missing(db_path, file_hash):
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE tasks SET pre_missing_status = status, status = 'MISSING' "
+            "WHERE file_hash = ? AND status != 'MISSING'",
+            (file_hash,)
+        )
+        conn.commit()
+
+
+def restore_task_from_missing(db_path, file_hash):
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT pre_missing_status FROM tasks WHERE file_hash = ? AND status = 'MISSING'",
+            (file_hash,)
+        ).fetchone()
+        if row is None:
+            return
+        pre_status = row['pre_missing_status'] or 'PENDING'
+        restore_to = _MISSING_RESTORE_MAP.get(pre_status, pre_status)
+        conn.execute(
+            "UPDATE tasks SET status = ?, pre_missing_status = NULL WHERE file_hash = ?",
+            (restore_to, file_hash)
+        )
+        conn.commit()
+
+
 def substitute_vault_paths(db_path, results, vault_id_list):
     """Replace file_path in results with vault-specific path when single vault selected.
 

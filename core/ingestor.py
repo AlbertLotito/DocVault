@@ -60,6 +60,39 @@ def _update_vector_path(file_hash, new_path):
         logger.error(f"[vector] Path update failed for {file_hash[:8]}: {e}")
 
 
+def _update_missing_flags(db_path, vault_id, seen_paths):
+    """After a vault walk completes, reconcile file_vault.miss_count against what
+    was actually seen on disk this cycle. Flips a task to MISSING once every
+    file_vault row for its hash has crossed the configured threshold; restores
+    it if any row resets to 0 (the file reappeared)."""
+    if not vault_id:
+        return
+    threshold = int(settings.get('ingestion:missing_after_scans') or 3)
+    rows = manager.get_file_vault_rows(db_path, vault_id)
+
+    reappeared_hashes = set()
+    newly_crossed_hashes = set()
+
+    for row in rows:
+        path = os.path.normpath(row['file_path'])
+        if path in seen_paths:
+            if row['miss_count'] > 0:
+                manager.set_file_vault_miss_count(db_path, row['file_hash'], vault_id, 0)
+                reappeared_hashes.add(row['file_hash'])
+        else:
+            new_count = row['miss_count'] + 1
+            manager.set_file_vault_miss_count(db_path, row['file_hash'], vault_id, new_count)
+            if new_count >= threshold:
+                newly_crossed_hashes.add(row['file_hash'])
+
+    for file_hash in newly_crossed_hashes:
+        if manager.all_file_vault_rows_missing(db_path, file_hash, threshold):
+            manager.flag_task_missing(db_path, file_hash)
+
+    for file_hash in reappeared_hashes:
+        manager.restore_task_from_missing(db_path, file_hash)
+
+
 def ingest(directory, db_path, vault_id=None, vault_row=None):
     """
     Walk directory, hash each file, and:
@@ -80,6 +113,7 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
 
     added = 0
     moved = 0
+    seen_paths = set()
 
     for root, dirs, files in os.walk(directory):
         # ── Folder pruning (must be first — prunes before any stat/hash work) ─
@@ -126,9 +160,10 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
             dirs.clear()
             continue
         for name in files:
+            file_path = os.path.normpath(os.path.join(root, name))
+            seen_paths.add(file_path)
             if name.lower() in _BLOCKLIST:
                 continue
-            file_path = os.path.normpath(os.path.join(root, name))
             if _is_hidden_or_system(file_path):
                 continue
             ext = os.path.splitext(name)[1].lower()
@@ -176,6 +211,8 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
 
             except Exception as e:
                 logger.warn(f"  Skipped {name}: {e}")
+
+    _update_missing_flags(db_path, vault_id, seen_paths)
 
     logger.info(f"Ingestion complete. Added {added}, moved {moved} file(s).")
     return added, moved
