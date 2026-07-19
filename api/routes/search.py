@@ -84,7 +84,7 @@ async def search(q: str = Query(..., min_length=1),
     )
 
     if mode == 'semantic':
-        results = await semantic.async_search(q, top_k=n, hash_filter=hash_filter)
+        results = await semantic.async_search(q, top_k=n, hash_filter=hash_filter, db_path=db)
         manager.substitute_vault_paths(db, results, vault_id_list)
         # semantic already returns [] gracefully when the vector store is down
         _enrich_with_offsets(db, results)

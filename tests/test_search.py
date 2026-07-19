@@ -66,3 +66,82 @@ def test_hybrid_merges_results(db):
     assert 'h2' in hashes
     # h1 appears in both so should rank higher
     assert hashes.index('h1') < hashes.index('h2')
+
+
+def test_fts_search_excludes_missing_status(tmp_path):
+    from core import manager
+    from core.manager import _connect
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h1', '/a.txt', 'txt', 'COMPLETED')")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h2', '/b.txt', 'txt', 'MISSING')")
+        conn.execute("INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES ('h1', 0, '/a.txt', 'hello world')")
+        conn.execute("INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES ('h2', 0, '/b.txt', 'hello world')")
+        conn.commit()
+
+    results = manager.fts_search(db_path, 'hello')
+
+    assert len(results) == 1
+    assert results[0]['file_hash'] == 'h1'
+
+
+def test_filename_search_excludes_missing_status(tmp_path):
+    from core import manager
+    from core.manager import _connect
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h1', '/report.txt', 'txt', 'COMPLETED')")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h2', '/report2.txt', 'txt', 'MISSING')")
+        conn.commit()
+
+    results = manager.filename_search(db_path, 'report')
+
+    assert len(results) == 1
+    assert results[0]['file_hash'] == 'h1'
+
+
+def test_get_missing_hashes(tmp_path):
+    from core import manager
+    from core.manager import _connect
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h1', '/a.txt', 'txt', 'COMPLETED')")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h2', '/b.txt', 'txt', 'MISSING')")
+        conn.commit()
+
+    assert manager.get_missing_hashes(db_path) == {'h2'}
+
+
+def test_semantic_search_excludes_missing_status(tmp_path, monkeypatch):
+    from core import manager
+    from core.manager import _connect
+    from unittest.mock import patch, MagicMock
+    import asyncio
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h1', '/a.txt', 'txt', 'COMPLETED')")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h2', '/b.txt', 'txt', 'MISSING')")
+        conn.commit()
+
+    from search import semantic
+
+    async def _fake_embed(query):
+        return [0.1, 0.2, 0.3]
+
+    fake_results = [
+        {'file_hash': 'h1', 'file_path': '/a.txt', 'score': 0.9},
+        {'file_hash': 'h2', 'file_path': '/b.txt', 'score': 0.8},
+    ]
+
+    with patch('embeddings.embedder.async_embed', side_effect=_fake_embed), \
+         patch('search.semantic._vs') as mock_vs:
+        mock_vs.return_value.search.return_value = fake_results
+        results = asyncio.run(semantic.async_search('query', db_path=db_path))
+
+    assert len(results) == 1
+    assert results[0]['file_hash'] == 'h1'

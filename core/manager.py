@@ -1003,6 +1003,15 @@ def insert_extracted_image(db_path, source_hash, img_meta):
         return False
 
 
+def get_missing_hashes(db_path: str) -> set[str]:
+    """Return the set of file_hashes currently flagged MISSING. Expected to be
+    small relative to total corpus size -- callers use this to post-filter
+    already-fetched search candidates, never to build a SQL/LanceDB IN clause."""
+    with _connect(db_path) as conn:
+        rows = conn.execute("SELECT file_hash FROM tasks WHERE status = 'MISSING'").fetchall()
+        return {r[0] for r in rows}
+
+
 def fts_search(db_path, query, limit=20,
                file_type=None, date_from=None, date_to=None, vault_ids=None):
     with _connect(db_path) as conn:
@@ -1014,7 +1023,7 @@ def fts_search(db_path, query, limit=20,
             # applies to the expanded row count. The primary use case is single-vault
             # filtering; multi-vault is bounded by top_k.
             placeholders = ','.join(['?'] * len(vault_ids))
-            where = ["fts_index.content MATCH ?"]
+            where = ["fts_index.content MATCH ?", "t.status != 'MISSING'"]
             params = [*vault_ids, query]
             if file_type:
                 where.append("t.file_type LIKE ?")
@@ -1040,7 +1049,7 @@ def fts_search(db_path, query, limit=20,
             ).fetchall()
         else:
             # No vault filter — original query using fts_index.file_path
-            where = ["fts_index.content MATCH ?"]
+            where = ["fts_index.content MATCH ?", "tasks.status != 'MISSING'"]
             params = [query]
             if file_type:
                 where.append("tasks.file_type LIKE ?")
@@ -1091,7 +1100,7 @@ def _wildcard_to_like(pattern: str) -> str:
 
 def _filename_filter_clauses(file_type, date_from, date_to, vault_ids=None):
     """Return (where_fragments, params) for the common filename filter fields."""
-    where, params = [], []
+    where, params = ["status != 'MISSING'"], []
     if file_type:
         where.append("LOWER(file_type) = LOWER(?)")
         params.append(file_type.strip().lower())

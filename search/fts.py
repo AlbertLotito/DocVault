@@ -63,7 +63,7 @@ def _regex_search(db_path: str, pattern: str, limit: int,
     from core.manager import _connect
     with _connect(db_path) as conn:
         _register_regexp(conn)
-        where = ["fts_index.content REGEXP ?"]
+        where = ["fts_index.content REGEXP ?", "tasks.status != 'MISSING'"]
         params = [pattern]
         if file_type:
             where.append("tasks.file_type LIKE ?")

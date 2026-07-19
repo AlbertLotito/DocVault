@@ -67,7 +67,7 @@ async def async_search(db_path: str, query: str, top_k: int = 10,
     # vision/chat workers) falls back to FTS-only quickly rather than blocking until
     # the outer query/stream timeout fires.
     semantic_task = asyncio.wait_for(
-        semantic.async_search(query, top_k=top_k * 2, hash_filter=hash_filter),
+        semantic.async_search(query, top_k=top_k * 2, hash_filter=hash_filter, db_path=db_path),
         timeout=sem_timeout,
     )
 
