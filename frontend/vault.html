@@ -160,6 +160,49 @@
       </div>
     </div>
 
+    <!-- == DIVIDER ======================================== -->
+    <div class="lc-divider"><div class="lc-divider-label" data-i18n="vault.missing.divider">Missing Files</div></div>
+
+    <div class="lc-bar-badge" onclick="lcAccordion(this)">
+      <div class="lc-bar-tab" style="background:#440022;">&#9888;</div>
+      <div class="lc-bar-body">
+        <div class="lc-bar-name" data-i18n="vault.missing.title">Missing Files</div>
+        <div class="lc-bar-desc" data-i18n="vault.missing.desc">Files no longer found on disk — review and purge</div>
+        <div class="lc-bar-arrow">&#9654;</div>
+      </div>
+    </div>
+    <div class="lc-bar-expand" id="missing-files-expand">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+        <select id="missing-vault-filter" class="lc-select" onchange="loadMissingFiles(0)">
+          <option value="">All vaults</option>
+        </select>
+        <input id="missing-q-filter" class="lc-input" type="text" placeholder="Search filename..."
+               style="flex:1;min-width:160px;" onkeyup="if(event.key==='Enter')loadMissingFiles(0)">
+        <button class="lc-btn lc-btn-sm" onclick="loadMissingFiles(0)">Search</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="lc-btn lc-btn-sm" onclick="purgeSelectedMissingFiles()">Purge Selected</button>
+        <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="purgeAllMissingFiles()">Purge All (filtered)</button>
+      </div>
+      <div style="max-height:400px;overflow-y:auto;border:1px solid var(--c-border);border-radius:6px;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:var(--c-surface);position:sticky;top:0;">
+              <th style="padding:6px;text-align:left;"><input type="checkbox" id="missing-select-all" onchange="toggleAllMissingFiles(this)"></th>
+              <th style="padding:6px;text-align:left;">File</th>
+              <th style="padding:6px;text-align:left;">Vault</th>
+              <th style="padding:6px;text-align:left;">Was</th>
+              <th style="padding:6px;text-align:left;">Last Updated</th>
+            </tr>
+          </thead>
+          <tbody id="missing-files-body">
+            <tr><td colspan="5" style="padding:10px;color:var(--c-label-dim);">Not loaded — expand this panel to load.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="missing-files-pager" style="margin-top:8px;font-size:11px;color:var(--c-label-dim);"></div>
+    </div>
+
   </div><!-- /lc-page -->
 
   <!-- detail-overlay: catalog item detail -->
@@ -1021,6 +1064,104 @@
       }
     }
 
+    // ── Missing Files ─────────────────────────────────────────────────────
+    let _missingOffset = 0;
+    const _missingLimit = 50;
+    let _missingVaultsLoaded = false;
+
+    async function loadMissingVaultFilter() {
+      if (_missingVaultsLoaded) return;
+      try {
+        const vaults = await api('/vaults');
+        const sel = document.getElementById('missing-vault-filter');
+        for (const v of (vaults || [])) {
+          const opt = document.createElement('option');
+          opt.value = v.vault_id;
+          opt.textContent = v.name;
+          sel.appendChild(opt);
+        }
+        _missingVaultsLoaded = true;
+      } catch (_) {}
+    }
+
+    function _missingQueryString(extra) {
+      const vault_id = document.getElementById('missing-vault-filter').value;
+      const q = document.getElementById('missing-q-filter').value.trim();
+      const params = new URLSearchParams({ status: 'MISSING' });
+      if (vault_id) params.set('vault_id', vault_id);
+      if (q) params.set('filename', `%${q}%`);
+      Object.entries(extra || {}).forEach(([k, v]) => params.set(k, v));
+      return params.toString();
+    }
+
+    async function loadMissingFiles(offset) {
+      _missingOffset = offset || 0;
+      const body = document.getElementById('missing-files-body');
+      body.innerHTML = `<tr><td colspan="5" style="padding:10px;color:var(--c-label-dim);">Loading...</td></tr>`;
+      try {
+        const qs = _missingQueryString({ limit: _missingLimit, offset: _missingOffset });
+        const data = await api(`/catalog?${qs}`);
+        const tasks = data.tasks || [];
+        if (!tasks.length) {
+          body.innerHTML = `<tr><td colspan="5" style="padding:10px;color:var(--c-ok);">No missing files.</td></tr>`;
+        } else {
+          body.innerHTML = tasks.map(row => `
+            <tr style="border-top:1px solid var(--c-border);">
+              <td style="padding:6px;"><input type="checkbox" class="missing-file-check" value="${row.file_hash}"></td>
+              <td style="padding:6px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(row.file_path)}">${formatPath(row.file_path)}</td>
+              <td style="padding:6px;">${row.vault_id || '—'}</td>
+              <td style="padding:6px;color:var(--c-label-dim);">${row.pre_missing_status || '—'}</td>
+              <td style="padding:6px;color:var(--c-label-dim);">${row.last_update || ''}</td>
+            </tr>`).join('');
+        }
+        const total = data.total_matches || 0;
+        const shown = tasks.length;
+        document.getElementById('missing-files-pager').innerHTML =
+          `${_missingOffset + 1}–${_missingOffset + shown} of ${total}` +
+          (_missingOffset > 0 ? ` &nbsp; <a href="#" onclick="loadMissingFiles(${Math.max(0, _missingOffset - _missingLimit)});return false;">&laquo; prev</a>` : '') +
+          (_missingOffset + shown < total ? ` &nbsp; <a href="#" onclick="loadMissingFiles(${_missingOffset + _missingLimit});return false;">next &raquo;</a>` : '');
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="5" style="padding:10px;color:var(--c-error);">${err.message}</td></tr>`;
+      }
+    }
+
+    function toggleAllMissingFiles(cb) {
+      document.querySelectorAll('.missing-file-check').forEach(el => { el.checked = cb.checked; });
+    }
+
+    function _selectedMissingFileHashes() {
+      return Array.from(document.querySelectorAll('.missing-file-check:checked')).map(el => el.value);
+    }
+
+    async function purgeSelectedMissingFiles() {
+      const hashes = _selectedMissingFileHashes();
+      if (!hashes.length) { lcToast('No files selected'); return; }
+      if (!confirm(`Permanently purge ${hashes.length} selected file(s)? This deletes all extracted text, images, and embeddings.`)) return;
+      try {
+        const result = await api('/catalog/missing/purge', { method: 'POST', body: JSON.stringify({ hashes }) });
+        lcToast(`Purged ${result.purged} file(s)`);
+        loadMissingFiles(0);
+      } catch (err) {
+        lcToast('Error: ' + err.message);
+      }
+    }
+
+    async function purgeAllMissingFiles() {
+      const vault_id = document.getElementById('missing-vault-filter').value;
+      const q = document.getElementById('missing-q-filter').value.trim();
+      if (!confirm('Permanently purge ALL missing files matching the current filter? This deletes all extracted text, images, and embeddings.')) return;
+      try {
+        const body = { all: true };
+        if (vault_id) body.vault_id = vault_id;
+        if (q) body.q = q;
+        const result = await api('/catalog/missing/purge', { method: 'POST', body: JSON.stringify(body) });
+        lcToast(`Purged ${result.purged} file(s)`);
+        loadMissingFiles(0);
+      } catch (err) {
+        lcToast('Error: ' + err.message);
+      }
+    }
+
     /* ================================================================
        INIT + POLLING
        ================================================================ */
@@ -1065,6 +1206,9 @@
       setInterval(loadVaultCards, 30000);
       setInterval(loadUnknowns, 30000);
       setInterval(loadCatalog, 15000);
+
+      loadMissingVaultFilter();
+      loadMissingFiles(0);
     });
   </script>
 </body>
