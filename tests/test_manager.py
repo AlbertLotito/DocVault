@@ -240,4 +240,65 @@ def test_claim_extracted_tasks_skips_missing_text(db):
 def test_append_parent_text_nonexistent_parent(db):
     """append_parent_text with a non-existent parent hash must return without raising."""
     manager.append_parent_text(db, 'nonexistent_hash', 'some suffix text')
+
+
+def test_purge_file_hashes_removes_all_rows(tmp_path):
+    from core.manager import _connect
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("""INSERT INTO vaults (vault_id, name, scan_directory, priority, state, created_at, updated_at)
+                        VALUES ('v1', 'V1', '/v1', 5, 'active', '2024-01-01', '2024-01-01')""")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type) VALUES ('h1', '/a.txt', 'txt')")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type) VALUES ('h2', '/b.txt', 'txt')")
+        conn.execute("INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES ('h1', 0, '/a.txt', 'hello')")
+        conn.execute("INSERT INTO extracted_images (source_hash, file_path) VALUES ('h1', '/img.png')")
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'v1', '/a.txt')")
+        conn.commit()
+
+    manager.purge_file_hashes(db_path, ['h1'])
+
+    with _connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM tasks WHERE file_hash='h1'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM tasks WHERE file_hash='h2'").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM fts_index WHERE file_hash='h1'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM extracted_images WHERE source_hash='h1'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM file_vault WHERE file_hash='h1'").fetchone()[0] == 0
+
+
+def test_purge_missing_files_only_purges_missing_status(tmp_path):
+    from core.manager import _connect
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h1', '/a.txt', 'txt', 'MISSING')")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h2', '/b.txt', 'txt', 'COMPLETED')")
+        conn.commit()
+
+    purged = manager.purge_missing_files(db_path, ['h1', 'h2'])
+
+    assert purged == ['h1']
+    with _connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM tasks WHERE file_hash='h1'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM tasks WHERE file_hash='h2'").fetchone()[0] == 1  # untouched
+
+
+def test_purge_missing_files_by_filter(tmp_path):
+    from core.manager import _connect
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    with _connect(db_path) as conn:
+        conn.execute("""INSERT INTO vaults (vault_id, name, scan_directory, priority, state, created_at, updated_at)
+                        VALUES ('vault-a', 'A', '/a', 5, 'active', '2024-01-01', '2024-01-01')""")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h1', '/a/report.txt', 'txt', 'MISSING')")
+        conn.execute("INSERT INTO tasks (file_hash, file_path, file_type, status) VALUES ('h2', '/a/photo.jpg', 'jpg', 'MISSING')")
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'vault-a', '/a/report.txt')")
+        conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h2', 'vault-a', '/a/photo.jpg')")
+        conn.commit()
+
+    purged = manager.purge_missing_files_by_filter(db_path, q='report')
+
+    assert purged == ['h1']
+    with _connect(db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM tasks WHERE file_hash='h2'").fetchone()[0] == 1  # untouched
     # No assertion needed beyond "did not raise"

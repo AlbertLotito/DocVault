@@ -1466,3 +1466,64 @@ def delete_art_issues_by_filter(db_path, status=None, vault_id=None, q=None):
         cur = conn.execute(f"DELETE FROM art_enrichment_issues {clause}", params)
         conn.commit()
         return cur.rowcount
+
+
+def purge_file_hashes(db_path: str, file_hashes: list[str]) -> None:
+    """Batched hard-delete of tasks + fts_index + extracted_images + file_vault
+    rows for the given hashes. extracted_texts cascades via its existing FK.
+    Does not touch the vector store -- callers do that themselves (best-effort,
+    should never block the SQL delete)."""
+    if not file_hashes:
+        return
+    BATCH_SIZE = 500
+    for i in range(0, len(file_hashes), BATCH_SIZE):
+        batch = file_hashes[i:i + BATCH_SIZE]
+        placeholders = ','.join('?' * len(batch))
+        with _connect(db_path) as conn:
+            conn.execute(f"DELETE FROM fts_index WHERE file_hash IN ({placeholders})", batch)
+            conn.execute(f"DELETE FROM extracted_images WHERE source_hash IN ({placeholders})", batch)
+            conn.commit()
+    with _connect(db_path) as conn:
+        placeholders = ','.join('?' * len(file_hashes))
+        # file_vault.file_hash REFERENCES tasks(file_hash) with no ON DELETE
+        # CASCADE, so the child row must go before the parent under
+        # PRAGMA foreign_keys=ON.
+        conn.execute(f"DELETE FROM file_vault WHERE file_hash IN ({placeholders})", file_hashes)
+        conn.execute(f"DELETE FROM tasks WHERE file_hash IN ({placeholders})", file_hashes)
+        conn.commit()
+
+
+def purge_missing_files(db_path: str, file_hashes: list[str]) -> list[str]:
+    """Hard-delete the given hashes, but only those currently flagged MISSING
+    (safety guard against purging live data via a stale/forged id list).
+    Returns the subset of hashes actually purged."""
+    if not file_hashes:
+        return []
+    with _connect(db_path) as conn:
+        placeholders = ','.join('?' * len(file_hashes))
+        verified = [r[0] for r in conn.execute(
+            f"SELECT file_hash FROM tasks WHERE status = 'MISSING' AND file_hash IN ({placeholders})",
+            file_hashes
+        ).fetchall()]
+    purge_file_hashes(db_path, verified)
+    return verified
+
+
+def purge_missing_files_by_filter(db_path: str, vault_id: str = None, q: str = None) -> list[str]:
+    """Hard-delete every currently-MISSING task matching the given filter.
+    Returns the list of hashes purged."""
+    with _connect(db_path) as conn:
+        where = ["status = 'MISSING'"]
+        params = []
+        if vault_id:
+            where.append("file_hash IN (SELECT file_hash FROM file_vault WHERE vault_id = ?)")
+            params.append(vault_id)
+        if q and q.strip():
+            where.append("file_path LIKE ?")
+            params.append(f"%{q.strip()}%")
+        clause = " AND ".join(where)
+        verified = [r[0] for r in conn.execute(
+            f"SELECT file_hash FROM tasks WHERE {clause}", params
+        ).fetchall()]
+    purge_file_hashes(db_path, verified)
+    return verified

@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from core import manager
 import sqlite3
 
@@ -27,6 +28,31 @@ def list_catalog(status: str = None, file_type: str = None,
                                vault_id=vault_id,
                                limit=limit, offset=offset,
                                sort_by=sort_by, sort_order=sort_order)
+
+
+class PurgeMissingRequest(BaseModel):
+    hashes: list[str] = []
+    all: bool = False
+    vault_id: str = None
+    q: str = None
+
+
+@router.post("/catalog/missing/purge")
+def purge_missing(body: PurgeMissingRequest):
+    """Hard-delete confirmed-MISSING tasks. 'all' means every MISSING row
+    matching the current vault_id/q filter, not the whole table."""
+    db = get_db()
+    if body.all:
+        purged = manager.purge_missing_files_by_filter(db, vault_id=body.vault_id, q=body.q)
+    else:
+        purged = manager.purge_missing_files(db, body.hashes)
+    if purged:
+        try:
+            from embeddings.vector_store import VectorStore
+            VectorStore().delete_by_hashes(purged)
+        except Exception:
+            pass
+    return {'ok': True, 'purged': len(purged)}
 
 
 @router.get("/catalog/inspect")

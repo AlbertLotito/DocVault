@@ -122,33 +122,20 @@ class VaultManager:
 
     def _gut_vault(self, vault_id: str):
         """
-        Wipe all extracted content for this vault using batched deletes.
-        Each batch is its own short transaction to minimise write-lock duration.
+        Wipe all extracted content for this vault. Batch-delete of tasks/FTS/
+        images/file_vault rows is shared with the missing-files purge feature
+        via manager.purge_file_hashes; vector cleanup stays a local, best-effort
+        step since it's the only part specific to this caller.
         """
-        BATCH_SIZE = 500
-
-        # 1. Read hashes in a short read transaction, then close the connection.
         with _connect(self.db_path) as conn:
             hashes = [r[0] for r in conn.execute(
                 "SELECT file_hash FROM tasks WHERE vault_id = ?", (vault_id,)
             ).fetchall()]
 
-        # 2. Delete dependent rows in small batches, each as its own transaction.
-        for i in range(0, len(hashes), BATCH_SIZE):
-            batch = hashes[i:i + BATCH_SIZE]
-            placeholders = ','.join('?' * len(batch))
-            with _connect(self.db_path) as conn:
-                conn.execute(f"DELETE FROM fts_index WHERE file_hash IN ({placeholders})", batch)
-                conn.execute(f"DELETE FROM extracted_images WHERE source_hash IN ({placeholders})", batch)
-                conn.commit()
+        from core.manager import purge_file_hashes
+        purge_file_hashes(self.db_path, hashes)
 
-        # 3. Clean up task and vault-membership rows in one final transaction.
-        with _connect(self.db_path) as conn:
-            conn.execute("DELETE FROM tasks WHERE vault_id = ?", (vault_id,))
-            conn.execute("DELETE FROM file_vault WHERE vault_id = ?", (vault_id,))
-            conn.commit()
-
-        # 4. Remove vectors (best-effort — never blocks the delete).
+        # Remove vectors (best-effort — never blocks the delete).
         if hashes:
             try:
                 from embeddings.vector_store import VectorStore
