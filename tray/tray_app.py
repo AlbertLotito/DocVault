@@ -1,6 +1,9 @@
 """DocVault system tray helper."""
 import configparser
 import os
+import webbrowser
+
+import pystray
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -14,3 +17,18 @@ def get_server_url(config_path=CONFIG_PATH):
     host = parser.get('server', 'host', fallback='127.0.0.1')
     port = parser.get('server', 'port', fallback='8050')
     return f'http://{host}:{port}'
+
+
+def open_docvault(icon=None, item=None):
+    webbrowser.open(get_server_url())
+
+
+def exit_tray(icon, item):
+    icon.stop()
+
+
+def build_menu():
+    return pystray.Menu(
+        pystray.MenuItem('Open DocVault', open_docvault, default=True),
+        pystray.MenuItem('Exit', exit_tray),
+    )
