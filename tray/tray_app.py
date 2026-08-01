@@ -4,6 +4,7 @@ import os
 import webbrowser
 
 import pystray
+from PIL import Image
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -32,3 +33,16 @@ def build_menu():
         pystray.MenuItem('Open DocVault', open_docvault, default=True),
         pystray.MenuItem('Exit', exit_tray),
     )
+
+
+ICON_PATH = os.path.join(PROJECT_ROOT, 'frontend', 'static', 'tray_icon.ico')
+
+
+def main():
+    image = Image.open(ICON_PATH)
+    icon = pystray.Icon('DocVault', image, 'DocVault', build_menu())
+    icon.run()
+
+
+if __name__ == '__main__':
+    main()
