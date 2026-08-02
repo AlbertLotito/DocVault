@@ -74,6 +74,6 @@ Path not truncated in the results pane (spec said truncated); no mousewheel bind
 ## 39. Known Issues (supersedes §38 of the earlier revision of this doc)
 
 - **WMI CPU temp sensor** — still fails on some machines with COM error 0x80041003. Falls back to dummy (0°C). Non-critical.
-- **SQLite lock contention** — full fix (write serialisation) still deferred.
+- **SQLite lock contention** — no longer tracked as an open issue (2026-08-02): `core/manager.py`'s existing mitigations (WAL mode, `synchronous=NORMAL`, 30s busy timeout, short-lived per-call connections — `_connect()` lines 185-196) are handling real usage with no reported symptoms. An app-level write-serialization queue was considered and deliberately not built — it would solve a problem not currently occurring on this single-user desktop app. Revisit only if `database is locked` errors actually reappear.
 - **`Moved:` log noise** — cosmetic false-positive for hash-duplicate boilerplate content (see 2026-08-01 doc §35). Not yet fixed at the source.
 - **Pre-existing test failures** — 2 collection errors + 6 failing tests, unrelated to any recent feature (see §37 Test Status above). Not yet triaged.
