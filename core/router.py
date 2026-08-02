@@ -56,7 +56,8 @@ def reload(sync_disk: bool = True):
     
     new_extractors = []
     new_routes = {'file': {}, 'folder': {}}
-    
+    new_fallback = None
+
     rm = RegistryManager()
     if sync_disk:
         rm.sync_disk_to_db() # Ensure DB is current with disk
@@ -86,7 +87,7 @@ def reload(sync_disk: bool = True):
             for ext in exts:
                 ext = ext.lower()
                 if ext == '*':
-                    FALLBACK_KERNEL = mod
+                    new_fallback = mod
                     continue
                     
                 target_map = new_routes.get(target_type, new_routes['file'])
@@ -101,6 +102,7 @@ def reload(sync_disk: bool = True):
 
     _all_extractors = new_extractors
     ROUTES = new_routes
+    FALLBACK_KERNEL = new_fallback
     _initialized = True
     
     logger.info(f"Router updated. {len(_all_extractors)} kernels mapped.", ext="router")
