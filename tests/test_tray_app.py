@@ -1,11 +1,21 @@
 import os
 import queue
+import tkinter as tk
 from unittest.mock import MagicMock, patch
 
 import httpx
+import pytest
 
 import tray.tray_app as tray_app
 from tray.tray_app import build_search_request, get_server_url, SEARCH_TYPES, SEARCH_TYPE_LABELS
+
+
+@pytest.fixture(scope='session')
+def tk_root():
+    r = tk.Tk()
+    r.withdraw()
+    yield r
+    r.destroy()
 
 
 def _write_config(tmp_path, contents):
@@ -239,13 +249,8 @@ def test_open_result_connection_error_returns_friendly_message(mock_post):
     assert response == {'status': 'error', 'detail': 'Could not reach DocVault server.'}
 
 
-import tkinter as tk
-
-
-def test_create_popup_registers_state(monkeypatch):
-    root = tk.Tk()
-    root.withdraw()
-    monkeypatch.setattr(tray_app, '_tk_root', root)
+def test_create_popup_registers_state(monkeypatch, tk_root):
+    monkeypatch.setattr(tray_app, '_tk_root', tk_root)
     monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
     popup_id = tray_app.create_popup(50, 60)
     try:
@@ -256,13 +261,10 @@ def test_create_popup_registers_state(monkeypatch):
     finally:
         tray_app._popups[popup_id]['window'].destroy()
         tray_app._popups.clear()
-        root.destroy()
 
 
-def test_update_results_for_popup_renders_rows(monkeypatch):
-    root = tk.Tk()
-    root.withdraw()
-    monkeypatch.setattr(tray_app, '_tk_root', root)
+def test_update_results_for_popup_renders_rows(monkeypatch, tk_root):
+    monkeypatch.setattr(tray_app, '_tk_root', tk_root)
     monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
     popup_id = tray_app.create_popup(50, 60)
     try:
@@ -275,13 +277,10 @@ def test_update_results_for_popup_renders_rows(monkeypatch):
     finally:
         tray_app._popups[popup_id]['window'].destroy()
         tray_app._popups.clear()
-        root.destroy()
 
 
-def test_update_results_for_popup_shows_no_results_status(monkeypatch):
-    root = tk.Tk()
-    root.withdraw()
-    monkeypatch.setattr(tray_app, '_tk_root', root)
+def test_update_results_for_popup_shows_no_results_status(monkeypatch, tk_root):
+    monkeypatch.setattr(tray_app, '_tk_root', tk_root)
     monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
     popup_id = tray_app.create_popup(50, 60)
     try:
@@ -292,17 +291,14 @@ def test_update_results_for_popup_shows_no_results_status(monkeypatch):
     finally:
         tray_app._popups[popup_id]['window'].destroy()
         tray_app._popups.clear()
-        root.destroy()
 
 
 def test_update_results_for_popup_ignores_already_closed_popup():
     tray_app.update_results_for_popup(999999, {'error': None, 'results': []})  # must not raise
 
 
-def test_apply_open_result_status_sets_error_text(monkeypatch):
-    root = tk.Tk()
-    root.withdraw()
-    monkeypatch.setattr(tray_app, '_tk_root', root)
+def test_apply_open_result_status_sets_error_text(monkeypatch, tk_root):
+    monkeypatch.setattr(tray_app, '_tk_root', tk_root)
     monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
     popup_id = tray_app.create_popup(50, 60)
     try:
@@ -312,7 +308,6 @@ def test_apply_open_result_status_sets_error_text(monkeypatch):
     finally:
         tray_app._popups[popup_id]['window'].destroy()
         tray_app._popups.clear()
-        root.destroy()
 
 
 @patch('tray.tray_app.perform_search')
@@ -354,3 +349,48 @@ def test_handle_message_open_result_done_calls_apply_open_result_status(monkeypa
     monkeypatch.setattr(tray_app, 'apply_open_result_status', lambda pid, resp: calls.append((pid, resp)))
     tray_app.handle_message(('open_result_done', 1, {'status': 'ok'}))
     assert calls == [(1, {'status': 'ok'})]
+
+
+from tray.tray_app import clamp_popup_position
+
+
+def test_clamp_popup_position_clamps_bottom_right_corner():
+    # Cursor near the bottom-right corner of a 1920x1080 screen (where the tray lives) —
+    # an unclamped popup would render almost entirely offscreen.
+    x, y = clamp_popup_position(1900, 1070, 1920, 1080)
+    assert x + tray_app.POPUP_WIDTH <= 1920
+    assert y + (tray_app.POPUP_HEIGHT + 40) <= 1080
+    assert x >= 0
+    assert y >= 0
+
+
+def test_clamp_popup_position_leaves_safe_coordinate_unchanged():
+    x, y = clamp_popup_position(100, 100, 1920, 1080)
+    assert (x, y) == (100, 100)
+
+
+def test_drain_queue_survives_handler_exception_and_reschedules(monkeypatch, tmp_path):
+    test_queue = queue.Queue()
+    test_queue.put(('spawn', 1, 1))
+    fake_root = MagicMock()
+    monkeypatch.setattr(tray_app, '_popup_queue', test_queue)
+    monkeypatch.setattr(tray_app, '_tk_root', fake_root)
+    monkeypatch.setattr(tray_app, 'LOG_PATH', os.path.join(str(tmp_path), 'tray_app_error.log'))
+
+    def boom(x, y):
+        raise RuntimeError('create_popup exploded')
+
+    monkeypatch.setattr(tray_app, 'create_popup', boom)
+
+    tray_app._drain_queue()  # must not raise
+
+    fake_root.after.assert_called_once_with(100, tray_app._drain_queue)
+
+
+def test_tray_urls_match_server_routes():
+    from api.main import app
+    paths = {r.path for r in app.routes}
+    for mode in ('hybrid', 'fts', 'semantic', 'filename'):
+        url, _ = build_search_request('http://x', 'q', mode)
+        assert url.replace('http://x', '') in paths
+    assert '/api/utils/open_path' in paths

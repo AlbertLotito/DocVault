@@ -122,11 +122,27 @@ def status_for_open_result(response):
     return response.get('detail') or 'Could not open file.'
 
 
+POPUP_WIDTH = 420
+POPUP_HEIGHT = 360
+
+
+def clamp_popup_position(x, y, screen_w, screen_h, width=POPUP_WIDTH, height=POPUP_HEIGHT + 40):
+    """Clamp a popup's top-left corner so the full window stays on screen.
+
+    `height` defaults to the window height plus extra slack for the taskbar.
+    """
+    x = max(0, min(x, screen_w - width))
+    y = max(0, min(y, screen_h - height))
+    return x, y
+
+
 def create_popup(x, y):
     popup_id = next(_popup_id_seq)
+    sw, sh = _tk_root.winfo_screenwidth(), _tk_root.winfo_screenheight()
+    x, y = clamp_popup_position(x, y, sw, sh)
     win = tk.Toplevel(_tk_root)
     win.title('DocVault Search')
-    win.geometry(f'420x360+{x}+{y}')
+    win.geometry(f'{POPUP_WIDTH}x{POPUP_HEIGHT}+{x}+{y}')
     win.attributes('-topmost', True)
 
     entry = tk.Entry(win)
@@ -252,10 +268,15 @@ def handle_message(msg):
 def _drain_queue():
     try:
         while True:
-            handle_message(_popup_queue.get_nowait())
-    except queue.Empty:
-        pass
-    _tk_root.after(100, _drain_queue)
+            try:
+                handle_message(_popup_queue.get_nowait())
+            except queue.Empty:
+                break
+            except Exception:
+                with open(LOG_PATH, 'a') as f:
+                    f.write('--- popup message failed ---\n' + traceback.format_exc() + '\n')
+    finally:
+        _tk_root.after(100, _drain_queue)
 
 
 def start_popup_host():
