@@ -237,3 +237,99 @@ def test_open_result_success_returns_server_response(mock_post):
 def test_open_result_connection_error_returns_friendly_message(mock_post):
     response = open_result('http://127.0.0.1:8050', 'D:\\Vault\\a.txt')
     assert response == {'status': 'error', 'detail': 'Could not reach DocVault server.'}
+
+
+import tkinter as tk
+
+
+def test_create_popup_registers_state(monkeypatch):
+    root = tk.Tk()
+    root.withdraw()
+    monkeypatch.setattr(tray_app, '_tk_root', root)
+    monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
+    popup_id = tray_app.create_popup(50, 60)
+    try:
+        assert popup_id in tray_app._popups
+        state = tray_app._popups[popup_id]
+        assert state['base_url'] == 'http://127.0.0.1:8050'
+        assert isinstance(state['window'], tk.Toplevel)
+    finally:
+        tray_app._popups[popup_id]['window'].destroy()
+        tray_app._popups.clear()
+        root.destroy()
+
+
+def test_update_results_for_popup_renders_rows(monkeypatch):
+    root = tk.Tk()
+    root.withdraw()
+    monkeypatch.setattr(tray_app, '_tk_root', root)
+    monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
+    popup_id = tray_app.create_popup(50, 60)
+    try:
+        tray_app.update_results_for_popup(popup_id, {
+            'error': None, 'results': [{'file_path': 'a.txt', 'chunk_text': 'hello world'}], 'degraded': False,
+        })
+        state = tray_app._popups[popup_id]
+        assert state['status_label'].cget('text') == ''
+        assert len(state['results_frame'].winfo_children()) == 1
+    finally:
+        tray_app._popups[popup_id]['window'].destroy()
+        tray_app._popups.clear()
+        root.destroy()
+
+
+def test_update_results_for_popup_shows_no_results_status(monkeypatch):
+    root = tk.Tk()
+    root.withdraw()
+    monkeypatch.setattr(tray_app, '_tk_root', root)
+    monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
+    popup_id = tray_app.create_popup(50, 60)
+    try:
+        tray_app.update_results_for_popup(popup_id, {'error': None, 'results': []})
+        state = tray_app._popups[popup_id]
+        assert state['status_label'].cget('text') == 'No results.'
+        assert len(state['results_frame'].winfo_children()) == 0
+    finally:
+        tray_app._popups[popup_id]['window'].destroy()
+        tray_app._popups.clear()
+        root.destroy()
+
+
+def test_update_results_for_popup_ignores_already_closed_popup():
+    tray_app.update_results_for_popup(999999, {'error': None, 'results': []})  # must not raise
+
+
+def test_apply_open_result_status_sets_error_text(monkeypatch):
+    root = tk.Tk()
+    root.withdraw()
+    monkeypatch.setattr(tray_app, '_tk_root', root)
+    monkeypatch.setattr(tray_app, 'get_server_url', lambda: 'http://127.0.0.1:8050')
+    popup_id = tray_app.create_popup(50, 60)
+    try:
+        tray_app.apply_open_result_status(popup_id, {'status': 'error', 'detail': 'Path is outside vault boundaries'})
+        state = tray_app._popups[popup_id]
+        assert state['status_label'].cget('text') == 'Path is outside vault boundaries'
+    finally:
+        tray_app._popups[popup_id]['window'].destroy()
+        tray_app._popups.clear()
+        root.destroy()
+
+
+@patch('tray.tray_app.perform_search')
+def test_search_worker_puts_results_message_on_queue(mock_perform):
+    mock_perform.return_value = {'results': [], 'error': None, 'degraded': False, 'degraded_reason': ''}
+    test_queue = queue.Queue()
+    with patch.object(tray_app, '_popup_queue', test_queue):
+        tray_app._search_worker(1, 'http://127.0.0.1:8050', 'invoice', 'hybrid')
+    kind, popup_id, response = test_queue.get_nowait()
+    assert (kind, popup_id) == ('results', 1)
+    mock_perform.assert_called_once_with('http://127.0.0.1:8050', 'invoice', 'hybrid')
+
+
+@patch('tray.tray_app.open_result')
+def test_open_worker_puts_open_result_done_message_on_queue(mock_open):
+    mock_open.return_value = {'status': 'ok'}
+    test_queue = queue.Queue()
+    with patch.object(tray_app, '_popup_queue', test_queue):
+        tray_app._open_worker(1, 'http://127.0.0.1:8050', 'D:\\Vault\\a.txt')
+    assert test_queue.get_nowait() == ('open_result_done', 1, {'status': 'ok'})
