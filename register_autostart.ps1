@@ -23,7 +23,7 @@ function Register-OrUpdateTask {
         [string]$Arguments
     )
     $action    = New-ScheduledTaskAction -Execute $Program -Argument $Arguments -WorkingDirectory $scriptDir
-    $trigger   = New-ScheduledTaskTrigger -AtLogOn
+    $trigger   = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
     $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
     $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
