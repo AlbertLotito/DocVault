@@ -40,7 +40,38 @@ The feature's own 6 tests (`tests/test_tray_app.py`) pass cleanly. A full-suite 
 
 ---
 
-## 38. Known Issues (supersedes §36 of the 2026-08-01 doc)
+## 38. Tray Search Popup — COMPLETE (2026-08-02, master, db13076 → 81ab2ca)
+
+Adds a **"Search..."** item to the tray menu (built in §37) that opens a floating, non-modal popup — text entry, a search-type dropdown (Hybrid / Full-text / Semantic / Filename), and a results pane — backed by the already-running DocVault server's search API. Built via the full brainstorming → spec → plan → subagent-driven-development cycle (6 tasks + final whole-branch review), on master directly, 12 commits.
+
+### What Was Built
+
+| Component | Description |
+|---|---|
+| `create_popup(x, y)` | Builds a `tk.Toplevel` per invocation — every "Search..." click spawns an independent popup (no single-instance enforcement, by design). Entry + `ttk.Combobox` + Search button + status label + scrollable results canvas. Non-modal (no `grab_set()`), `-topmost` set once at creation. |
+| One hidden `tk.Tk()` root | Created once on a dedicated background thread (`start_popup_host`), owns every popup as a `Toplevel` under a single Tcl interpreter — avoids the undocumented/flaky behavior of multiple simultaneous `Tk()` instances across threads. `pystray`'s own icon loop is untouched on the main thread. |
+| `_popup_queue` (thread-safe) | The only channel between pystray's callback thread, HTTP worker threads, and the Tk thread. `_drain_queue()` polls it every 100ms via `root.after()`; `handle_message()` dispatches `spawn`/`results`/`open_result_done` messages to the right widget-touching function. No Tk widget is ever touched off the Tk thread. |
+| `perform_search()` / `open_result()` | HTTP calls (via `httpx`, already a dependency) to the server's existing `GET /api/search`, `GET /api/search/filename`, and `POST /api/utils/open_path` — the last one reused rather than duplicating its vault-root + blocked-extension validation locally. Double-click on a result opens the file. |
+| Pure decision helpers | `format_result_summary`, `extract_search_request`, `rows_for_response`, `status_for_open_result` — all Tk- and network-free, fully unit tested; this is what let a "GUI feature" end up with 45 tests instead of none. |
+
+### Bugs Found and Fixed During Review
+
+1. **Missing `/api` prefix (the big one)**: `build_search_request()` and `open_result()` originally built URLs without the `/api` prefix that `api/main.py` actually mounts the `search`/`utils` routers under — and `api/main.py` separately has an *unprefixed* `GET /search` that serves the HTML search page. Net effect: every search silently got back a webpage instead of JSON, and file-opening 404'd — **the entire feature was non-functional against the real server**, and this passed five task reviews undetected because every review checked the code against the plan, and the plan itself had the bug. Only the Task 6 implementer's manual end-to-end test against a live server caught it. Fixed in the same task's diff; a regression test (`test_tray_urls_match_server_routes`) now checks the tray's constructed URLs against the server's actual `app.routes` table.
+2. **Popup spawns almost entirely offscreen**: cursor position at tray-click time is always near a screen corner (that's where the tray is); the original `geometry()` call didn't clamp, so ~95% of the window rendered off the desktop. Fixed with `clamp_popup_position()` keeping the full window on-screen.
+3. **`_drain_queue` died permanently and silently on any exception**: only `queue.Empty` was caught; any other exception (a malformed message, a `TclError`) killed the `root.after()` reschedule, silencing the entire popup subsystem for the rest of the process with zero diagnostics (worse under `pythonw.exe`, no console). Fixed: broad per-message exception catch logging to `tray_app_error.log`, reschedule moved to `finally`.
+4. **GUI test suite flaking 8-of-9 full runs**, not the ~1-in-3 first assumed — root cause was each test creating and destroying its own fresh `tk.Tk()` root (production creates exactly one, ever). Fixed with a `scope='session'` pytest fixture shared across all GUI tests; verified clean across 10 consecutive full-suite runs.
+
+### Deferred (Minor, non-blocking)
+
+Path not truncated in the results pane (spec said truncated); no mousewheel binding on the results canvas; no guard against a slow search's stale response landing after a faster later one; non-200 status always shows the generic "Could not reach DocVault server." message even for a 4xx/5xx that isn't a reachability problem; `degraded_reason` gets dropped when results are also empty; a small `_popups.get(popup_id)` guard is duplicated across three functions; `handle_message` has no `else` for an unrecognized message kind; `base_url` is frozen at popup-creation time rather than re-read per search; no explicit quit message flushes Tk state on tray Exit while popups are open; `httpx` trusts proxy env vars by default. None block merge; picked up here for whoever touches this file next.
+
+### Test Status
+
+45/45 tests in `tests/test_tray_app.py` pass, confirmed clean across 10 consecutive runs (after fixing the Tk-root test flakiness above). Full-suite run shows the same 8 pre-existing failures/errors already documented in §37 — unrelated to this feature, not touched by it.
+
+---
+
+## 39. Known Issues (supersedes §38 of the earlier revision of this doc)
 
 - **WMI CPU temp sensor** — still fails on some machines with COM error 0x80041003. Falls back to dummy (0°C). Non-critical.
 - **SQLite lock contention** — full fix (write serialisation) still deferred.
