@@ -22,3 +22,5 @@ wmi
 py7zr==1.1.0
 rarfile==4.2
 pystray
+google-auth-oauthlib
+google-api-python-client
