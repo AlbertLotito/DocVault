@@ -80,14 +80,14 @@ def test_search_types_are_ordered_hybrid_fulltext_semantic_filename():
 
 def test_build_search_request_filename_mode():
     url, params = build_search_request('http://127.0.0.1:8050', 'invoice', 'filename')
-    assert url == 'http://127.0.0.1:8050/search/filename'
+    assert url == 'http://127.0.0.1:8050/api/search/filename'
     assert params == {'q': 'invoice'}
 
 
 def test_build_search_request_content_modes():
     for mode in ('hybrid', 'fts', 'semantic'):
         url, params = build_search_request('http://127.0.0.1:8050', 'invoice', mode)
-        assert url == 'http://127.0.0.1:8050/search'
+        assert url == 'http://127.0.0.1:8050/api/search'
         assert params == {'q': 'invoice', 'mode': mode}
 
 
@@ -188,7 +188,7 @@ def test_perform_search_content_mode_success(mock_get):
     assert response['error'] is None
     assert response['results'][0]['file_path'] == 'a.txt'
     mock_get.assert_called_once_with(
-        'http://127.0.0.1:8050/search', params={'q': 'invoice', 'mode': 'hybrid'}, timeout=10,
+        'http://127.0.0.1:8050/api/search', params={'q': 'invoice', 'mode': 'hybrid'}, timeout=10,
     )
 
 
@@ -228,7 +228,7 @@ def test_open_result_success_returns_server_response(mock_post):
     response = open_result('http://127.0.0.1:8050', 'D:\\Vault\\a.txt')
     assert response == {'status': 'ok'}
     mock_post.assert_called_once_with(
-        'http://127.0.0.1:8050/utils/open_path',
+        'http://127.0.0.1:8050/api/utils/open_path',
         json={'path': 'D:\\Vault\\a.txt', 'action': 'file'}, timeout=10,
     )
 

@@ -47,8 +47,8 @@ def open_search_popup(icon=None, item=None):
 
 def build_search_request(base_url, query, mode):
     if mode == 'filename':
-        return f'{base_url}/search/filename', {'q': query}
-    return f'{base_url}/search', {'q': query, 'mode': mode}
+        return f'{base_url}/api/search/filename', {'q': query}
+    return f'{base_url}/api/search', {'q': query, 'mode': mode}
 
 
 def perform_search(base_url, query, mode, timeout=10):
@@ -76,7 +76,7 @@ def perform_search(base_url, query, mode, timeout=10):
 def open_result(base_url, file_path, timeout=10):
     try:
         resp = httpx.post(
-            f'{base_url}/utils/open_path', json={'path': file_path, 'action': 'file'}, timeout=timeout,
+            f'{base_url}/api/utils/open_path', json={'path': file_path, 'action': 'file'}, timeout=timeout,
         )
     except httpx.HTTPError:
         return {'status': 'error', 'detail': 'Could not reach DocVault server.'}
