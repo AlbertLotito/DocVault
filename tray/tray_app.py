@@ -36,7 +36,10 @@ def perform_search(base_url, query, mode, timeout=10):
         return {'results': [], 'error': 'Could not reach DocVault server.', 'degraded': False, 'degraded_reason': ''}
     if resp.status_code != 200:
         return {'results': [], 'error': 'Could not reach DocVault server.', 'degraded': False, 'degraded_reason': ''}
-    data = resp.json()
+    try:
+        data = resp.json()
+    except ValueError:
+        return {'results': [], 'error': 'Could not reach DocVault server.', 'degraded': False, 'degraded_reason': ''}
     if isinstance(data, list):
         return {'results': data, 'error': None, 'degraded': False, 'degraded_reason': ''}
     return {

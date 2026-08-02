@@ -194,6 +194,14 @@ def test_perform_search_non_200_status_returns_friendly_message(mock_get):
     assert response['error'] == 'Could not reach DocVault server.'
 
 
+@patch('tray.tray_app.httpx.get')
+def test_perform_search_malformed_json_returns_friendly_message(mock_get):
+    mock_get.return_value = MagicMock(status_code=200, json=MagicMock(side_effect=ValueError))
+    response = perform_search('http://127.0.0.1:8050', 'invoice', 'hybrid')
+    assert response['error'] == 'Could not reach DocVault server.'
+    assert response['results'] == []
+
+
 @patch('tray.tray_app.httpx.post')
 def test_open_result_success_returns_server_response(mock_post):
     mock_post.return_value = MagicMock(json=lambda: {'status': 'ok'})
