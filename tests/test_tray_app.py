@@ -67,3 +67,86 @@ def test_build_search_request_content_modes():
         url, params = build_search_request('http://127.0.0.1:8050', 'invoice', mode)
         assert url == 'http://127.0.0.1:8050/search'
         assert params == {'q': 'invoice', 'mode': mode}
+
+
+from tray.tray_app import (
+    format_result_summary, extract_search_request, rows_for_response, status_for_open_result,
+)
+
+
+def test_format_result_summary_truncates_long_snippet():
+    result = {'file_path': 'D:\\Vault\\docs\\report.pdf', 'chunk_text': 'x' * 200}
+    summary = format_result_summary(result)
+    assert summary['filename'] == 'report.pdf'
+    assert summary['path'] == 'D:\\Vault\\docs\\report.pdf'
+    assert len(summary['snippet']) == 160
+    assert summary['snippet'].endswith('...')
+
+
+def test_format_result_summary_filename_only_result_shows_file_type():
+    result = {'file_path': 'D:\\Vault\\docs\\report.pdf', 'file_type': 'pdf'}
+    summary = format_result_summary(result)
+    assert summary['filename'] == 'report.pdf'
+    assert summary['snippet'] == 'pdf'
+
+
+def test_format_result_summary_missing_path_shows_placeholder():
+    summary = format_result_summary({})
+    assert summary['filename'] == '(unknown)'
+    assert summary['path'] == ''
+
+
+def test_extract_search_request_strips_and_maps_label():
+    assert extract_search_request('  invoice  ', 'Full-text') == ('invoice', 'fts')
+
+
+def test_extract_search_request_empty_query_returns_none():
+    assert extract_search_request('   ', 'Hybrid') is None
+
+
+def test_extract_search_request_unknown_label_defaults_to_hybrid():
+    assert extract_search_request('invoice', 'Nonsense') == ('invoice', 'hybrid')
+
+
+def test_rows_for_response_error_shows_error_no_rows():
+    status, rows = rows_for_response({'error': 'Could not reach DocVault server.', 'results': []})
+    assert status == 'Could not reach DocVault server.'
+    assert rows == []
+
+
+def test_rows_for_response_empty_results_shows_no_results():
+    status, rows = rows_for_response({'error': None, 'results': []})
+    assert status == 'No results.'
+    assert rows == []
+
+
+def test_rows_for_response_degraded_shows_reason_alongside_rows():
+    response = {
+        'error': None,
+        'results': [{'file_path': 'a.txt', 'chunk_text': 'hello'}],
+        'degraded': True,
+        'degraded_reason': 'Semantic search unavailable',
+    }
+    status, rows = rows_for_response(response)
+    assert status == 'Semantic search unavailable'
+    assert len(rows) == 1
+    assert rows[0]['filename'] == 'a.txt'
+
+
+def test_rows_for_response_normal_has_no_status():
+    response = {'error': None, 'results': [{'file_path': 'a.txt', 'chunk_text': 'hello'}], 'degraded': False}
+    status, rows = rows_for_response(response)
+    assert status is None
+    assert len(rows) == 1
+
+
+def test_status_for_open_result_ok_is_none():
+    assert status_for_open_result({'status': 'ok'}) is None
+
+
+def test_status_for_open_result_error_uses_detail():
+    assert status_for_open_result({'status': 'error', 'detail': 'Path is outside vault boundaries'}) == 'Path is outside vault boundaries'
+
+
+def test_status_for_open_result_error_without_detail_has_fallback():
+    assert status_for_open_result({'status': 'error'}) == 'Could not open file.'

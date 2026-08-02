@@ -27,6 +27,42 @@ def build_search_request(base_url, query, mode):
     return f'{base_url}/search', {'q': query, 'mode': mode}
 
 
+def format_result_summary(result):
+    path = result.get('file_path') or ''
+    filename = os.path.basename(path) if path else '(unknown)'
+    snippet = (result.get('chunk_text') or '').strip().replace('\n', ' ')
+    if snippet:
+        if len(snippet) > 160:
+            snippet = snippet[:157] + '...'
+    else:
+        snippet = result.get('file_type') or ''
+    return {'filename': filename, 'path': path, 'snippet': snippet}
+
+
+def extract_search_request(entry_text, mode_label):
+    query = (entry_text or '').strip()
+    if not query:
+        return None
+    mode = SEARCH_TYPE_LABELS.get(mode_label, 'hybrid')
+    return query, mode
+
+
+def rows_for_response(response):
+    if response.get('error'):
+        return response['error'], []
+    rows = [format_result_summary(r) for r in (response.get('results') or [])]
+    if not rows:
+        return 'No results.', []
+    status_text = response.get('degraded_reason') if response.get('degraded') else None
+    return status_text, rows
+
+
+def status_for_open_result(response):
+    if response.get('status') == 'ok':
+        return None
+    return response.get('detail') or 'Could not open file.'
+
+
 def get_server_url(config_path=CONFIG_PATH):
     """Read [server] host/port from config.ini and build the base URL."""
     parser = configparser.ConfigParser()
