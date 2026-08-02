@@ -1,7 +1,7 @@
 import os
 from unittest.mock import MagicMock, patch
 
-from tray.tray_app import get_server_url
+from tray.tray_app import build_search_request, get_server_url, SEARCH_TYPES, SEARCH_TYPE_LABELS
 
 
 def _write_config(tmp_path, contents):
@@ -49,3 +49,21 @@ def test_exit_tray_stops_icon_without_touching_server():
     fake_icon = MagicMock()
     exit_tray(fake_icon, None)
     fake_icon.stop.assert_called_once()
+
+
+def test_search_types_are_ordered_hybrid_fulltext_semantic_filename():
+    assert [label for label, _ in SEARCH_TYPES] == ['Hybrid', 'Full-text', 'Semantic', 'Filename']
+    assert SEARCH_TYPE_LABELS == {'Hybrid': 'hybrid', 'Full-text': 'fts', 'Semantic': 'semantic', 'Filename': 'filename'}
+
+
+def test_build_search_request_filename_mode():
+    url, params = build_search_request('http://127.0.0.1:8050', 'invoice', 'filename')
+    assert url == 'http://127.0.0.1:8050/search/filename'
+    assert params == {'q': 'invoice'}
+
+
+def test_build_search_request_content_modes():
+    for mode in ('hybrid', 'fts', 'semantic'):
+        url, params = build_search_request('http://127.0.0.1:8050', 'invoice', mode)
+        assert url == 'http://127.0.0.1:8050/search'
+        assert params == {'q': 'invoice', 'mode': mode}

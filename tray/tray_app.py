@@ -12,6 +12,20 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config.ini')
 LOG_PATH = os.path.join(PROJECT_ROOT, 'tray_app_error.log')
 
+SEARCH_TYPES = [
+    ('Hybrid', 'hybrid'),
+    ('Full-text', 'fts'),
+    ('Semantic', 'semantic'),
+    ('Filename', 'filename'),
+]
+SEARCH_TYPE_LABELS = dict(SEARCH_TYPES)
+
+
+def build_search_request(base_url, query, mode):
+    if mode == 'filename':
+        return f'{base_url}/search/filename', {'q': query}
+    return f'{base_url}/search', {'q': query, 'mode': mode}
+
 
 def get_server_url(config_path=CONFIG_PATH):
     """Read [server] host/port from config.ini and build the base URL."""
