@@ -1,6 +1,10 @@
 """DocVault system tray helper."""
 import configparser
+import ctypes
+import ctypes.wintypes
+import itertools
 import os
+import queue
 import traceback
 import webbrowser
 
@@ -20,6 +24,21 @@ SEARCH_TYPES = [
     ('Filename', 'filename'),
 ]
 SEARCH_TYPE_LABELS = dict(SEARCH_TYPES)
+
+_popup_queue = queue.Queue()
+_popups = {}
+_popup_id_seq = itertools.count(1)
+
+
+def get_cursor_pos():
+    pt = ctypes.wintypes.POINT()
+    ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+    return pt.x, pt.y
+
+
+def open_search_popup(icon=None, item=None):
+    x, y = get_cursor_pos()
+    _popup_queue.put(('spawn', x, y))
 
 
 def build_search_request(base_url, query, mode):
@@ -119,6 +138,7 @@ def exit_tray(icon, item):
 def build_menu():
     return pystray.Menu(
         pystray.MenuItem('Open DocVault', open_docvault, default=True),
+        pystray.MenuItem('Search...', open_search_popup),
         pystray.MenuItem('Exit', exit_tray),
     )
 

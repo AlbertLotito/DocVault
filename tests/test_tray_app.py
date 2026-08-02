@@ -1,8 +1,10 @@
 import os
+import queue
 from unittest.mock import MagicMock, patch
 
 import httpx
 
+import tray.tray_app as tray_app
 from tray.tray_app import build_search_request, get_server_url, SEARCH_TYPES, SEARCH_TYPE_LABELS
 
 
@@ -31,13 +33,31 @@ def test_get_server_url_uses_custom_host_and_port(tmp_path):
 from tray.tray_app import build_menu, exit_tray, open_docvault
 
 
-def test_build_menu_has_open_and_exit_items():
+def test_build_menu_has_open_search_and_exit_items():
     menu = build_menu()
     items = list(menu)
-    assert len(items) == 2
+    assert len(items) == 3
     assert items[0].text == 'Open DocVault'
     assert items[0].default is True
-    assert items[1].text == 'Exit'
+    assert items[1].text == 'Search...'
+    assert items[2].text == 'Exit'
+
+
+from tray.tray_app import get_cursor_pos, open_search_popup
+
+
+def test_get_cursor_pos_returns_two_ints():
+    x, y = get_cursor_pos()
+    assert isinstance(x, int)
+    assert isinstance(y, int)
+
+
+def test_open_search_popup_queues_spawn_message_with_cursor_pos(monkeypatch):
+    test_queue = queue.Queue()
+    monkeypatch.setattr(tray_app, '_popup_queue', test_queue)
+    monkeypatch.setattr(tray_app, 'get_cursor_pos', lambda: (100, 200))
+    tray_app.open_search_popup()
+    assert test_queue.get_nowait() == ('spawn', 100, 200)
 
 
 @patch('tray.tray_app.webbrowser.open')
