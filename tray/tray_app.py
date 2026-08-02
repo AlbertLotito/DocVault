@@ -236,6 +236,36 @@ def _open_worker(popup_id, base_url, path):
     _popup_queue.put(('open_result_done', popup_id, response))
 
 
+def handle_message(msg):
+    kind = msg[0]
+    if kind == 'spawn':
+        _, x, y = msg
+        create_popup(x, y)
+    elif kind == 'results':
+        _, popup_id, response = msg
+        update_results_for_popup(popup_id, response)
+    elif kind == 'open_result_done':
+        _, popup_id, response = msg
+        apply_open_result_status(popup_id, response)
+
+
+def _drain_queue():
+    try:
+        while True:
+            handle_message(_popup_queue.get_nowait())
+    except queue.Empty:
+        pass
+    _tk_root.after(100, _drain_queue)
+
+
+def start_popup_host():
+    global _tk_root
+    _tk_root = tk.Tk()
+    _tk_root.withdraw()
+    _tk_root.after(100, _drain_queue)
+    _tk_root.mainloop()
+
+
 def get_server_url(config_path=CONFIG_PATH):
     """Read [server] host/port from config.ini and build the base URL."""
     parser = configparser.ConfigParser()
@@ -266,6 +296,7 @@ ICON_PATH = os.path.join(PROJECT_ROOT, 'frontend', 'static', 'tray_icon.ico')
 
 def main():
     try:
+        threading.Thread(target=start_popup_host, daemon=True).start()
         image = Image.open(ICON_PATH)
         icon = pystray.Icon('DocVault', image, 'DocVault', build_menu())
         icon.run()

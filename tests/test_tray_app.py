@@ -333,3 +333,24 @@ def test_open_worker_puts_open_result_done_message_on_queue(mock_open):
     with patch.object(tray_app, '_popup_queue', test_queue):
         tray_app._open_worker(1, 'http://127.0.0.1:8050', 'D:\\Vault\\a.txt')
     assert test_queue.get_nowait() == ('open_result_done', 1, {'status': 'ok'})
+
+
+def test_handle_message_spawn_calls_create_popup(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tray_app, 'create_popup', lambda x, y: calls.append((x, y)))
+    tray_app.handle_message(('spawn', 10, 20))
+    assert calls == [(10, 20)]
+
+
+def test_handle_message_results_calls_update_results_for_popup(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tray_app, 'update_results_for_popup', lambda pid, resp: calls.append((pid, resp)))
+    tray_app.handle_message(('results', 1, {'error': None, 'results': []}))
+    assert calls == [(1, {'error': None, 'results': []})]
+
+
+def test_handle_message_open_result_done_calls_apply_open_result_status(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tray_app, 'apply_open_result_status', lambda pid, resp: calls.append((pid, resp)))
+    tray_app.handle_message(('open_result_done', 1, {'status': 'ok'}))
+    assert calls == [(1, {'status': 'ok'})]
