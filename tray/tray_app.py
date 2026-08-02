@@ -4,6 +4,7 @@ import os
 import traceback
 import webbrowser
 
+import httpx
 import pystray
 from PIL import Image
 
@@ -25,6 +26,38 @@ def build_search_request(base_url, query, mode):
     if mode == 'filename':
         return f'{base_url}/search/filename', {'q': query}
     return f'{base_url}/search', {'q': query, 'mode': mode}
+
+
+def perform_search(base_url, query, mode, timeout=10):
+    url, params = build_search_request(base_url, query, mode)
+    try:
+        resp = httpx.get(url, params=params, timeout=timeout)
+    except httpx.HTTPError:
+        return {'results': [], 'error': 'Could not reach DocVault server.', 'degraded': False, 'degraded_reason': ''}
+    if resp.status_code != 200:
+        return {'results': [], 'error': 'Could not reach DocVault server.', 'degraded': False, 'degraded_reason': ''}
+    data = resp.json()
+    if isinstance(data, list):
+        return {'results': data, 'error': None, 'degraded': False, 'degraded_reason': ''}
+    return {
+        'results': data.get('results', []),
+        'error': None,
+        'degraded': data.get('degraded', False),
+        'degraded_reason': data.get('degraded_reason', ''),
+    }
+
+
+def open_result(base_url, file_path, timeout=10):
+    try:
+        resp = httpx.post(
+            f'{base_url}/utils/open_path', json={'path': file_path, 'action': 'file'}, timeout=timeout,
+        )
+    except httpx.HTTPError:
+        return {'status': 'error', 'detail': 'Could not reach DocVault server.'}
+    try:
+        return resp.json()
+    except ValueError:
+        return {'status': 'error', 'detail': 'Could not reach DocVault server.'}
 
 
 def format_result_summary(result):

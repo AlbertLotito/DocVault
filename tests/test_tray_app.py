@@ -1,6 +1,8 @@
 import os
 from unittest.mock import MagicMock, patch
 
+import httpx
+
 from tray.tray_app import build_search_request, get_server_url, SEARCH_TYPES, SEARCH_TYPE_LABELS
 
 
@@ -150,3 +152,60 @@ def test_status_for_open_result_error_uses_detail():
 
 def test_status_for_open_result_error_without_detail_has_fallback():
     assert status_for_open_result({'status': 'error'}) == 'Could not open file.'
+
+
+from tray.tray_app import perform_search, open_result
+
+
+@patch('tray.tray_app.httpx.get')
+def test_perform_search_content_mode_success(mock_get):
+    mock_get.return_value = MagicMock(status_code=200, json=lambda: {
+        'results': [{'file_path': 'a.txt', 'chunk_text': 'hello'}],
+        'degraded': False,
+        'degraded_reason': '',
+    })
+    response = perform_search('http://127.0.0.1:8050', 'invoice', 'hybrid')
+    assert response['error'] is None
+    assert response['results'][0]['file_path'] == 'a.txt'
+    mock_get.assert_called_once_with(
+        'http://127.0.0.1:8050/search', params={'q': 'invoice', 'mode': 'hybrid'}, timeout=10,
+    )
+
+
+@patch('tray.tray_app.httpx.get')
+def test_perform_search_filename_mode_handles_plain_list_response(mock_get):
+    mock_get.return_value = MagicMock(status_code=200, json=lambda: [{'file_path': 'a.txt'}])
+    response = perform_search('http://127.0.0.1:8050', 'invoice', 'filename')
+    assert response['results'] == [{'file_path': 'a.txt'}]
+    assert response['error'] is None
+
+
+@patch('tray.tray_app.httpx.get', side_effect=httpx.ConnectError('refused'))
+def test_perform_search_connection_error_returns_friendly_message(mock_get):
+    response = perform_search('http://127.0.0.1:8050', 'invoice', 'hybrid')
+    assert response['error'] == 'Could not reach DocVault server.'
+    assert response['results'] == []
+
+
+@patch('tray.tray_app.httpx.get')
+def test_perform_search_non_200_status_returns_friendly_message(mock_get):
+    mock_get.return_value = MagicMock(status_code=500)
+    response = perform_search('http://127.0.0.1:8050', 'invoice', 'hybrid')
+    assert response['error'] == 'Could not reach DocVault server.'
+
+
+@patch('tray.tray_app.httpx.post')
+def test_open_result_success_returns_server_response(mock_post):
+    mock_post.return_value = MagicMock(json=lambda: {'status': 'ok'})
+    response = open_result('http://127.0.0.1:8050', 'D:\\Vault\\a.txt')
+    assert response == {'status': 'ok'}
+    mock_post.assert_called_once_with(
+        'http://127.0.0.1:8050/utils/open_path',
+        json={'path': 'D:\\Vault\\a.txt', 'action': 'file'}, timeout=10,
+    )
+
+
+@patch('tray.tray_app.httpx.post', side_effect=httpx.ConnectError('refused'))
+def test_open_result_connection_error_returns_friendly_message(mock_post):
+    response = open_result('http://127.0.0.1:8050', 'D:\\Vault\\a.txt')
+    assert response == {'status': 'error', 'detail': 'Could not reach DocVault server.'}
