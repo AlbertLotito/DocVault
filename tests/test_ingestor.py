@@ -55,6 +55,58 @@ def _make_vault(db_path, vault_id, scan_directory):
         conn.commit()
 
 
+def test_duplicate_content_files_are_not_flagged_as_moved(tmp_path):
+    """Two files with identical bytes (same hash) coexisting in a vault must
+    not be reported as one having 'moved' to the other's path -- both paths
+    are real and neither was touched. This is the actual root cause of the
+    'Moved: <path> -> <garbled path>' noise seen with hash-identical Office
+    boilerplate parts across many .doc/.docx files."""
+    from unittest.mock import patch
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "boilerplate_a.xml").write_bytes(b"identical boilerplate content")
+    (docs / "boilerplate_b.xml").write_bytes(b"identical boilerplate content")
+    _make_vault(db_path, 'vault-a', str(docs))
+
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        added, moved = ingestor.ingest(str(docs), db_path, vault_id='vault-a')
+
+    assert moved == 0
+
+
+def test_genuinely_renamed_file_is_still_flagged_as_moved(tmp_path):
+    """A real rename (old path gone, new path present, same hash) must still
+    be detected and reported as a move -- the duplicate-content fix must not
+    also suppress real moves."""
+    from unittest.mock import patch
+
+    db_path = str(tmp_path / "test.db")
+    manager.init_db(db_path)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    old_file = docs / "report.txt"
+    old_file.write_text("hello world")
+    _make_vault(db_path, 'vault-a', str(docs))
+
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        ingestor.ingest(str(docs), db_path, vault_id='vault-a')
+
+    new_path = docs / "report_renamed.txt"
+    old_file.rename(new_path)
+
+    with patch('core.ingestor._is_hidden_or_system', return_value=False):
+        added, moved = ingestor.ingest(str(docs), db_path, vault_id='vault-a')
+
+    assert moved == 1
+    tasks = manager.list_tasks(db_path)['tasks']
+    paths = {os.path.basename(t['file_path']) for t in tasks}
+    assert 'report_renamed.txt' in paths
+    assert 'report.txt' not in paths
+
+
 def test_deleted_file_flags_missing_after_threshold(tmp_path):
     from unittest.mock import patch
     from core.manager import _connect

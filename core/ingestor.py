@@ -235,6 +235,13 @@ def ingest(directory, db_path, vault_id=None, vault_row=None):
                         manager.upsert_file_vault(db_path, file_hash, vault_id, file_path)
                         logger.info(f"  Registered in vault: {name}")
 
+                    elif os.path.normpath(vault_path) != file_path and os.path.exists(vault_path):
+                        # Same hash at a different path, but the old path still exists on
+                        # disk too — a content duplicate (e.g. hash-identical Office
+                        # boilerplate across many .doc/.docx files), not a real move.
+                        # Leave the registered canonical path alone.
+                        pass
+
                     elif os.path.normpath(vault_path) != file_path:
                         # File has moved within this vault — update vault-specific path
                         manager.upsert_file_vault(db_path, file_hash, vault_id, file_path)
