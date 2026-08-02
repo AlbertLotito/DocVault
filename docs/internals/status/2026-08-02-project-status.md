@@ -75,7 +75,7 @@ Path not truncated in the results pane (spec said truncated); no mousewheel bind
 
 - **WMI CPU temp sensor** — still fails on some machines with COM error 0x80041003. Falls back to dummy (0°C). Non-critical.
 - **SQLite lock contention** — no longer tracked as an open issue (2026-08-02): `core/manager.py`'s existing mitigations (WAL mode, `synchronous=NORMAL`, 30s busy timeout, short-lived per-call connections — `_connect()` lines 185-196) are handling real usage with no reported symptoms. An app-level write-serialization queue was considered and deliberately not built — it would solve a problem not currently occurring on this single-user desktop app. Revisit only if `database is locked` errors actually reappear.
-- **`Moved:` log noise** — cosmetic false-positive for hash-duplicate boilerplate content (see 2026-08-01 doc §35). Not yet fixed at the source.
+- **`Moved:` log noise** — fixed at the source 2026-08-02, see §41 below.
 - **Pre-existing test failures** — down to 6 failing tests (2 collection errors resolved 2026-08-02, see §40 below), unrelated to any recent feature. Not yet triaged: `test_embed_throughput_settings.py`, `test_embedding_worker.py` (×3), `test_i18n.py`, `test_search_throttle.py`.
 
 ---
@@ -87,3 +87,13 @@ Path not truncated in the results pane (spec said truncated); no mousewheel bind
 **Real bug found while writing the new router tests, not test-only**: `core/router.py`'s `reload()` never reset the module-level `FALLBACK_KERNEL` global before rebuilding routes — it only ever *set* it when a `'*'`-extension kernel was found, so once any reload encountered a fallback kernel, that fallback stayed stuck in memory forever, even after a later reload's active-kernel set no longer included one. In production this meant deactivating a fallback kernel via the Extractor Lab's hot-reload would silently keep routing unmatched file types to the old, deactivated kernel instead of correctly returning no match. Fixed by rebuilding `FALLBACK_KERNEL` fresh on every `reload()` call, matching how `ROUTES`/`_all_extractors` already work; regression test added (`test_reload_clears_stale_fallback_kernel`).
 
 Full suite confirmed clean across 2 repeated runs: 409 passed, only the 6 pre-existing unrelated failures remain (see §39).
+
+---
+
+## 41. `Moved:` Log Noise Fixed at the Source (2026-08-02, master, d552e35)
+
+Previously confirmed cosmetic-not-destructive (2026-07-26–08-01 drive migration session, see 2026-08-01 doc §35 and [[common-bugs]]) but never fixed at the source. Root cause, confirmed by reading `core/ingestor.py`: when two different files within the same vault share the same content hash (common for byte-identical Office boilerplate parts — `clip_colorschememapping.xml` etc. — across many old `.doc`/`.docx` files), the ingestor unconditionally treated the second one encountered in a scan as the first having "moved" to it, flipping the registered canonical path (`file_vault` + `tasks.file_path` + vector store path) on every single scan regardless of `os.walk()` ordering — which isn't guaranteed stable run to run. Reproduced deterministically in a test with two hash-identical files coexisting in one vault (`tests/test_ingestor.py::test_duplicate_content_files_are_not_flagged_as_moved`) — it triggers on the very first scan a vault sees such files, not just re-scans.
+
+**Fix**: a same-hash path mismatch is only treated as a real move when the old registered path no longer exists on disk. If it still exists, it's a content duplicate, not a move — leave the canonical path untouched (`core/ingestor.py`, the `elif os.path.normpath(vault_path) != file_path` branch now checks `os.path.exists(vault_path)` first). Genuine renames (old path actually gone) are still detected and logged exactly as before — covered by a second regression test, `test_genuinely_renamed_file_is_still_flagged_as_moved`.
+
+Full suite confirmed clean: same 6 pre-existing unrelated failures only (see §39).
