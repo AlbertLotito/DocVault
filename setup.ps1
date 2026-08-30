@@ -73,10 +73,10 @@ $configPath = Join-Path $scriptDir 'config.ini'
 # Change them here if you're setting up on a new machine.
 $defaults = @{
     scan_directory      = 'E:\DocTest'
-    cache_directory     = 'E:\DocVault\.cache\extracted_images'
-    sqlite_path         = 'E:\DocVault\docvault.db'
+    cache_directory     = '.cache\extracted_images'
+    sqlite_path         = 'docvault.db'
     tesseract_path      = 'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    poppler_path        = 'E:\DocVault\bin\poppler\Library\bin'
+    poppler_path        = 'bin\poppler\Library\bin'
     server_host         = '127.0.0.1'
     server_port         = '8050'
     ollama_host         = 'http://localhost:11600'

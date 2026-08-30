@@ -143,7 +143,7 @@ if ($clearLogs) {
 # Clear .cache extracted images (regenerable artefacts)
 # ---
 Write-Step "Clearing cached extracted images"
-$cachePath = 'E:\DocVault\.cache\extracted_images'
+$cachePath = Join-Path $scriptDir '.cache\extracted_images'
 if (Test-Path $cachePath) {
     $count = (Get-ChildItem $cachePath -Recurse -File).Count
     Remove-Item $cachePath -Recurse -Force

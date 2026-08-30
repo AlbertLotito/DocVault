@@ -18,7 +18,7 @@ Usage:
   python tests/rigs/check_db_migration.py
   python tests/rigs/check_db_migration.py --verbose
   python tests/rigs/check_db_migration.py --db path/to/docvault.db
-  python tests/rigs/check_db_migration.py --db E:/DocVault/docvault.db --settings-db E:/DocVault/settings.db --logs-db E:/DocVault/logs.db
+  python tests/rigs/check_db_migration.py --db /path/to/docvault.db --settings-db /path/to/settings.db --logs-db /path/to/logs.db
 """
 
 import argparse
