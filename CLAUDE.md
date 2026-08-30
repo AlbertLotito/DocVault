@@ -8,26 +8,26 @@ Read the following in full before doing anything else:
 
 The status doc is the most recently dated file in `docs/internals/status/`. Always read the newest one — it supersedes all earlier status docs. As of the last update the file is:
 
-`docs/internals/status/2026-07-19-project-status.md`
+`docs/internals/status/2026-08-02-project-status.md`
 
 If a newer file exists in that directory, read that instead.
 
 ### 2. Memory Files (the index MEMORY.md is auto-loaded; read the individual files below)
 
-- `C:\Users\Albert\.claude\projects\E--DocVault\memory\session-notes.md`
-- `C:\Users\Albert\.claude\projects\E--DocVault\memory\common-bugs.md`
-- `C:\Users\Albert\.claude\projects\E--DocVault\memory\infrastructure-migration.md`
-- `C:\Users\Albert\.claude\projects\E--DocVault\memory\project_span_grounding_wip.md`
-- `C:\Users\Albert\.claude\projects\E--DocVault\memory\feedback_ui_text_size.md`
-- `C:\Users\Albert\.claude\projects\E--DocVault\memory\feedback_visual_companion_windows.md`
+- `C:\Users\Albert\.claude\projects\D--DocVault\memory\session-notes.md`
+- `C:\Users\Albert\.claude\projects\D--DocVault\memory\common-bugs.md`
+- `C:\Users\Albert\.claude\projects\D--DocVault\memory\infrastructure-migration.md`
+- `C:\Users\Albert\.claude\projects\D--DocVault\memory\project_span_grounding_wip.md`
+- `C:\Users\Albert\.claude\projects\D--DocVault\memory\feedback_ui_text_size.md`
+- `C:\Users\Albert\.claude\projects\D--DocVault\memory\feedback_visual_companion_windows.md`
 
-Also check `C:\Users\Albert\.claude\projects\E--DocVault\memory\MEMORY.md` for any additional topic files added since this list was last updated and read those too.
+Also check `C:\Users\Albert\.claude\projects\D--DocVault\memory\MEMORY.md` for any additional topic files added since this list was last updated and read those too.
 
 If any file listed above does not exist, skip it silently.
 
 ## Project Location
 
-`E:\DocVault`
+`D:\DocVault`
 
 ---
 
