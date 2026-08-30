@@ -18,6 +18,20 @@ DB_PATH = _cfg.get('database', 'sqlite_path',
 
 app = FastAPI(title="DocVault", version="1.0.0")
 
+
+@app.middleware("http")
+async def no_cache_frontend(request, call_next):
+    """Force revalidation on every request. Without this, browsers apply
+    heuristic caching to FileResponse/StaticFiles (only Last-Modified/ETag,
+    no Cache-Control) and can skip even a plain reload's request entirely --
+    editing vault.html or lcars.js then silently having the browser keep
+    serving the old version until a hard refresh. Single-user local app, so
+    there's no meaningful cost to always revalidating."""
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 app.include_router(catalog.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
 app.include_router(query.router, prefix="/api")

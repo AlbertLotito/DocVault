@@ -99,8 +99,12 @@ class VectorStore:
     def delete_by_hashes(self, file_hashes: list[str]):
         if not file_hashes:
             return
-        escaped = ', '.join(f"'{_esc(h)}'" for h in file_hashes)
-        self._table.delete(f"file_hash IN ({escaped})")
+        # Same multi-megabyte-IN-clause hang as search() (see comment there) --
+        # batch at the same threshold rather than inlining every hash at once.
+        for i in range(0, len(file_hashes), _HASH_FILTER_INLINE_MAX):
+            batch = file_hashes[i:i + _HASH_FILTER_INLINE_MAX]
+            escaped = ', '.join(f"'{_esc(h)}'" for h in batch)
+            self._table.delete(f"file_hash IN ({escaped})")
 
 
     # ── Read ───────────────────────────────────────────────────────────────────

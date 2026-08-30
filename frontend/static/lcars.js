@@ -177,6 +177,25 @@ async function lcInit() {
     toastEl.className = 'lc-toast';
     document.body.appendChild(toastEl);
   }
+
+  // Init shared confirm modal (replaces window.confirm(), which browsers
+  // silently no-op after repeated dialogs unless the user re-enables them)
+  if (!document.getElementById('lc-confirm-modal')) {
+    const backdrop = document.createElement('div');
+    backdrop.id = 'lc-confirm-modal';
+    backdrop.className = 'lc-modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="lc-modal" style="min-width:340px;max-width:480px;">
+        <div class="lc-modal-title" id="lc-confirm-title">Confirm</div>
+        <div id="lc-confirm-msg" style="color:var(--c-text);margin-bottom:20px;line-height:1.5;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button class="lc-btn lc-btn-sm" id="lc-confirm-cancel">Cancel</button>
+          <button class="lc-btn lc-btn-sm lc-btn-danger" id="lc-confirm-ok">Confirm</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+  }
+
   document.dispatchEvent(new CustomEvent('lc:ready'));
 }
 
@@ -243,6 +262,37 @@ function lcToast(msg, isErr = false) {
   toastEl.classList.add('show');
   clearTimeout(toastEl._timer);
   toastEl._timer = setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+/**
+ * Shared confirm modal — replaces window.confirm(), which Chrome/Edge
+ * silently make a permanent no-op (returns false, no dialog) after the
+ * user checks "Prevent this page from creating additional dialogs".
+ * Usage: if (!(await lcConfirm('Delete this?'))) return;
+ */
+function lcConfirm(msg, title = 'Confirm') {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('lc-confirm-modal');
+    if (!backdrop) { resolve(window.confirm(msg)); return; }
+    document.getElementById('lc-confirm-title').textContent = title;
+    document.getElementById('lc-confirm-msg').textContent = msg;
+    const okBtn = document.getElementById('lc-confirm-ok');
+    const cancelBtn = document.getElementById('lc-confirm-cancel');
+    const cleanup = (result) => {
+      backdrop.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      backdrop.removeEventListener('click', onBackdrop);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    const onBackdrop = (e) => { if (e.target === backdrop) cleanup(false); };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    backdrop.addEventListener('click', onBackdrop);
+    backdrop.classList.add('open');
+  });
 }
 
 /** Accordion toggle for bar badges used in settings + utilities */

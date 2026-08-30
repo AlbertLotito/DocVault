@@ -181,8 +181,8 @@
         <button class="lc-btn lc-btn-sm" onclick="loadMissingFiles(0)">Search</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <button class="lc-btn lc-btn-sm" onclick="purgeSelectedMissingFiles()">Purge Selected</button>
-        <button class="lc-btn lc-btn-sm lc-btn-danger" onclick="purgeAllMissingFiles()">Purge All (filtered)</button>
+        <button id="btn-purge-selected" class="lc-btn lc-btn-sm" onclick="purgeSelectedMissingFiles()">Purge Selected</button>
+        <button id="btn-purge-all" class="lc-btn lc-btn-sm lc-btn-danger" onclick="purgeAllMissingFiles()">Purge All (filtered)</button>
       </div>
       <div style="max-height:400px;overflow-y:auto;border:1px solid var(--c-border);border-radius:6px;">
         <table style="width:100%;border-collapse:collapse;font-size:11px;">
@@ -1136,20 +1136,33 @@
     async function purgeSelectedMissingFiles() {
       const hashes = _selectedMissingFileHashes();
       if (!hashes.length) { lcToast('No files selected'); return; }
-      if (!confirm(`Permanently purge ${hashes.length} selected file(s)? This deletes all extracted text, images, and embeddings.`)) return;
+      const confirmed = await lcConfirm(`Permanently purge ${hashes.length} selected file(s)? This deletes all extracted text, images, and embeddings.`, 'Purge Missing Files');
+      if (!confirmed) return;
+      const btn = document.getElementById('btn-purge-selected');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'PURGING...';
       try {
         const result = await api('/catalog/missing/purge', { method: 'POST', body: JSON.stringify({ hashes }) });
         lcToast(`Purged ${result.purged} file(s)`);
         loadMissingFiles(0);
       } catch (err) {
         lcToast('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     }
 
     async function purgeAllMissingFiles() {
       const vault_id = document.getElementById('missing-vault-filter').value;
       const q = document.getElementById('missing-q-filter').value.trim();
-      if (!confirm('Permanently purge ALL missing files matching the current filter? This deletes all extracted text, images, and embeddings.')) return;
+      const confirmed = await lcConfirm('Permanently purge ALL missing files matching the current filter? This deletes all extracted text, images, and embeddings.', 'Purge Missing Files');
+      if (!confirmed) return;
+      const btn = document.getElementById('btn-purge-all');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'PURGING... (this can take a while for large filters)';
       try {
         const body = { all: true };
         if (vault_id) body.vault_id = vault_id;
@@ -1159,6 +1172,9 @@
         loadMissingFiles(0);
       } catch (err) {
         lcToast('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     }
 
