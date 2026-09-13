@@ -67,6 +67,7 @@ DocVault exists because most "search my files" tools stop at the text layer. A P
 - Real-time resource governor — CPU, GPU, and disk monitoring with automatic worker throttling
 - Hardware telemetry dashboard — live sensor readings, throttle state, and historical stats
 - Identity Hub — face search across your photo collection
+- File Browser — navigate your vault as a folder tree, hover a file for its status/type/size/error at a glance, right-click to jump an unprocessed file to the front of the extraction queue
 - Deleted-file detection — a removed file is soft-flagged and hidden from search rather than left as a dead search result; extracted text, images, and embeddings are preserved and auto-restored if the file reappears; permanent purge is a manual, explicit action
 
 ### Local-First
@@ -92,16 +93,20 @@ DocVault exists because most "search my files" tools stop at the text layer. A P
 
 > **Windows WMI:** CPU temperature sensing uses the `wmi` package (Windows only). On Linux/macOS — including inside Docker — the WMI sensor is replaced by a no-op stub automatically.
 
+> **No GPU at all?** Every AI-dependent feature still runs — Ollama and Whisper both work in CPU-only mode, just slower (minutes per file instead of seconds). If you specifically want to avoid local AI compute entirely and lean on subscription APIs instead, read [docs/internals/SideQuests.md §4](docs/internals/SideQuests.md#4-no-gpu--subscription-ai-support) first — RAG chat can already run on Claude today, but embeddings and vision description have no cloud path yet, and that section documents exactly why and what it would take.
+
 ---
 
 ## Quickstart
 
 DocVault runs as a single native Python process — no Docker, no external database service. Vector search (LanceDB) is an embedded library that lives alongside the app.
 
+> See [QUICKSTART.md](QUICKSTART.md) for the full fast-path walkthrough (prerequisites, verification steps, what to expect on first run). The commands below are the short version.
+
 ### Windows
 
 ```powershell
-git clone https://github.com/your-org/docvault.git
+git clone https://github.com/AlbertLotito/DocVault.git
 cd docvault
 .\setup.ps1      # one-time: venv, config, Ollama model pulls
 .\start.ps1      # every time: checks Ollama, starts app with auto-restart
@@ -112,14 +117,14 @@ Open http://localhost:8050
 ### Linux / macOS
 
 ```bash
-git clone https://github.com/your-org/docvault.git
+git clone https://github.com/AlbertLotito/DocVault.git
 cd docvault
 python3.11 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python run.py
 ```
 
-Open http://localhost:8050 — see [docs/setup.md](docs/setup.md) for the full prerequisites and walkthrough (Tesseract, Poppler, Ollama models).
+Open http://localhost:8050 — see [docs/setup.md](docs/setup.md) for the full prerequisites and walkthrough (Tesseract, Poppler, ffmpeg, Ollama models).
 
 ---
 
@@ -131,11 +136,12 @@ Open http://localhost:8050 — see [docs/setup.md](docs/setup.md) for the full p
 | Word | `.docx` | Text, paragraph structure, metadata |
 | Excel | `.xlsx`, `.xls` | Cell text, sheet names, metadata |
 | PowerPoint | `.pptx` | Slide text, speaker notes, metadata |
-| Plaintext | `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.yaml`, `.json`, `.xml` | Full text |
+| Plaintext | `.txt`, `.md`, `.rst`, `.log`, `.csv`, `.yaml`, `.json`, `.xml`, `.html`, `.htm` | Full text |
 | Source code | `.py`, `.js`, `.ts`, `.go`, `.rs`, `.java`, `.c`, `.cpp`, `.cs`, `.rb`, `.sql` and more | Code text, language, structure analysis |
-| Images | `.jpg`, `.png`, `.bmp`, `.gif`, `.tiff`, `.webp` | OCR text, AI visual description, EXIF metadata, face detection |
-| Audio | `.mp3`, `.flac`, `.wav`, `.ogg`, `.aac`, `.m4a`, `.opus` | Whisper transcription, metadata tags |
-| Video | `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm` | Frame-sampled visual descriptions, audio transcription, technical metadata |
+| Ebooks | `.epub` | Full text in reading order, title/author metadata |
+| Images | `.jpg`, `.png`, `.bmp`, `.gif`, `.ico`, `.svg`, `.tiff`, `.webp` | OCR text, AI visual description, EXIF metadata, face detection (SVG is rasterized first, then run through the same vision pipeline) |
+| Audio | `.mp3`, `.flac`, `.wav`, `.ogg`, `.aac`, `.m4a`, `.opus`, `.m4b` | Whisper transcription, metadata tags |
+| Video | `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`, `.wmv` | Frame-sampled visual descriptions, audio transcription, technical metadata |
 | Archives | `.zip`, `.tar`, `.gz`, `.7z`, `.rar` | File manifest, nested types, total size |
 
 ---

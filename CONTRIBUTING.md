@@ -13,7 +13,7 @@ Whether you are adding a new file-type kernel, improving the search pipeline, or
 Clone and bootstrap:
 
 ```powershell
-git clone https://github.com/your-org/docvault.git
+git clone https://github.com/AlbertLotito/DocVault.git
 cd docvault
 .\setup.ps1          # creates venv + installs requirements.txt
 ```
@@ -78,7 +78,7 @@ MANIFEST = {
     "id": "com.yourorg.my-extractor",   # reverse-DNS, globally unique
     "version": "1.0.0",
     "name": "My Extractor",
-    "extensions": [".xyz", ".abc"],
+    "extensions": ["xyz", "abc"],        # lowercase, NO leading dot
 }
 ```
 
@@ -93,7 +93,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
 
 ### Key rules
 
-- Return `(IngestResult, None)` on success; `(None, "error message")` on failure.
+- Return `(text, None)` or `(text, None, metadata_dict)` on success; `(None, "error message")` on failure. This plain-tuple style — not `IngestResult` — is what every built-in kernel actually uses; see [docs/extractors/contract.md](docs/extractors/contract.md) §3.
 - Never read settings at import time — use `ctx.settings.get(group, key)` inside `extract()`.
 - Check `ctx.cancel_token.is_set()` periodically in long-running operations (OCR, vision inference, large file parsing).
 - Do not write to any database directly — populate and return an `IngestResult`; the worker owns persistence.
