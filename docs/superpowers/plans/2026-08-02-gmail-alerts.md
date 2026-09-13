@@ -17,7 +17,7 @@
 - `alerts:email_to` default is `''` (empty). Empty disables the channel entirely — same convention as `alerts:ntfy_url`.
 - The email channel must never raise or block `send_alert()` — every failure (not configured, not authorized, API error) is caught and logged via `logger.debug`, matching the existing ntfy branch's "fire and forget" contract exactly.
 - Any new i18n key added to `frontend/static/i18n/en.json` must also be added (translated) to `es.json` and `fr.json` in the same task — `tests/test_i18n.py::test_es_and_fr_match_en_keys` checks all three files have matching key sets, and it must not gain new failures from this feature (it already has 3 unrelated missing keys from an earlier feature — out of scope to fix here, but must not grow).
-- The real recipient address for manual end-to-end verification is `REDACTED-personal-email` — set via the Settings UI (or a one-time `settings.set()` call) after the feature is built, **never** hardcoded as the `alerts:email_to` schema default (that default must stay `''` — this is a personal address, not a code constant).
+- The real recipient address for manual end-to-end verification is a personal address — set via the Settings UI (or a one-time `settings.set()` call) after the feature is built, **never** hardcoded as the `alerts:email_to` schema default (that default must stay `''` — this is a personal address, not a code constant).
 
 ---
 
@@ -895,7 +895,7 @@ Run `start.ps1` (or however the server is normally started in this environment) 
 
 - [ ] **Step 3: Configure the alert email recipient**
 
-Open the Settings page, find `alerts:email_to` (in the `general` group, next to `alerts:ntfy_url`), and set it to `REDACTED-personal-email`. Leave `alerts:email_min_level` at its default (`error`) unless a different threshold is wanted.
+Open the Settings page, find `alerts:email_to` (in the `general` group, next to `alerts:ntfy_url`), and set it to your own address. Leave `alerts:email_min_level` at its default (`error`) unless a different threshold is wanted.
 
 - [ ] **Step 4: Authorize Gmail**
 
@@ -908,7 +908,7 @@ From a Python shell in the venv (or a temporary script), run:
 from core.alerts import send_alert
 send_alert('Test Alert', 'This is a manual end-to-end test of the Gmail alert channel.', level='critical')
 ```
-Confirm an email arrives at `REDACTED-personal-email` with subject "Test Alert" and the given body.
+Confirm an email arrives at the configured address with subject "Test Alert" and the given body.
 
 - [ ] **Step 6: Confirm the severity threshold actually filters**
 
