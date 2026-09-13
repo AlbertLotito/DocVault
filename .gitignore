@@ -9,6 +9,9 @@ __pycache__/
 # Environment
 .env
 
+# Generated deployment config (environment-specific — see config.ini.example)
+config.ini
+
 # Databases (runtime data)
 *.db
 *.db-shm

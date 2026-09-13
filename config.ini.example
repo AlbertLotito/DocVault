@@ -16,7 +16,7 @@ provider = ollama
 path = C:\Program Files\Tesseract-OCR\tesseract.exe
 
 [ollama]
-host = http://localhost:11629
+host = http://localhost:11434
 chat_model = qwen2.5:14b
 embed_model = nomic-embed-text
 num_ctx = 8192
