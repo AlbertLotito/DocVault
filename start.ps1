@@ -27,34 +27,7 @@ function Write-Fail { param($msg) Write-Host "$(Get-Date -Format 'HH:mm:ss')    
 
 $configPath = Join-Path $scriptDir 'config.ini'
 
-function Get-ExcludedTcpRanges {
-    $ranges = @()
-    netsh interface ipv4 show excludedportrange protocol=tcp 2>$null | ForEach-Object {
-        if ($_ -match '^\s*(\d+)\s+(\d+)\s*\*?\s*$') {
-            $ranges += [PSCustomObject]@{ Start = [int]$Matches[1]; End = [int]$Matches[2] }
-        }
-    }
-    return $ranges
-}
-
-function Test-PortFree {
-    param([int]$Port, [array]$ExcludedRanges)
-    foreach ($r in $ExcludedRanges) {
-        if ($Port -ge $r.Start -and $Port -le $r.End) { return $false }
-    }
-    return -not (Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue)
-}
-
-function Find-FreeOllamaPort {
-    param([int]$Preferred)
-    $excluded = Get-ExcludedTcpRanges
-    if (Test-PortFree -Port $Preferred -ExcludedRanges $excluded) { return $Preferred }
-    Write-Warn "Port $Preferred is now inside a Windows/Hyper-V excluded range (or in use) - picking a new one"
-    foreach ($candidate in 11600..11699) {
-        if (Test-PortFree -Port $candidate -ExcludedRanges $excluded) { return $candidate }
-    }
-    return $null
-}
+. (Join-Path $scriptDir 'ollama_port.ps1')
 
 function Update-ConfigOllamaHost {
     param([string]$NewUrl)
