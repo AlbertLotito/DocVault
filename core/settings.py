@@ -41,6 +41,17 @@ class Settings:
                 'type': 'string', 'default': 'http://localhost:11434', 'label': 'Host', 'group': 'ollama',
                 'description': 'Base URL for the Ollama API server. Change this if Ollama runs on a different machine or a non-default port.',
             },
+            'ollama:guard_enabled': {
+                'type': 'string', 'default': 'true', 'label': 'Auto-restart Ollama', 'group': 'ollama',
+                'description': 'Set to "true" to have DocVault relaunch a local Ollama server that has died '
+                               '(for example after the Ollama app auto-updates and force-closes it). Only acts '
+                               'when the host above is this machine and the LLM provider is Ollama.',
+            },
+            'ollama:guard_interval': {
+                'type': 'int', 'default': 30, 'label': 'Ollama Health Check Interval (s)', 'group': 'ollama',
+                'description': 'How often to check that the local Ollama server is accepting connections. '
+                               'Restart needs two consecutive refused checks, so recovery takes about twice this.',
+            },
             'ollama:chat_model': {
                 'type': 'string', 'default': 'qwen2.5:14b', 'label': 'Chat Model', 'group': 'ollama',
                 'description': 'Ollama model used for RAG answers in the "Ask" chat. Must be pulled first with "ollama pull <model>". Recommended: qwen2.5:14b (speed/quality balance) or qwen2.5:32b for higher quality.',

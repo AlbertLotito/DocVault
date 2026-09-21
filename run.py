@@ -182,6 +182,12 @@ def start():
     t_monitor = threading.Thread(target=monitor.run, daemon=True, name='monitor')
     t_monitor.start()
 
+    # Relaunch a dead local Ollama (e.g. after the Ollama app auto-updates and kills it).
+    # Own safe loop like the monitor; see core/ollama_guard.py.
+    from core.ollama_guard import OllamaGuard
+    t_ollama_guard = threading.Thread(target=OllamaGuard().run, daemon=True, name='ollama_guard')
+    t_ollama_guard.start()
+
     # Start all workers under the watchdog so dead threads are automatically restarted
     watchdog_interval = int(settings.get('monitor:watchdog_interval') or 30)
     embed_concurrency = max(1, int(settings.get('workers:embed_concurrency') or 1))
