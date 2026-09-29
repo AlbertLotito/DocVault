@@ -94,7 +94,7 @@ def _rollback_optimizer_snapshot():
             except json.JSONDecodeError as exc:
                 conn.execute("DELETE FROM settings WHERE key='tuning:_optimizer_snapshot'")
                 conn.commit()
-                logger.warning(f"Startup: corrupt optimizer snapshot cleared (parse error: {exc}). Settings were NOT restored.")
+                logger.warn(f"Startup: corrupt optimizer snapshot cleared (parse error: {exc}). Settings were NOT restored.")
                 return
             from core.settings import settings as _settings
             for k, v in snapshot.items():
@@ -104,7 +104,7 @@ def _rollback_optimizer_snapshot():
                     pass  # skip keys not in schema
             conn.execute("DELETE FROM settings WHERE key='tuning:_optimizer_snapshot'")
             conn.commit()
-            logger.warning("Startup: restored settings from stale optimizer snapshot and cleared it.")
+            logger.warn("Startup: restored settings from stale optimizer snapshot and cleared it.")
     except Exception as e:
         logger.error(f"Startup: optimizer snapshot rollback failed: {e}")
 
