@@ -74,23 +74,34 @@ The Missing Files panel's purge-all button used `window.confirm()`. Once Chrome/
 
 ---
 
-## 48. Untracked Files Found in the Working Tree (2026-09-29, under review)
+## 48. Untracked Files Integrated: EPUB/SVG Extractors + Browse Page (2026-09-29, master, ca146dc, 2977912)
 
-Three files have been untracked since late August / mid-September and aren't in any commit or earlier status doc:
+Three files had sat untracked since late August / mid-September. All three are now committed and meet the system's standards.
 
-| File | State |
-|---|---|
-| `extractors/epub_extractor.py` | **Live in production.** Certified in `ext_registry` 2026-08-30 as `com.docvault.document.epub`. It has processed 2,237 EPUBs: 2,215 COMPLETED and 22 ERROR. Of the errors, 21 are "No text content" (probably image-only EPUBs) and 1 is an `ebooklib` parse failure. Dependencies (`ebooklib`, `lxml`) are installed. A fresh checkout wouldn't have it. |
-| `extractors/svg_extractor.py` | **Live in production.** Certified 2026-08-30 as `com.docvault.vision.svg`. It rasterizes SVGs with `svglib`/`reportlab`, then runs the vision model with a Tesseract fallback. 55 SVGs are COMPLETED. |
-| `frontend/browse.html` | **Frontend only; the backend doesn't exist.** It calls `GET /api/catalog/tree` and `POST /api/catalog/{hash}/scan_now`, and the page needs a `/browse` route in `api/main.py` plus a nav entry. None of these exist in git history, stashes or worktrees; the live server returns 404 for `/browse` and `/api/catalog/tree`. **`README.md` and `QUICKSTART.md` (c09244d) already advertise this page and use it as the post-install smoke test**, so the docs currently describe a feature that doesn't work. |
+**EPUB and SVG extractors (`ca146dc`, both now v1.1.0).** Both had been certified and live since 2026-08-30 (2,215 EPUBs and 55 SVGs processed) but were never committed.
+- **EPUB:** now walks the spine in reading order, as its docstring claimed. It had been iterating manifest order, which can differ from reading order and includes the navigation (TOC) document. Checked against 150 real library EPUBs: same text volume, no new errors. The 22 existing EPUB errors are image-only or malformed books; none of them extract under either version.
+- **SVG:** rasterizes at 300 dpi, the same convention as PDF OCR, with the longest side capped at 4000 px. svglib's 72 dpi default rendered SVGs at 75% of their declared size, so a 24 px icon became 18 px and vision (64 px minimum) skipped it entirely.
+- 13 new tests. `EbookLib`/`lxml`/`svglib`/`reportlab` are now in `requirements.txt`; they were installed locally but never listed.
+- **Re-certified after the edits.** The registry treats a certified kernel whose file hash changed as tampered and disables it at the next startup. Both were decertified and re-certified with the server stopped; the Lab contract audit passed. **Any future edit to an extractor needs the same re-certify step (Lab → Activate).**
 
-Decision pending with the user.
+**Browse page (`2977912`).** `frontend/browse.html` had no backend, even though README/QUICKSTART pointed users to it.
+- `GET /api/catalog/tree`: one level of a vault's tree from `file_vault` paths, with recursive per-status folder counts. It's multi-vault safe, rejects paths outside the vault with 400, and escapes `_`/`%` in LIKE patterns.
+- `POST /api/catalog/{hash}/scan_now`: PENDING/ERROR tasks get `priority = manager.SCAN_NOW_PRIORITY` and are claimed next; ERROR tasks are reset like Reprocess; other statuses return 409.
+- `/browse` route and nav pill.
+- The page now follows the house style: full en/es/fr i18n, the shared Inspect modal, escaped dynamic text, label contrast per the UI rule, and `--font-scale` support.
+- New guard test: every i18n key used by any page must exist in `en.json`. It also caught `search.ask.save`, which was rendering as its raw key name.
+- Documented in `docs/architecture.md` §5 and §9.
+
+**Live-verified** against the 155,615-file vault. `/browse` returns 200. Tree counts reconcile exactly with `file_vault`. The root takes about 1.25s warm (2.7s cold right after a restart); the largest subfolder (42k files) takes under 0.3s. The floor is about 155k task lookups: a SQL-side `GROUP BY` and a covering `(file_hash, status)` index were both measured and gave no improvement. **Not visually checked in a browser** (Chrome extension not connected); the page script was syntax-checked with node.
+
+Full suite: 476 passed.
+
+**Data note, not a bug:** in the tree, `outlookdata` shows 22,095 ERROR out of 22,136 files, and `NAS Home` shows 13,934 ERROR. Worth a look someday: likely unsupported Outlook formats.
 
 ---
 
 ## 49. Known Issues
 
-- **Browse page docs describe a feature that doesn't work.** See §48.
 - **Deferred tray-popup polish.** The minor, non-blocking items from §38 are still open.
 - **Unexplained clean exit on 2026-09-21.** See §46; parked.
 - WMI CPU temp and SQLite lock contention are still closed as non-issues (see the 2026-08-02 doc §39).
