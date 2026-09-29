@@ -1,7 +1,16 @@
 import sys, os, time, threading
+import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+from core import monitor
 from core.monitor import notify_user_activity, get_throttle_state, _set_throttle_state, MonitorReading
 from core.settings import settings
+
+
+@pytest.fixture(autouse=True)
+def _no_recent_user_activity(monkeypatch):
+    # Earlier tests that hit the search API call notify_user_activity(), which
+    # leaves the 60s search throttle active; start each test from a clean slate.
+    monkeypatch.setattr(monitor, '_last_user_activity', 0.0)
 
 def test_search_triggers_throttle():
     # Setup: Ensure state is normal

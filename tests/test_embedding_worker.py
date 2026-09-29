@@ -98,7 +98,8 @@ def test_process_task_batch_sends_one_ollama_call(mock_chunk, mock_embed, mock_p
     inputs = mock_embed.call_args[0][0]
     assert len(inputs) == 3  # 2 + 1 chunks total
 
-    assert mock_vs.upsert_batch.call_count == 2  # one per doc
+    mock_vs.upsert_documents.assert_called_once()  # one merge_insert for the whole batch
+    assert set(mock_vs.upsert_documents.call_args[0][0]) == {'h1', 'h2'}
     mock_status.assert_any_call('test.db', 'h1', status='COMPLETED')
     mock_status.assert_any_call('test.db', 'h2', status='COMPLETED')
 
@@ -118,7 +119,7 @@ def test_process_task_batch_completes_empty_docs_without_embed(mock_chunk, mock_
     embedding_worker.process_task_batch('test.db', tasks, mock_vs)
 
     mock_embed.assert_not_called()
-    mock_vs.upsert_batch.assert_not_called()
+    mock_vs.upsert_documents.assert_not_called()
     mock_status.assert_called_once_with('test.db', 'h1', 'COMPLETED')
 
 
@@ -135,7 +136,7 @@ def test_process_task_batch_skips_none_vectors(mock_chunk, mock_embed, mock_prog
     tasks = [{'file_hash': 'h1', 'file_path': '/a.pdf', 'file_type': 'pdf', 'extracted_text': 'text'}]
     embedding_worker.process_task_batch('test.db', tasks, mock_vs)
 
-    batch = mock_vs.upsert_batch.call_args[0][1]
+    batch = mock_vs.upsert_documents.call_args[0][0]['h1']
     assert len(batch) == 2
     assert batch[0]['chunk_index'] == 0
     assert batch[1]['chunk_index'] == 2
@@ -151,7 +152,7 @@ def test_process_task_batch_resets_to_extracted_on_vector_store_failure(mock_chu
     mock_chunk.side_effect = [['c1'], ['c2']]
     mock_embed.return_value = [[0.1]*768, [0.2]*768]
     mock_vs = MagicMock()
-    mock_vs.upsert_batch.side_effect = Exception("Vector store down")
+    mock_vs.upsert_documents.side_effect = Exception("Vector store down")
 
     tasks = [
         {'file_hash': 'h1', 'file_path': '/a.pdf', 'file_type': 'pdf', 'extracted_text': 'text1'},
