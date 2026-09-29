@@ -55,6 +55,20 @@ def purge_missing(body: PurgeMissingRequest):
     return {'ok': True, 'purged': len(purged)}
 
 
+@router.get("/catalog/tree")
+def catalog_tree(vault_id: str = Query(...), path: str = ''):
+    """One level of a vault's folder tree for the Browse page. `path` is relative to the vault root."""
+    from core.vault_manager import VaultManager
+    db = get_db()
+    vault = VaultManager(db).get_vault(vault_id)
+    if not vault:
+        raise HTTPException(status_code=404, detail="Vault not found")
+    try:
+        return manager.get_vault_tree(db, vault_id, vault['scan_directory'], path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/catalog/inspect")
 def inspect_file(path: str = Query(...)):
     """Return full DB record + vector store chunks + extracted images for a file path."""
@@ -197,4 +211,15 @@ def reprocess_item(file_hash: str):
     if not task:
         raise HTTPException(status_code=404, detail="File not found")
     manager.reprocess_task(get_db(), file_hash)
+    return {"status": "ok", "file_hash": file_hash}
+
+
+@router.post("/catalog/{file_hash}/scan_now")
+def scan_now_item(file_hash: str):
+    """Jump a PENDING/ERROR file to the front of the extraction queue."""
+    result = manager.scan_now_task(get_db(), file_hash)
+    if result == 'not_found':
+        raise HTTPException(status_code=404, detail="File not found")
+    if result == 'not_queueable':
+        raise HTTPException(status_code=409, detail="Only PENDING or ERROR files can be scanned now")
     return {"status": "ok", "file_hash": file_hash}

@@ -99,6 +99,8 @@ priority = ((10 - vault_priority) * extractor_priority) + (age_seconds / 3600)
 
 Higher values are processed first. Vault priority 1 (most important) produces the highest multiplier. The age bonus means every task will eventually be processed even if a high-priority vault is constantly adding new work.
 
+**Scan Now:** the Browse page's right-click "Scan Now" (`POST /api/catalog/{hash}/scan_now`) sets a `PENDING` or `ERROR` task's `priority` to `manager.SCAN_NOW_PRIORITY` (1,000,000). That outweighs any realistic age bonus, so the task is claimed next. `ERROR` tasks are reset the same way Reprocess resets them. Other statuses return 409. The boost only affects the extraction queue, since the embedding queue doesn't rank by `tasks.priority`.
+
 ---
 
 ## 6. Settings Resolution Chain
@@ -141,3 +143,9 @@ A file removed from a vault's scan directory doesn't disappear from DocVault ins
 **Search exclusion:** `MISSING` tasks are invisible to FTS, filename, and semantic/RAG search (a plain SQL clause for the first two; a Python post-filter for the third — see the note above), but still visible in the Vault Log/catalog view, which is a diagnostic surface, not a "clean" content browser. Worker claim queries (`claim_pending_task`, etc.) already whitelist specific statuses, so `MISSING` tasks are automatically unclaimable — no separate exclusion needed there.
 
 **Purge:** nothing is ever deleted automatically. A user reviews flagged files on the Missing Files panel (Vault Log page) and explicitly purges confirmed deletions via `POST /api/catalog/missing/purge`, which always re-verifies `status = 'MISSING'` server-side before deleting — a stale or forged hash list can never be used to delete live data. The actual hard-delete (`tasks`, `fts_index`, `extracted_images`, `file_vault`; `extracted_texts` cascades via FK; vectors removed best-effort) is shared with `VaultManager._gut_vault` via `core/manager.py::purge_file_hashes`.
+
+---
+
+## 9. Browse Page (Folder Tree)
+
+`/browse` shows one vault as a lazily expanded folder tree. Each expand calls `GET /api/catalog/tree?vault_id=…&path=…`, where `path` is relative to the vault root; paths that resolve outside the vault return 400. The tree comes from `file_vault.file_path` (each vault's own path for a file) joined to `tasks` for status. That makes it multi-vault safe, and child tasks such as extracted images never appear. `manager.get_vault_tree()` returns the direct child files plus the immediate subfolders, each with a recursive `total` and a `by_status` breakdown. The prefix match is a `LIKE … ESCAPE '!'`, so `_` and `%` in folder names match literally.

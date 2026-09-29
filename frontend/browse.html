@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocVault — Browse</title>
+  <link rel="stylesheet" href="/static/lcars.css">
+  <style>
+    /* page-specific overrides only */
+    .tree-root { padding: 0 20px 40px; }
+    .tree-node { font-size: calc(12px * var(--font-scale)); }
+    .tree-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 6px; cursor: pointer; border-radius: 3px;
+      white-space: nowrap;
+    }
+    .tree-row:hover { background: var(--c-border); }
+    .tree-arrow { width: 12px; display: inline-block; color: var(--c-label); font-size: calc(10px * var(--font-scale)); }
+    .tree-name { color: var(--c-label); overflow: hidden; text-overflow: ellipsis; }
+    .tree-folder > .tree-row .tree-name { color: var(--c-accent); font-weight: bold; }
+    .tree-count { color: var(--c-label); font-size: calc(11px * var(--font-scale)); }
+    .tree-children {
+      display: none; margin-left: 9px; padding-left: 12px;
+      border-left: 1px solid var(--c-border-str);
+    }
+    .tree-children.open { display: block; }
+    .tree-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .tree-dot-ok   { background: var(--c-ok); }
+    .tree-dot-proc { background: var(--c-proc); }
+    .tree-dot-pend { background: var(--c-pend); }
+    .tree-dot-err  { background: var(--c-error); }
+    .tree-dot-unk  { background: var(--c-unk); }
+    .tree-msg { color: var(--c-label); font-size: calc(11px * var(--font-scale)); padding: 4px 6px 4px 24px; }
+    .tree-msg.err { color: var(--c-error); }
+  </style>
+</head>
+<body data-page="browse">
+  <div class="lc-nav"></div>
+
+  <div class="lc-page lc-page-pad">
+
+    <div class="lc-section-title" style="padding-top:14px;">
+      <span data-i18n="browse.title">File Browser</span>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 20px 14px;">
+      <select id="browse-vault" class="lc-select" onchange="loadRootTree()"></select>
+      <span style="font-size:calc(11px * var(--font-scale));color:var(--c-label);" data-i18n="browse.hint">
+        Hover a file for details. Right-click a PENDING or ERROR file to jump it to the front of the queue.
+      </span>
+    </div>
+
+    <div class="tree-root" id="tree-root"></div>
+
+  </div><!-- /lc-page -->
+
+  <!-- ctx-menu (pattern shared with vault.html) -->
+  <div id="ctx-menu" class="lc-ctx-menu">
+    <div class="lc-ctx-item" onclick="ctxOpenFile()" data-i18n="vault.ctx_menu.open_file">Open File</div>
+    <div class="lc-ctx-sep"></div>
+    <div class="lc-ctx-item" onclick="ctxOpenFolder()" data-i18n="vault.ctx_menu.open_folder">Open Folder</div>
+    <div class="lc-ctx-sep"></div>
+    <div class="lc-ctx-item" onclick="ctxInspect()" data-i18n="vault.ctx_menu.inspect">Inspect</div>
+    <div class="lc-ctx-sep" id="ctx-scan-sep"></div>
+    <div class="lc-ctx-item" id="ctx-scan-item" onclick="ctxScanNow()" data-i18n="browse.ctx_menu.scan_now">Scan Now</div>
+  </div>
+
+  <script src="/static/app.js"></script>
+  <script src="/static/lcars.js"></script>
+  <script>
+    var g_loaded = {};   // folder path -> true once its children have been fetched
+
+    // Colour families match the Vault page: done / in flight / queued / failed / other.
+    var STATUS_DOT = {
+      COMPLETED: 'ok',
+      PROCESSING: 'proc', EXTRACTED: 'proc', EMBEDDING: 'proc',
+      PENDING: 'pend',
+      ERROR: 'err',
+    };
+    // Must match manager.SCAN_NOW_STATUSES.
+    var SCANNABLE = { PENDING: 1, ERROR: 1 };
+
+    function dotClass(status) {
+      return 'tree-dot-' + (STATUS_DOT[status] || 'unk');
+    }
+
+    function fmtSize(b) {
+      if (!b) return '--';
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+      if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+      return (b/1073741824).toFixed(1) + ' GB';
+    }
+
+    // last_update is SQLite CURRENT_TIMESTAMP (UTC, no zone marker).
+    function fmtUtc(s) {
+      return s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString() : '--';
+    }
+
+    function fmtLocal(s) {
+      return s ? new Date(s).toLocaleString() : '--';
+    }
+
+    function fileTitle(f) {
+      var lines = [
+        f.name,
+        t('browse.tip.status') + ': ' + f.status,
+        t('browse.tip.type') + ': ' + (f.file_type || '?'),
+        t('browse.tip.size') + ': ' + fmtSize(f.file_size),
+        t('browse.tip.modified') + ': ' + fmtLocal(f.file_modified),
+        t('browse.tip.last_update') + ': ' + fmtUtc(f.last_update),
+      ];
+      if (f.error_log) lines.push(t('browse.tip.error') + ': ' + f.error_log);
+      return lines.join('\n');
+    }
+
+    function folderTitle(folder) {
+      var parts = Object.keys(folder.by_status).sort().map(function(s) {
+        return folder.by_status[s] + ' ' + s.toLowerCase();
+      });
+      return t('browse.tip.files', { n: folder.total }) + ' — ' + parts.join(', ');
+    }
+
+    function dominantStatusDot(folder) {
+      var s = folder.by_status;
+      if (s.ERROR) return 'tree-dot-err';
+      if (s.PENDING) return 'tree-dot-pend';
+      if (s.PROCESSING || s.EXTRACTED || s.EMBEDDING) return 'tree-dot-proc';
+      if (s.COMPLETED) return 'tree-dot-ok';
+      return 'tree-dot-unk';
+    }
+
+    function setMessage(el, text, isError) {
+      el.innerHTML = '';
+      var msg = document.createElement('div');
+      msg.className = 'tree-msg' + (isError ? ' err' : '');
+      msg.textContent = text;
+      el.appendChild(msg);
+    }
+
+    async function loadRootTree() {
+      var vaultId = document.getElementById('browse-vault').value;
+      var container = document.getElementById('tree-root');
+      g_loaded = {};
+      if (!vaultId) return;
+      setMessage(container, t('common.loading'));
+      try {
+        var data = await api('/catalog/tree?vault_id=' + encodeURIComponent(vaultId));
+        renderLevel(container, vaultId, data);
+      } catch (e) {
+        setMessage(container, t('common.error') + ': ' + e.message, true);
+      }
+    }
+
+    function renderLevel(el, vaultId, data) {
+      el.innerHTML = '';
+      if (!data.folders.length && !data.files.length) {
+        setMessage(el, t('browse.empty'));
+        return;
+      }
+      data.folders.forEach(function(folder) { el.appendChild(renderFolderRow(vaultId, folder)); });
+      data.files.forEach(function(file) { el.appendChild(renderFileRow(file)); });
+    }
+
+    function renderFolderRow(vaultId, folder) {
+      var node = document.createElement('div');
+      node.className = 'tree-node tree-folder';
+
+      var row = document.createElement('div');
+      row.className = 'tree-row';
+      row.title = folderTitle(folder);
+      row.innerHTML =
+        '<span class="tree-arrow">&#9654;</span>' +
+        '<span class="tree-dot ' + dominantStatusDot(folder) + '"></span>' +
+        '<span class="tree-name">' + _esc(folder.name) + '</span>' +
+        '<span class="tree-count">(' + folder.total + ')</span>';
+
+      var children = document.createElement('div');
+      children.className = 'tree-children';
+
+      row.onclick = function() { toggleFolder(vaultId, folder.path, row, children); };
+      node.appendChild(row);
+      node.appendChild(children);
+      return node;
+    }
+
+    async function toggleFolder(vaultId, path, row, childrenEl) {
+      var arrow = row.querySelector('.tree-arrow');
+      if (childrenEl.classList.contains('open')) {
+        childrenEl.classList.remove('open');
+        arrow.innerHTML = '&#9654;';
+        return;
+      }
+      childrenEl.classList.add('open');
+      arrow.innerHTML = '&#9660;';
+      if (g_loaded[path]) return;
+
+      setMessage(childrenEl, t('common.loading'));
+      try {
+        var data = await api('/catalog/tree?vault_id=' + encodeURIComponent(vaultId) +
+                             '&path=' + encodeURIComponent(path));
+        g_loaded[path] = true;
+        renderLevel(childrenEl, vaultId, data);
+      } catch (e) {
+        setMessage(childrenEl, t('common.error') + ': ' + e.message, true);
+      }
+    }
+
+    function renderFileRow(file) {
+      var node = document.createElement('div');
+      node.className = 'tree-node tree-file';
+
+      var row = document.createElement('div');
+      row.className = 'tree-row';
+      row.title = fileTitle(file);
+      row.dataset.hash = file.file_hash;
+      row.dataset.path = file.file_path;
+      row.dataset.status = file.status;
+      row.innerHTML =
+        '<span class="tree-arrow"></span>' +
+        '<span class="tree-dot ' + dotClass(file.status) + '"></span>' +
+        '<span class="tree-name">' + _esc(file.name) + '</span>' +
+        '<span class="tree-count">' + fmtSize(file.file_size) + '</span>';
+
+      row.oncontextmenu = function(e) { showCtxMenu(e, row); };
+      node.appendChild(row);
+      return node;
+    }
+
+    // ── Context menu (pattern shared with vault.html) ────────
+    var g_ctxRow = null;
+
+    function showCtxMenu(e, row) {
+      e.preventDefault();
+      e.stopPropagation();
+      g_ctxRow = row;
+      var scannable = !!SCANNABLE[row.dataset.status];
+      document.getElementById('ctx-scan-item').style.display = scannable ? '' : 'none';
+      document.getElementById('ctx-scan-sep').style.display = scannable ? '' : 'none';
+      var menu = document.getElementById('ctx-menu');
+      menu.style.left = e.pageX + 'px';
+      menu.style.top  = e.pageY + 'px';
+      menu.classList.add('open');
+    }
+
+    function hideCtxMenu() {
+      document.getElementById('ctx-menu').classList.remove('open');
+      g_ctxRow = null;
+    }
+
+    // hideCtxMenu() nulls g_ctxRow, so each action captures it first.
+    function ctxOpenFile() {
+      var row = g_ctxRow; hideCtxMenu();
+      if (row) openFile(row.dataset.path);
+    }
+
+    function ctxOpenFolder() {
+      var row = g_ctxRow; hideCtxMenu();
+      if (row) openFolder(row.dataset.path);
+    }
+
+    function ctxInspect() {
+      var row = g_ctxRow; hideCtxMenu();
+      if (row) inspectFile(row.dataset.path);
+    }
+
+    async function ctxScanNow() {
+      var row = g_ctxRow; hideCtxMenu();
+      if (!row) return;
+      try {
+        await api('/catalog/' + encodeURIComponent(row.dataset.hash) + '/scan_now', { method: 'POST' });
+        row.dataset.status = 'PENDING';
+        row.querySelector('.tree-dot').className = 'tree-dot ' + dotClass('PENDING');
+        lcToast(t('browse.toast.scan_queued'));
+      } catch (e) {
+        lcToast(t('browse.toast.scan_failed', { error: e.message }), true);
+      }
+    }
+
+    document.addEventListener('click', hideCtxMenu);
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') hideCtxMenu();
+    });
+
+    async function loadVaults() {
+      var sel = document.getElementById('browse-vault');
+      sel.innerHTML = '';
+      try {
+        var vaults = await api('/vaults');
+        vaults.forEach(function(v) {
+          var opt = document.createElement('option');
+          opt.value = v.vault_id;
+          opt.textContent = v.name;
+          sel.appendChild(opt);
+        });
+        if (!vaults.length) setMessage(document.getElementById('tree-root'), t('browse.no_vaults'));
+      } catch (e) {
+        setMessage(document.getElementById('tree-root'), t('common.error') + ': ' + e.message, true);
+      }
+    }
+
+    document.addEventListener('lc:ready', async function() {
+      await loadVaults();
+      loadRootTree();
+    });
+  </script>
+</body>
+</html>

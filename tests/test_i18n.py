@@ -53,3 +53,26 @@ def test_ui_language_setting_in_schema():
     assert entry.get('type') == 'string'
     assert entry.get('default') == ''
     assert entry.get('group') == 'ui'
+
+
+def test_every_i18n_key_used_by_the_frontend_exists_in_en():
+    """A key missing from en.json renders as its literal name (e.g. 'browse.title')."""
+    import glob
+    import re
+    frontend = os.path.join(os.path.dirname(__file__), '..', 'frontend')
+    with open(os.path.join(I18N_DIR, 'en.json'), encoding='utf-8') as f:
+        en = json.load(f)
+    sources = glob.glob(os.path.join(frontend, '*.html')) + [
+        os.path.join(frontend, 'static', 'lcars.js'),
+        os.path.join(frontend, 'static', 'app.js'),
+    ]
+    missing = {}
+    for path in sources:
+        with open(path, encoding='utf-8') as f:
+            src = f.read()
+        keys = set(re.findall(r'data-i18n(?:-placeholder|-title)?="([^"]+)"', src))
+        keys |= set(re.findall(r"\bt\('([a-z_]+\.[a-z0-9_.]+)'", src))
+        gaps = sorted(k for k in keys if k not in en)
+        if gaps:
+            missing[os.path.basename(path)] = gaps
+    assert not missing, f"i18n keys missing from en.json: {missing}"

@@ -1271,6 +1271,79 @@ def reprocess_task(db_path, file_hash):
         conn.commit()
 
 
+# Large enough that (10 - vault_priority) * priority outweighs any realistic
+# age bonus in claim_pending_task (1e6 hours is over a century).
+SCAN_NOW_PRIORITY = 1_000_000
+SCAN_NOW_STATUSES = ('PENDING', 'ERROR')
+
+
+def scan_now_task(db_path, file_hash) -> str:
+    """Jump a PENDING/ERROR task to the front of the extraction queue.
+
+    ERROR tasks are reset the same way reprocess_task() does. Returns 'ok',
+    'not_found', or 'not_queueable' (already extracted, in flight, or MISSING).
+    """
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            f"""UPDATE tasks SET status='PENDING', worker_id=NULL, error_log=NULL,
+                   priority=?, last_update=CURRENT_TIMESTAMP
+               WHERE file_hash=? AND status IN ({','.join('?' * len(SCAN_NOW_STATUSES))})""",
+            (SCAN_NOW_PRIORITY, file_hash, *SCAN_NOW_STATUSES)
+        )
+        if cur.rowcount:
+            conn.execute("DELETE FROM extracted_texts WHERE file_hash = ?", (file_hash,))
+            conn.commit()
+            return 'ok'
+        exists = conn.execute("SELECT 1 FROM tasks WHERE file_hash=?", (file_hash,)).fetchone()
+        return 'not_queueable' if exists else 'not_found'
+
+
+def get_vault_tree(db_path, vault_id, vault_root, rel_path=''):
+    """One level of a vault's folder tree, built from file_vault paths.
+
+    Returns {'folders': [{name, path, total, by_status}], 'files': [...]} where
+    folder counts are recursive and paths are relative to vault_root.
+    Raises ValueError if rel_path points outside the vault.
+    """
+    rel_path = os.path.normpath(rel_path) if rel_path else ''
+    if rel_path == '.':
+        rel_path = ''
+    if os.path.isabs(rel_path) or os.path.splitdrive(rel_path)[0] \
+            or rel_path == '..' or rel_path.startswith('..' + os.sep):
+        raise ValueError(f"Path is outside the vault: {rel_path}")
+
+    base = os.path.join(os.path.normpath(vault_root), rel_path) if rel_path \
+        else os.path.normpath(vault_root)
+    prefix = base.rstrip(os.sep) + os.sep
+    like = prefix.replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
+
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """SELECT fv.file_path, t.file_hash, t.status, t.file_type, t.file_size,
+                      t.file_modified, t.last_update, substr(t.error_log, 1, 500) AS error_log
+               FROM file_vault fv JOIN tasks t ON t.file_hash = fv.file_hash
+               WHERE fv.vault_id = ? AND fv.file_path LIKE ? ESCAPE '!'""",
+            (vault_id, like)
+        ).fetchall()
+
+    folders, files = {}, []
+    for r in rows:
+        rest = r['file_path'][len(prefix):]
+        head, sep, _ = rest.partition(os.sep)
+        if sep:
+            f = folders.setdefault(head, {'name': head, 'path': os.path.join(rel_path, head),
+                                          'total': 0, 'by_status': {}})
+            f['total'] += 1
+            f['by_status'][r['status']] = f['by_status'].get(r['status'], 0) + 1
+        else:
+            files.append({'name': rest, **dict(r)})
+
+    return {
+        'folders': sorted(folders.values(), key=lambda f: f['name'].lower()),
+        'files': sorted(files, key=lambda f: f['name'].lower()),
+    }
+
+
 def reset_stuck_tasks(db_path) -> int:
     with _connect(db_path) as conn:
         cur = conn.execute(

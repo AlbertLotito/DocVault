@@ -59,6 +59,10 @@ def vault_page():
 def catalog_redirect():
     return RedirectResponse(url="/vault", status_code=301)
 
+@app.get("/browse", include_in_schema=False)
+def browse_page():
+    return FileResponse(os.path.join(FRONTEND, 'browse.html'))
+
 @app.get("/search", include_in_schema=False)
 def search_page():
     return FileResponse(os.path.join(FRONTEND, 'search.html'))

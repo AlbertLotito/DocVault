@@ -17,6 +17,7 @@ function buildNavHTML() {
   <nav class="lc-nav-links">
     <a href="/search"   class="lc-pill" data-nav="search">${t('nav.search')}</a>
     <a href="/vault"    class="lc-pill" data-nav="vault">${t('nav.vault')}</a>
+    <a href="/browse"   class="lc-pill" data-nav="browse">${t('nav.browse')}</a>
     <a href="/identity" class="lc-pill" data-nav="identity">${t('nav.identity')}</a>
     <a href="/utils"    class="lc-pill" data-nav="utilities">${t('nav.utilities')}</a>
     <a href="/settings" class="lc-pill" data-nav="settings">${t('nav.settings')}</a>
