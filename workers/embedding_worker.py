@@ -11,6 +11,37 @@ from workers.utils import interruptible_sleep, paused_sleep, should_pause_or_thr
 _index_lock = threading.Lock()
 _MIN_INDEX_ROWS = 1_000
 _batches_since_index = 0
+_last_optimize = 0.0   # time.monotonic() of the last vector-store compaction
+
+
+def _maybe_optimize(vs: VectorStore) -> None:
+    """Compact the vector store every lancedb:optimize_interval_hours (0 = never).
+
+    Runs synchronously in the embedding thread, between batches, so this worker
+    never writes concurrently with the compaction. Shares _index_lock with the
+    vector-index rebuild so the two never overlap.
+    """
+    global _last_optimize
+    raw = settings.get('lancedb:optimize_interval_hours')
+    hours = int(raw) if raw not in (None, '') else 6
+    if hours <= 0:
+        return
+    now = time.monotonic()
+    if now - _last_optimize < hours * 3600:
+        return
+    if not _index_lock.acquire(blocking=False):
+        return
+    _last_optimize = now   # advance even on failure: no tight retry loop
+    try:
+        started = time.time()
+        logger.info("[embed] Compacting vector store...")
+        vs.ensure_scalar_indexes()
+        vs.optimize()
+        logger.info(f"[embed] Vector store compacted in {time.time() - started:.0f}s.")
+    except Exception as e:
+        logger.warn(f"[embed] Vector store compaction failed: {e}")
+    finally:
+        _index_lock.release()
 
 
 def _rebuild_index(vs: VectorStore) -> None:
@@ -206,6 +237,9 @@ def run(db_path, shutdown_event=None, worker_id=None):
     if worker_id is None:
         worker_id = f"embed-{socket.gethostname()}-{os.getpid()}"
     logger.info(f"Embedding worker starting. ID: {worker_id}")
+    global _last_optimize
+    if not _last_optimize:
+        _last_optimize = time.monotonic()   # first compaction one interval after startup
 
     try:
         vs = _load_vector_store()
@@ -252,6 +286,7 @@ def run(db_path, shutdown_event=None, worker_id=None):
             if _batches_since_index >= rebuild_every:
                 _batches_since_index = 0
                 threading.Thread(target=_rebuild_index, args=(vs,), daemon=True).start()
+            _maybe_optimize(vs)
         else:
             try:
                 interruptible_sleep(db_path, 10)

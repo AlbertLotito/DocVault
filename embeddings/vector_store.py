@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 import lancedb
 import pyarrow as pa
 from core.settings import settings
@@ -188,6 +189,23 @@ class VectorStore:
             vector_column_name='vector',
             replace=True,
         )
+
+    def ensure_scalar_indexes(self) -> None:
+        """BTREE indexes on the merge key (id) and the delete/filter key (file_hash).
+
+        Without the id index every merge_insert scans the whole table."""
+        have = {tuple(ix.columns) for ix in self._table.list_indices()}
+        for col in ('id', 'file_hash'):
+            if (col,) not in have:
+                self._table.create_scalar_index(col, index_type='BTREE', replace=True)
+
+    def optimize(self, keep_versions: timedelta = timedelta(days=1)) -> None:
+        """Compact small fragments into large ones, fold new rows into the indexes,
+        and prune table versions older than keep_versions.
+
+        Each upsert appends a small fragment; left alone the live table reached
+        52,163 fragments and every merge/delete slowed to minutes."""
+        self._table.optimize(cleanup_older_than=keep_versions)
 
     def count(self) -> int:
         return self._table.count_rows()

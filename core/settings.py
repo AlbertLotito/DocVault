@@ -115,6 +115,12 @@ class Settings:
                 'type': 'string', 'default': 'lancedb_storage', 'label': 'LanceDB storage path', 'group': 'lancedb',
                 'description': 'Directory where LanceDB stores vector data. Relative to project root.',
             },
+            'lancedb:optimize_interval_hours': {
+                'type': 'int', 'default': 6, 'label': 'Vector store compaction interval (hours)', 'group': 'lancedb',
+                'description': 'How often the embedding worker compacts the vector store (merges small fragments, '
+                               'updates indexes, prunes versions older than a day). Without it every upsert '
+                               'slows down over time. 0 disables.',
+            },
             # PDF extraction
             'pdf:poppler_path': {
                 'type': 'string', 'default': '', 'label': 'Poppler bin path', 'group': 'pdf',
