@@ -13,9 +13,9 @@ REQUIRES: Built-in Python libraries.
 
 MANIFEST = {
     "id": "com.docvault.text.plain",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Plain Text Engine",
-    "extensions": ["txt", "md", "csv", "json", "py", "js", "ts", "html", "xml", "yaml", "toml", "log"],
+    "extensions": ["txt", "md", "csv", "json", "py", "js", "ts", "xml", "yaml", "toml", "log"],
     "requires": []
 }
 

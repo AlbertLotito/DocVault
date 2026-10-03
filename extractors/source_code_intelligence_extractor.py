@@ -17,9 +17,9 @@ REQUIRES: Pygments.
 
 MANIFEST = {
     "id": "com.docvault.code.structural",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Source Code Intelligence",
-    "extensions": ["py", "js", "ts", "java", "cpp", "c", "go", "rs", "rb", "php", "sh", "css", "html", "yaml", "toml"],
+    "extensions": ["py", "js", "ts", "java", "cpp", "c", "go", "rs", "rb", "php", "sh", "css", "yaml", "toml"],
     "requires": ["pygments"]
 }
 
