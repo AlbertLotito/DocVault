@@ -154,6 +154,29 @@ async def _vault_id(vault: str | None, timeout: float) -> str | None:
     return resolve_vault(await _api_or_tool_error('GET', '/api/vaults', timeout=timeout), vault)
 
 
+async def _hash_for_path(file_path: str) -> str:
+    """file_hash for a document path.
+
+    Fast path: the catalog's file_path filter (~0.4s). It is a SQL LIKE, so '_'/'%'
+    in a path can match other files; only an exact match counts. Fallback:
+    /api/catalog/inspect (~6s, it also loads vector chunks), which also knows the
+    vault-specific paths of files shared across vaults.
+    """
+    listing = await _api_or_tool_error('GET', '/api/catalog', timeout=TIMEOUT_DOCUMENT,
+                                       params={'filename': file_path, 'limit': 50})
+    for task in listing.get('tasks', []):
+        if task.get('file_path', '').casefold() == file_path.casefold():
+            return task['file_hash']
+    try:
+        found = await _api('GET', '/api/catalog/inspect', params={'path': file_path},
+                           timeout=TIMEOUT_DOCUMENT)
+    except _ApiError as e:
+        if e.status == 404:
+            raise ToolError(f"No document indexed at path '{file_path}'.")
+        raise ToolError(str(e))
+    return found['task']['file_hash']
+
+
 def ask_enabled() -> bool:
     return os.environ.get(ENABLE_ASK_ENV, '').strip().lower() in ('1', 'true', 'yes', 'on')
 
@@ -215,14 +238,7 @@ def build_server(enable_ask: bool | None = None) -> MCPServer:
             raise ToolError('Give document_id or file_path, not both.')
 
         if file_path:
-            try:
-                found = await _api('GET', '/api/catalog/inspect', params={'path': file_path},
-                                   timeout=TIMEOUT_DOCUMENT)
-            except _ApiError as e:
-                if e.status == 404:
-                    raise ToolError(f"No document indexed at path '{file_path}'.")
-                raise ToolError(str(e))
-            document_id = found['task']['file_hash']
+            document_id = await _hash_for_path(file_path)
 
         try:
             task = await _api('GET', f'/api/catalog/{document_id}', timeout=TIMEOUT_DOCUMENT)

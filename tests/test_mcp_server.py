@@ -236,15 +236,38 @@ async def test_get_document_pages_through_long_text(api):
     assert (last['text'], last['next_offset']) == (TEXT[40:], None)
 
 
-async def test_get_document_by_path_resolves_the_hash(api):
-    api.on('GET', '/api/catalog/inspect', body={'task': TASK, 'chunks': [], 'images': []})
+async def test_get_document_by_path_resolves_the_hash_via_the_fast_catalog_lookup(api):
+    # LIKE semantics: '_' in a path is a wildcard, so the catalog can return near-misses.
+    near_miss = {**TASK, 'file_hash': 'other', 'file_path': 'Z:\\Documents\\BillsXinvoice-june.pdf'}
+    api.on('GET', '/api/catalog', body={'tasks': [near_miss, TASK], 'total_matches': 2})
     api.on('GET', '/api/catalog/h1', body=TASK)
     api.on('GET', '/api/catalog/h1/text', body={'extracted_text': TEXT})
 
     err, out = await _call('docvault_get_document', {'file_path': TASK['file_path']})
 
     assert not err and out['file_hash'] == 'h1'
-    assert api.last('/api/catalog/inspect').url.params['path'] == TASK['file_path']
+    assert api.last('/api/catalog').url.params['filename'] == TASK['file_path']
+    assert not [r for r in api.requests if r.url.path == '/api/catalog/inspect']
+
+
+async def test_get_document_by_path_falls_back_to_inspect_for_vault_specific_paths(api):
+    # A file shared across vaults is stored under one canonical tasks.file_path;
+    # its other vault paths are only resolvable through /api/catalog/inspect.
+    api.on('GET', '/api/catalog', body={'tasks': [], 'total_matches': 0})
+    api.on('GET', '/api/catalog/inspect', body={'task': TASK, 'chunks': [], 'images': []})
+    api.on('GET', '/api/catalog/h1', body=TASK)
+    api.on('GET', '/api/catalog/h1/text', body={'extracted_text': TEXT})
+
+    err, out = await _call('docvault_get_document', {'file_path': 'Y:\\Other\\invoice-june.pdf'})
+
+    assert not err and out['file_hash'] == 'h1'
+
+
+async def test_get_document_unknown_path_is_a_readable_error(api):
+    api.on('GET', '/api/catalog', body={'tasks': [], 'total_matches': 0})
+    api.on('GET', '/api/catalog/inspect', status=404, body={'detail': 'File not found in database'})
+    err, msg = await _call('docvault_get_document', {'file_path': 'Z:\\nope.txt'})
+    assert err and "No document indexed at path 'Z:\\nope.txt'" in msg
 
 
 async def test_get_document_needs_exactly_one_identifier():
