@@ -48,3 +48,21 @@ def test_unknown_file_type_flagged(mock_router, mock_complete):
 
     call_kwargs = mock_complete.call_args[1]
     assert call_kwargs['status'] == 'UNKNOWN'
+
+
+@patch('workers.extraction_worker.manager.complete_extraction')
+@patch('workers.extraction_worker.router.get_extractors')
+def test_metadata_only_result_completes_instead_of_stranding_in_extracted(mock_router, mock_complete):
+    """The embedding worker only claims EXTRACTED tasks that have text, so a
+    metadata-only result marked EXTRACTED would never leave that state."""
+    mock_extractor = MagicMock()
+    mock_extractor.__name__ = 'html_extractor'
+    mock_extractor.extract.return_value = (None, 'No visible text content in page', {'title': 'Nav bar'})
+    mock_router.return_value = [mock_extractor]
+
+    extraction_worker.process_task('test.db', {'file_hash': 'abc', 'file_path': '/x.htm', 'file_type': 'htm'})
+
+    kwargs = mock_complete.call_args[1]
+    assert kwargs['status'] == 'COMPLETED'
+    assert kwargs['text'] is None
+    assert kwargs['metadata'] == {'title': 'Nav bar'}

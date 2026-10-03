@@ -135,7 +135,14 @@ def process_task(db_path, task):
 
     final_text   = "\n\n".join(combined_text) if combined_text else None
     has_content  = bool(final_text or combined_metadata)
-    final_status = 'ERROR' if (errors and not has_content) else 'EXTRACTED'
+    if errors and not has_content:
+        final_status = 'ERROR'
+    elif final_text:
+        final_status = 'EXTRACTED'
+    else:
+        # Metadata only: nothing to embed. The embedding worker only claims
+        # EXTRACTED tasks that have text, so EXTRACTED here would strand it.
+        final_status = 'COMPLETED'
 
     manager.complete_extraction(
         db_path, file_hash, status=final_status,

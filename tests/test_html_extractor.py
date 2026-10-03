@@ -162,3 +162,14 @@ def test_mime_message_saved_with_htm_extension_is_unpacked(tmp_path):
     assert error is None
     assert 'Café meeting moved to Tuesday' in text
     assert 'Content-Type' not in text and 'MIME' not in text
+
+
+def test_page_with_only_a_title_indexes_the_title(tmp_path):
+    """Frame/script pages often have no body text but a meaningful title."""
+    page = ('<html><head><title>George Lotito 1938-2002</title>'
+            '<meta name="description" content="Memorial page"></head>'
+            '<frameset><frame src="a.htm"></frameset></html>')
+    text, error, meta = html_extractor.extract(_write(tmp_path, 'memorial.htm', page), _ctx())
+    assert error is None
+    assert text == 'George Lotito 1938-2002\nMemorial page'
+    assert meta['title'] == 'George Lotito 1938-2002'

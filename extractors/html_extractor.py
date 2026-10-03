@@ -17,7 +17,7 @@ REQUIRES: lxml
 
 MANIFEST = {
     "id": "com.docvault.document.html",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "HTML Text Extractor",
     "extensions": ["html", "htm", "xhtml", "shtml", "mht", "mhtml"],
     "requires": ["lxml"]
@@ -166,6 +166,9 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         return None, f"Could not parse HTML: {e}", meta
     meta.update(page_meta)
 
+    if not text:
+        # Frameset/script pages often have no body text but a meaningful title.
+        text = '\n'.join(meta[k] for k in ('title', 'description') if meta.get(k))
     if not text:
         return None, "No visible text content in page", meta
     return text, None, meta
