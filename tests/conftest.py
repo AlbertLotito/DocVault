@@ -29,3 +29,11 @@ def _isolate_vector_stores(monkeypatch, _test_lancedb_dir):
     from embeddings import art_vector_store, vector_store
     monkeypatch.setattr(vector_store, '_db_path', lambda: _test_lancedb_dir)
     monkeypatch.setattr(art_vector_store, '_db_path', lambda: _test_lancedb_dir)
+
+
+@pytest.fixture(autouse=True)
+def _no_requeue_on_router_reload(monkeypatch):
+    """router.reload() re-queues UNKNOWN tasks in the *real* docvault.db via
+    manager.get_db_path(); tests that reload the router must never do that."""
+    from core import router
+    monkeypatch.setattr(router, '_requeue_unknown', lambda routed_extensions: None)

@@ -8,7 +8,7 @@ import importlib.util
 import json
 from typing import Any
 from core.registry import RegistryManager, EXTRACTORS_DIR
-from core import logger
+from core import logger, manager
 
 _all_extractors = []
 ROUTES = {'file': {}, 'folder': {}}
@@ -106,6 +106,21 @@ def reload(sync_disk: bool = True):
     _initialized = True
     
     logger.info(f"Router updated. {len(_all_extractors)} kernels mapped.", ext="router")
+    _requeue_unknown(set(new_routes['file']))
+
+
+def _requeue_unknown(routed_extensions: set) -> None:
+    """Send UNKNOWN tasks whose type now has a kernel back to PENDING (best-effort).
+
+    Tests replace this hook (tests/conftest.py) so reload() never touches the real DB.
+    """
+    try:
+        n = manager.requeue_unknown(manager.get_db_path(), routed_extensions)
+        if n:
+            logger.info(f"Re-queued {n} UNKNOWN task(s) whose type now has a kernel.", ext="router")
+    except Exception as e:
+        logger.warn(f"Could not re-queue UNKNOWN tasks: {e}", ext="router")
+
 
 # --- Initialize on first use ---
 _initialized = False

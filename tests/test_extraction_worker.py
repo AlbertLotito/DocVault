@@ -39,9 +39,13 @@ def test_process_task_error(mock_router, mock_complete):
 
 @patch('workers.extraction_worker.manager.complete_extraction')
 @patch('workers.extraction_worker.router.get_extractors')
-def test_unknown_file_type_flagged(mock_router, mock_complete):
-    from extractors import fallback_kernel
-    mock_router.return_value = [fallback_kernel]
+def test_unknown_file_type_flagged(mock_router, mock_complete, monkeypatch):
+    # The router returns its fallback *proxy* (router.FALLBACK_KERNEL), not the
+    # fallback_kernel module this test used to pass in - see test_unknown_status.py.
+    from workers.extraction_worker import router as real_router
+    proxy = MagicMock(name='fallback proxy')
+    monkeypatch.setattr(real_router, 'FALLBACK_KERNEL', proxy)
+    mock_router.return_value = [proxy]
 
     task = {'file_hash': 'abc', 'file_path': '/docs/weird.xyz', 'file_type': 'xyz'}
     extraction_worker.process_task('test.db', task)

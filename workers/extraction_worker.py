@@ -3,7 +3,7 @@ import os, socket, time, threading
 from core import manager, router, logger
 from core.extractors.base import LegacyExtractorAdapter, ExtractorContext, ExtractorLogger
 from core.settings import settings, SettingsResolver
-from extractors import image_extractor, fallback_kernel
+from extractors import image_extractor
 from workers.utils import interruptible_sleep, paused_sleep, should_pause_or_throttle, get_throttle_sleep
 
 
@@ -36,13 +36,16 @@ def process_task(db_path, task):
         extractors = router.get_folder_extractors(ext_hint)
     else:
         extractors = router.get_extractors(file_type, vault_id=vault_id)
-
-
-    if extractors == [fallback_kernel]:
-        _, msg = fallback_kernel.extract(file_path, ctx)
-        manager.complete_extraction(db_path, file_hash, status='UNKNOWN', error=msg)
-        logger.info(f"Flagged as UNKNOWN: {file_type}")
-        return
+        # Compare with the router's fallback *proxy* (the old check compared with
+        # the fallback_kernel module and never matched, so these became ERROR).
+        if not extractors or extractors == [router.FALLBACK_KERNEL]:
+            # No kernel for this type: not a failure. Re-queued automatically when
+            # one is activated (router.reload -> manager.requeue_unknown).
+            msg = (f"No extractor for .{file_type} files" if file_type
+                   else "No extractor for files without an extension")
+            manager.complete_extraction(db_path, file_hash, status='UNKNOWN', error=msg)
+            logger.info(f"Flagged as UNKNOWN: {filename}")
+            return
 
     errors, combined_text, combined_metadata = [], [], {}
     combined_images = []

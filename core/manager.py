@@ -373,6 +373,16 @@ def init_db(db_path=None):
             SELECT file_hash, vault_id, file_path FROM tasks WHERE vault_id IS NOT NULL
         """)
 
+        # Unroutable files used to be reported as ERROR by the fallback kernel
+        # ("[fallback_kernel] Unsupported format: X"); they are UNKNOWN. Idempotent.
+        conn.execute("""
+            UPDATE tasks SET status = 'UNKNOWN',
+                   error_log = CASE WHEN COALESCE(file_type, '') = ''
+                                    THEN 'No extractor for files without an extension'
+                                    ELSE 'No extractor for .' || file_type || ' files' END
+            WHERE status = 'ERROR' AND error_log LIKE '[fallback_kernel]%'
+        """)
+
         # fts_spans: per-file rowid range in fts_index, so per-file deletes don't
         # full-scan (fts_index.file_hash is UNINDEXED). One-time backfill.
         if not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'fts_spans'").fetchone():
@@ -389,6 +399,26 @@ def init_db(db_path=None):
             """)
 
         conn.commit()
+
+
+def requeue_unknown(db_path, routed_extensions) -> int:
+    """UNKNOWN tasks whose file type now has a kernel -> PENDING. Returns how many."""
+    exts = sorted({e.lower() for e in routed_extensions if e})
+    if not exts:
+        return 0
+    total = 0
+    with _connect(db_path) as conn:
+        for i in range(0, len(exts), 500):
+            batch = exts[i:i + 500]
+            cur = conn.execute(
+                f"""UPDATE tasks SET status = 'PENDING', error_log = NULL, worker_id = NULL,
+                       last_update = CURRENT_TIMESTAMP
+                   WHERE status = 'UNKNOWN' AND LOWER(file_type) IN ({','.join('?' * len(batch))})""",
+                batch
+            )
+            total += cur.rowcount
+        conn.commit()
+    return total
 
 
 def fts_delete(conn, file_hash):

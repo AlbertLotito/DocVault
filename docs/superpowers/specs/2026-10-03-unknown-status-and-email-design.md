@@ -18,7 +18,7 @@
 
 ## 1. UNKNOWN status
 - **Root bug:** `extraction_worker.process_task` checks `extractors == [fallback_kernel]` against the *module*, but the router returns a `LazyPythonKernel` proxy. The branch never fires, so every unroutable file runs the fallback kernel and becomes ERROR. The unit test mocked the router with the module, so it passed.
-- **Fix:** `router.has_route(file_type)`. When there's no route, the worker marks the task `UNKNOWN` ("No extractor for .xyz files") and runs nothing.
+- **Fix:** compare with `router.FALLBACK_KERNEL`, the proxy the router actually returns. When there's no route, the worker marks the task `UNKNOWN` ("No extractor for .xyz files") and runs nothing. A separate `has_route()` lookup was tried and dropped: it made tests that mock `get_extractors` initialise the real router.
 - **Re-queue:** at the end of `router.reload()` (startup, Lab activate, hot reload), `manager.requeue_unknown(routed_extensions)` resets UNKNOWN tasks whose type now has a route back to PENDING. Best-effort: a failure is logged and the reload still succeeds.
 - **Migration** (idempotent, in `init_db`): `ERROR` rows whose `error_log` starts with `[fallback_kernel]` become `UNKNOWN`.
 
