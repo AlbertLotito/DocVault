@@ -1,10 +1,10 @@
 """DocVault system tray helper."""
-import configparser
 import ctypes
 import ctypes.wintypes
 import itertools
 import os
 import queue
+import sys
 import threading
 import tkinter as tk
 import traceback
@@ -17,7 +17,12 @@ from PIL import Image
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config.ini')
+# Launched as `pythonw tray/tray_app.py`, so only tray/ is on sys.path.
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from core.server_url import get_server_url  # noqa: E402
+
 LOG_PATH = os.path.join(PROJECT_ROOT, 'tray_app_error.log')
 
 SEARCH_TYPES = [
@@ -285,15 +290,6 @@ def start_popup_host():
     _tk_root.withdraw()
     _tk_root.after(100, _drain_queue)
     _tk_root.mainloop()
-
-
-def get_server_url(config_path=CONFIG_PATH):
-    """Read [server] host/port from config.ini and build the base URL."""
-    parser = configparser.ConfigParser()
-    parser.read(config_path)
-    host = parser.get('server', 'host', fallback='127.0.0.1')
-    port = parser.get('server', 'port', fallback='8050')
-    return f'http://{host}:{port}'
 
 
 def open_docvault(icon=None, item=None):

@@ -394,3 +394,16 @@ def test_tray_urls_match_server_routes():
         url, _ = build_search_request('http://x', 'q', mode)
         assert url.replace('http://x', '') in paths
     assert '/api/utils/open_path' in paths
+
+
+def test_tray_imports_when_launched_as_a_script():
+    """The DocVault-Tray scheduled task runs `pythonw tray/tray_app.py`, which puts
+    tray/ (not the project root) on sys.path. Imports of core.* must still work."""
+    import subprocess
+    import sys as _sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tray_dir = os.path.join(root, 'tray')
+    code = f"import sys; sys.path[0] = {tray_dir!r}; import tray_app"
+    result = subprocess.run([_sys.executable, '-c', code], cwd=tray_dir,
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
