@@ -2,6 +2,8 @@
 
 DocVault publishes its search as a [Model Context Protocol](https://modelcontextprotocol.io) server. Any MCP client, such as a chat bot (Dudeskie), Claude Desktop or Claude Code, can then search and read your indexed documents.
 
+For the full integration spec (search types, scoring, filters, REST endpoints, security), see [search-api.md](search-api.md).
+
 The contract describes itself. During the MCP handshake the client calls `tools/list` and receives every tool's name, description and JSON Schema, plus the server's usage `instructions`. You never have to hand-write tool definitions on the client side.
 
 ## How it runs
