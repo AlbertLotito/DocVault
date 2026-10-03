@@ -145,3 +145,54 @@ Use the full venv interpreter path. A bare `python` is the Windows Store stub he
 **Findings for later (not fixed):**
 - **HTML files are indexed as raw markup.** Snippets look like `ign="left"/></span><span class=...`, which hurts both bot and human search quality.
 - **35% of tasks are in ERROR** (68,668 of 195,310), including `outlookdata` at 22,095 of 22,136.
+
+---
+
+## 51. HTML Extraction, Text Extractor Re-Enabled, Two Performance Bugs, Vector Store Compaction (2026-10-03, master, 5d7f9d4 → 2ca16a5)
+
+Found while building the MCP server (§50): HTML search snippets were raw markup. Fixing that and reprocessing the files exposed two long-standing performance bugs that capped the whole pipeline.
+
+**HTML was indexed as raw markup (`5d7f9d4`, `2ca16a5`).**
+- **Cause:** DocVault had no HTML-aware extractor. `.html` went to the source-code kernel plus the plaintext kernel, and the worker *chains* every kernel claiming an extension, so stored text was raw source plus a code report. 1,755 of 1,801 HTML/HTM files were affected. `.htm` / `.xhtml` / `.mht` / `.mhtml` weren't routed at all.
+- **New `html_extractor`** (lxml):
+  - strips head, script, style and comments
+  - keeps block and line structure
+  - honours the declared charset (Latin-1 decoded as cp1252)
+  - title and description become metadata
+  - unpacks MIME archives (`.mht`, and old mail saved as `.htm`)
+  - a page with only a title indexes the title
+- `html` removed from the plaintext and code kernels; a test enforces that only one kernel claims HTML types.
+- **Results:** 1,777 HTML-family files reprocessed to clean text (about 12% of the old size). 37 are genuine ERRORs: pages with no text and no title. All 12 `.mht` files that used to fail now extract.
+
+**`plaintext_extractor` re-enabled.** It had been decertified (state `unverified`, disabled) at some point after 2026-08-30, so new `.txt/.md/.csv/.json/.xml/.log` files failed as "Unsupported". The 11 that failed this way have been reprocessed.
+
+**Stranded-EXTRACTED bug (`2ca16a5`).** A metadata-only extraction result was marked EXTRACTED, but the embedder only claims EXTRACTED tasks *with text*, so such a task could never leave that state. 43 pages hit it. Metadata-only results now go straight to COMPLETED.
+
+**Performance bug 1: every FTS delete scanned the whole index (`a534513`).**
+- **Cause:** `fts_index.file_hash` is `UNINDEXED` (FTS5), so `DELETE … WHERE file_hash = ?` read all 4.25M rows. That's 6.7s, paid on every completed extraction, capping extraction at about 650 files/hour for all file types.
+- **Fix:** a new `fts_spans` table holds each file's rowid range, and every FTS write goes through `fts_insert()` / `fts_delete()`. The delete takes **36 ms**. One-time backfill: 40s.
+- **Measured after the fix:** 160 extractions/minute, against about 11 before.
+
+**Performance bug 2: the vector store was never compacted (`f6b4103`).**
+- **Cause:** every embedding batch appends a fragment. The live table had 52,263 fragments (median 5 rows) and 12,000+ versions, with no index on the merge key `id`, so each upsert scanned everything and one batch stalled for over 20 minutes.
+- **One-off compaction** (server stopped; 62.3 GB backup at `D:\DocVault-backups\lancedb_storage-20261003`, verified 87,644 files and 0 failures):
+  - 52,263 → 3 fragments, all 1,300,493 rows preserved
+  - sampled top-10 searches identical before and after
+  - BTREE indexes on `id` and `file_hash`
+  - upsert 20+ min → 2.4s
+  - `lancedb_storage` 62 GB → 4.5 GB
+  - `optimize()` took 26 min, mostly pruning 12k versions (about 58 GB of manifests to read)
+- **Recurrence prevented:** the embedding worker compacts every `lancedb:optimize_interval_hours` (default 6, 0 = off). It runs synchronously between batches, under `_index_lock`.
+- The old docstring note that `optimize()` "crashes under load" did not reproduce with no concurrent writers.
+
+**Test isolation (`98da5e0`).** The suite was running deletes against the *real* `lancedb_storage` (`test_vault_ignores`, `file_hash='ddeeff…'`). They were harmless no-ops, but added versions and could race a compaction. An autouse conftest fixture now redirects both vector stores to a temp dir, and a guard test enforces it.
+
+**`LocationHistory.json` excluded.**
+- A 326 MB Google Takeout dump held 466k FTS rows, 11% of the full-text index. It had no vectors.
+- A `Location History` folder ignore rule was added on the Documents vault. That row and a sibling `LocationHistory.kml` (ERROR) were purged.
+
+**Noted, not fixed:**
+- Per-vault kernel lists (`vault:extractor_config` in settings.db) are never enforced: `router.get_extractors()` ignores `vault_id`.
+- `_rebuild_index` still rebuilds the full IVF-PQ index every 100 batches.
+
+**Current totals:** 86,800 COMPLETED, 68,680 ERROR, 39,828 MISSING. Full suite 538 passed. The ERROR backlog is the next topic.
