@@ -196,3 +196,42 @@ Found while building the MCP server (§50): HTML search snippets were raw markup
 - `_rebuild_index` still rebuilds the full IVF-PQ index every 100 batches.
 
 **Current totals:** 86,800 COMPLETED, 68,680 ERROR, 39,828 MISSING. Full suite 538 passed. The ERROR backlog is the next topic.
+
+---
+
+## 52. ERROR Backlog: UNKNOWN Status Fixed, Email Extractor, Audacity Cleanup (2026-10-03, master, 470ff68 → b5b1526)
+
+68,680 tasks (35%) were ERROR. Analysis showed 63,767 (93%) were **files with no extractor** (1,276 types), reported as ERROR by the fallback kernel. Spec: `docs/superpowers/specs/2026-10-03-unknown-status-and-email-design.md`.
+
+**UNKNOWN status (`6442ac3`).**
+- **Cause:** the worker was always meant to mark unroutable types `UNKNOWN`, and the UI is wired for it: Vault filter and tile, the unknown-types list, telemetry. But it compared the router's result with the `fallback_kernel` *module*, while the router returns a `LazyPythonKernel` proxy, so the check never matched. The unit test mocked the router with the module, so it passed.
+- **Fix:** compare with `router.FALLBACK_KERNEL`.
+- **New behaviour:** `router.reload()` re-queues UNKNOWN tasks whose type gained a kernel (`manager.requeue_unknown`), so activating a kernel in the Lab picks up its files automatically. A conftest fixture stubs that hook so tests never touch the real DB.
+- **Migration:** `init_db` converts existing fallback ERRORs to UNKNOWN.
+- **Result: ERROR 68,680 → 1,551.**
+
+**Email extractor (`b5b1526`).**
+- **The gap:** 23,124 Thunderbird emails (`outlookdata\ThunderbirdRoot\*.wdseml`, Windows Search's plain RFC-822 copies) were unsearchable. This is the "outlookdata 22,095 ERROR" from §48.
+- **New `email_extractor`** (`.eml`, `.wdseml`; stdlib `email`):
+  - From/To/Cc/Subject/Date header block plus metadata
+  - plain-text body, or the HTML body rendered by the HTML kernel
+  - attachment names listed, contents not extracted
+- **Real-file check:** 498/500 real messages parse at 17 ms each; the 2 rejects are encrypted/compressed blobs.
+- **Rollout proved the re-queue path:** after the restart, the router reload moved all 23,124 back to PENDING with no manual step. They process at about 5/s end to end. Search by subject verified through the MCP server.
+
+**Audacity.** All 3,367 `.au` files were Audacity project block files (`*_data\e00\d01\*.au`), which ffmpeg can't load on their own. An `au` extension ignore rule was added on the Documents vault, and the rows purged. A `*_data` folder rule was rejected: it would also have hidden 62 unrelated `test_data`/`sample_data` files.
+
+**Deliberately left UNKNOWN:** about 14k third-party code/config files (`.h`, `.pyi`, `.pm`, `.pl`, `.tcl`, `.ini`, …), binaries, and about 15k extension-less files (89% binary program data). To index a type later, activate a kernel for it; its files re-queue automatically.
+
+**Remaining real ERRORs (1,551), next round:**
+- Google Drive `.gdoc` API errors: 408
+- PDF images needing `jbig2dec`: 60, plus other image failures: about 120
+- Legacy `.doc` via Word automation: 85
+- `.xls` (openpyxl can't read it, needs xlrd): 74
+- Archives: 56
+- HTML pages with no text: 37
+- Image-only EPUBs: 21
+- ffmpeg failures on other media: about 600 (`.mp3` etc., not yet triaged)
+- Corrupt files: 16 "database disk image is malformed", 1 too big
+
+Full suite: 556 passed.
