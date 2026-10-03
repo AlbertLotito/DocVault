@@ -109,3 +109,10 @@ Use the absolute venv interpreter. On this machine a bare `python` resolves to t
 - Remote/LAN access and authentication.
 - Write actions: open file, reprocess, Scan Now.
 - The 35% ERROR rate in `/api/stats`, which needs its own investigation.
+
+## Deviations found during implementation (2026-10-03)
+- **`docvault_status`:**
+  - Document counts come from `/api/utils/health`, not `/api/stats`, because `/api/stats` leaves MISSING files out (39,828 on the live vault).
+  - There's no Ollama health endpoint, so `status` reports the vector index (`search_index`) and health issues instead. An Ollama outage still reaches the bot through `docvault_search`'s degraded `note`.
+- **`docvault_get_document` by path:** resolved through `GET /api/catalog?filename=` with an exact-match check, because the filter is a SQL LIKE. That takes about 1s, against about 6s for `/api/catalog/inspect`, which also loads vector chunks. `inspect` remains the fallback for vault-specific paths of files shared across vaults.
+- **SDK:** `mcp` 2.x (`mcp.server.mcpserver.MCPServer`; v1's `FastMCP` was renamed), pinned `mcp>=2.3,<3`.

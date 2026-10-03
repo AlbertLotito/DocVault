@@ -149,3 +149,11 @@ A file removed from a vault's scan directory doesn't disappear from DocVault ins
 ## 9. Browse Page (Folder Tree)
 
 `/browse` shows one vault as a lazily expanded folder tree. Each expand calls `GET /api/catalog/tree?vault_id=…&path=…`, where `path` is relative to the vault root; paths that resolve outside the vault return 400. The tree comes from `file_vault.file_path` (each vault's own path for a file) joined to `tasks` for status. That makes it multi-vault safe, and child tasks such as extracted images never appear. `manager.get_vault_tree()` returns the direct child files plus the immediate subfolders, each with a recursive `total` and a `by_status` breakdown. The prefix match is a `LIKE … ESCAPE '!'`, so `_` and `%` in folder names match literally.
+
+---
+
+## 10. MCP Server (Chat-Bot Interface)
+
+`mcp_server/docvault_mcp.py` is a standalone stdio MCP server that an MCP client launches as a subprocess. It's a thin async HTTP client over the REST API: `/api/search`, `/api/search/filename`, `/api/catalog…`, `/api/utils/health`, `/api/vaults`, `/api/workers/status` and, when enabled, `/api/query`. All validation, vault-path substitution and MISSING-file exclusion therefore stay in one place, and the MCP layer can't destabilise the server.
+
+Stdout is the JSON-RPC channel. So the module imports only `core.server_url`, which is dependency-free; `core.logger` and `core.settings` would write to it. Bot searches go through `/api/search`, so they call `notify_user_activity()` and briefly throttle the workers, exactly like a human search. Tool reference and client config: [docs/mcp.md](mcp.md).

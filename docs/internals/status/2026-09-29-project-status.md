@@ -102,6 +102,46 @@ Full suite: 476 passed.
 
 ## 49. Known Issues
 
+- **HTML files indexed as raw markup.** Hurts snippet quality (see §50).
+- **35% of tasks in ERROR.** Needs triage (see §50).
+
 - **Deferred tray-popup polish.** The minor, non-blocking items from §38 are still open.
 - **Unexplained clean exit on 2026-09-21.** See §46; parked.
 - WMI CPU temp and SQLite lock contention are still closed as non-issues (see the 2026-08-02 doc §39).
+
+---
+
+## 50. MCP Server for Chat Bots (Dudeskie) — COMPLETE (2026-10-03, master, 102e7c5 → docs commit)
+
+The user's chat bot, **Dudeskie**, runs on this PC, uses Ollama, and is an MCP client. It needed to search DocVault through a self-describing contract. FastAPI's `/openapi.json` was unsuitable: it covers all ~100 routes, including purge and shutdown. Design brainstormed and spec'd in `docs/superpowers/specs/2026-10-03-docvault-mcp-server-design.md`.
+
+**Built:**
+- **`mcp_server/docvault_mcp.py`**, a standalone **stdio** MCP server on the `mcp` 2.x SDK (`MCPServer`). It's a thin async client over the existing REST API, so nothing changed in the server. Tools, all annotated read-only:
+  - `docvault_search`: hybrid / fulltext / semantic / filename; vault by name or id; type and date filters
+  - `docvault_get_document`: by hash or path; paged text
+  - `docvault_status`: counts including MISSING, vaults, workers, index, issues
+  - `docvault_ask`: DocVault's RAG; only published with `DOCVAULT_MCP_ENABLE_ASK=1`, since Dudeskie has its own LLM on the same GPU
+- **The contract:** the `tools/list` schemas plus the server `instructions`.
+- **`core/server_url.py`:** `get_server_url()` moved out of the tray into a dependency-free module, because stdout is the JSON-RPC channel and nothing that prints may be imported. **Latent bug avoided:** the tray runs as `pythonw tray/tray_app.py` with only `tray/` on `sys.path`, so importing `core.*` would have killed it silently at logon. It now adds the project root, and a test imports it exactly that way.
+- **Docs:** `docs/mcp.md` (tool reference + client config), a README feature line, `docs/architecture.md` §10.
+
+**Tests:**
+- 31 new: 27 MCP tests + 4 for `server_url`, plus the tray script-launch guard.
+- The MCP tests use a real in-process MCP client against a fake API that only accepts real `/api/` routes. The `/api/` check matters because unprefixed `/search` is a real route too (the HTML page). Mutation-checked: dropping `/api` from one call fails 7 tests.
+- One test runs a real stdio subprocess handshake.
+- Full suite: 508 passed.
+
+**Live-verified over real stdio against the 195k-task vault:**
+- Every tool works, including the error paths.
+- Timings: status 1.0s, hybrid 1.5s, fulltext 0.3s, semantic 1.8s, filename 0.4s, get_document 0.5s, get-by-path 1.0s (was 6.2s before switching to the catalog lookup), ask 11s.
+
+**Client config:**
+```json
+"docvault": {"command": "D:/DocVault/venv/Scripts/python.exe",
+             "args": ["D:/DocVault/mcp_server/docvault_mcp.py"], "env": {}}
+```
+Use the full venv interpreter path. A bare `python` is the Windows Store stub here and hangs.
+
+**Findings for later (not fixed):**
+- **HTML files are indexed as raw markup.** Snippets look like `ign="left"/></span><span class=...`, which hurts both bot and human search quality.
+- **35% of tasks are in ERROR** (68,668 of 195,310), including `outlookdata` at 22,095 of 22,136.

@@ -60,6 +60,7 @@ DocVault exists because most "search my files" tools stop at the text layer. A P
 - Hybrid FTS + semantic scoring with graceful degradation to FTS-only if the semantic step is slow or unavailable
 - RAG — ask questions in natural language, get cited, span-grounded answers from your own documents (streaming responses)
 - Filename search with the same wildcard/regex auto-detection
+- MCP server — chat bots and AI assistants (Claude, local Ollama bots) can search and read your documents through a self-describing, read-only tool interface; see [docs/mcp.md](docs/mcp.md)
 
 ### Management
 - Multi-vault support — organise collections with independent priorities and settings
