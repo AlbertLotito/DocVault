@@ -251,7 +251,7 @@ def test_purge_file_hashes_removes_all_rows(tmp_path):
                         VALUES ('v1', 'V1', '/v1', 5, 'active', '2024-01-01', '2024-01-01')""")
         conn.execute("INSERT INTO tasks (file_hash, file_path, file_type) VALUES ('h1', '/a.txt', 'txt')")
         conn.execute("INSERT INTO tasks (file_hash, file_path, file_type) VALUES ('h2', '/b.txt', 'txt')")
-        conn.execute("INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES ('h1', 0, '/a.txt', 'hello')")
+        manager.fts_insert(conn, 'h1', '/a.txt', ['hello'])
         conn.execute("INSERT INTO extracted_images (source_hash, file_path) VALUES ('h1', '/img.png')")
         conn.execute("INSERT INTO file_vault (file_hash, vault_id, file_path) VALUES ('h1', 'v1', '/a.txt')")
         conn.commit()

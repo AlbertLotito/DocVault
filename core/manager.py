@@ -373,7 +373,60 @@ def init_db(db_path=None):
             SELECT file_hash, vault_id, file_path FROM tasks WHERE vault_id IS NOT NULL
         """)
 
+        # fts_spans: per-file rowid range in fts_index, so per-file deletes don't
+        # full-scan (fts_index.file_hash is UNINDEXED). One-time backfill.
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'fts_spans'").fetchone():
+            conn.execute("""
+                CREATE TABLE fts_spans (
+                    file_hash   TEXT PRIMARY KEY,
+                    first_rowid INTEGER NOT NULL,
+                    last_rowid  INTEGER NOT NULL
+                )
+            """)
+            conn.execute("""
+                INSERT INTO fts_spans (file_hash, first_rowid, last_rowid)
+                SELECT file_hash, MIN(rowid), MAX(rowid) FROM fts_index GROUP BY file_hash
+            """)
+
         conn.commit()
+
+
+def fts_delete(conn, file_hash):
+    """Remove a file's fts_index rows via its recorded rowid span.
+
+    Every fts_index write goes through fts_insert(), so a file with no span has
+    no rows. The file_hash filter keeps the delete correct even if a span ever
+    covers other files' rows.
+    """
+    span = conn.execute(
+        "SELECT first_rowid, last_rowid FROM fts_spans WHERE file_hash = ?", (file_hash,)
+    ).fetchone()
+    if span is None:
+        return
+    conn.execute(
+        "DELETE FROM fts_index WHERE rowid BETWEEN ? AND ? AND file_hash = ?",
+        (span[0], span[1], file_hash)
+    )
+    conn.execute("DELETE FROM fts_spans WHERE file_hash = ?", (file_hash,))
+
+
+def fts_insert(conn, file_hash, file_path, chunks):
+    """Replace a file's fts_index rows with chunks and record their rowid span."""
+    fts_delete(conn, file_hash)
+    first = last = None
+    for i, chunk_text in enumerate(chunks):
+        cur = conn.execute(
+            "INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES (?, ?, ?, ?)",
+            (file_hash, i, file_path, chunk_text)
+        )
+        if first is None:
+            first = cur.lastrowid
+        last = cur.lastrowid
+    if first is not None:
+        conn.execute(
+            "INSERT OR REPLACE INTO fts_spans (file_hash, first_rowid, last_rowid) VALUES (?, ?, ?)",
+            (file_hash, min(first, last), max(first, last))
+        )
 
 
 def bootstrap_default_vault(db_path=None, scan_directory=None):
@@ -608,16 +661,11 @@ def update_fts(db_path, file_hash):
         ).fetchone()
         if not task_row:
             return
-        conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
+        fts_delete(conn, file_hash)
         if text_row and text_row['extracted_text']:
             try:
                 from embeddings.chunker import chunk
-                chunks = chunk(text_row['extracted_text'])
-                for i, chunk_text in enumerate(chunks):
-                    conn.execute(
-                        "INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES (?, ?, ?, ?)",
-                        (file_hash, i, task_row['file_path'], chunk_text)
-                    )
+                fts_insert(conn, file_hash, task_row['file_path'], chunk(text_row['extracted_text']))
             except Exception as e:
                 print(f"[manager] Warning: FTS update failed for {file_hash}: {e}")
         conn.commit()
@@ -814,14 +862,8 @@ def complete_extraction(db_path, file_hash, status, text=None,
             ).fetchone()
             if row:
                 try:
-                    conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
                     from embeddings.chunker import chunk
-                    chunks = chunk(text)
-                    for i, chunk_text in enumerate(chunks):
-                        conn.execute(
-                            "INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES (?, ?, ?, ?)",
-                            (file_hash, i, row['file_path'], chunk_text)
-                        )
+                    fts_insert(conn, file_hash, row['file_path'], chunk(text))
                 except Exception as e:
                     print(f"[manager] Warning: FTS index update failed: {e}")
         conn.commit()
@@ -1544,7 +1586,8 @@ def purge_file_hashes(db_path: str, file_hashes: list[str]) -> None:
         batch = file_hashes[i:i + BATCH_SIZE]
         placeholders = ','.join('?' * len(batch))
         with _connect(db_path) as conn:
-            conn.execute(f"DELETE FROM fts_index WHERE file_hash IN ({placeholders})", batch)
+            for file_hash in batch:
+                fts_delete(conn, file_hash)
             conn.execute(f"DELETE FROM extracted_images WHERE source_hash IN ({placeholders})", batch)
             # file_vault before tasks: FK (file_vault.file_hash REFERENCES
             # tasks(file_hash), no ON DELETE CASCADE) requires the child row

@@ -20,6 +20,7 @@ def migrate():
         # 1. Drop and recreate with new schema
         print("Recreating FTS index with chunk-level schema...")
         conn.execute("DROP TABLE IF EXISTS fts_index")
+        conn.execute("DELETE FROM fts_spans")
         conn.execute("""
             CREATE VIRTUAL TABLE fts_index USING fts5(
                 file_hash UNINDEXED,
@@ -51,12 +52,8 @@ def migrate():
             
             try:
                 chunks = chunk(text)
-                for idx, c_text in enumerate(chunks):
-                    conn.execute(
-                        "INSERT INTO fts_index (file_hash, chunk_index, file_path, content) VALUES (?, ?, ?, ?)",
-                        (h, idx, path, c_text)
-                    )
-                    chunk_count += 1
+                manager.fts_insert(conn, h, path, chunks)
+                chunk_count += len(chunks)
                 
                 indexed_count += 1
                 if indexed_count % 100 == 0:

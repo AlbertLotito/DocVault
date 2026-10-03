@@ -97,7 +97,7 @@ def apply_ignore(vault_id: str):
     """
     import fnmatch as _fnmatch
     import sqlite3 as _sqlite3
-    from core.manager import _connect
+    from core.manager import _connect, fts_delete
     from core.settings import settings as _settings
     vm = _vm()
     vault = vm.get_vault(vault_id)
@@ -149,7 +149,7 @@ def apply_ignore(vault_id: str):
                 ).fetchone()
                 if other is None:
                     conn.execute("DELETE FROM tasks WHERE file_hash = ?", (file_hash,))
-                    conn.execute("DELETE FROM fts_index WHERE file_hash = ?", (file_hash,))
+                    fts_delete(conn, file_hash)
                     conn.execute("DELETE FROM extracted_images WHERE source_hash = ?", (file_hash,))
                 conn.commit()
             if other is None:
