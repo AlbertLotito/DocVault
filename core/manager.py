@@ -1079,15 +1079,9 @@ def fts_search(db_path, query, limit=20,
             placeholders = ','.join(['?'] * len(vault_ids))
             where = ["fts_index.content MATCH ?", "t.status != 'MISSING'"]
             params = [*vault_ids, query]
-            if file_type:
-                where.append("t.file_type LIKE ?")
-                params.append(f"%{file_type.strip()}%")
-            if date_from:
-                where.append("t.file_modified >= ?")
-                params.append(date_from)
-            if date_to:
-                where.append("t.file_modified <= ?")
-                params.append(date_to + "T23:59:59")
+            _w, _p = _attr_filter_clauses('t.', file_type, date_from, date_to)
+            where += _w
+            params += _p
             clause = " AND ".join(where)
             rows = conn.execute(
                 f"""SELECT fts_index.file_hash, fts_index.chunk_index, fv.file_path,
@@ -1105,15 +1099,9 @@ def fts_search(db_path, query, limit=20,
             # No vault filter — original query using fts_index.file_path
             where = ["fts_index.content MATCH ?", "tasks.status != 'MISSING'"]
             params = [query]
-            if file_type:
-                where.append("tasks.file_type LIKE ?")
-                params.append(f"%{file_type.strip()}%")
-            if date_from:
-                where.append("tasks.file_modified >= ?")
-                params.append(date_from)
-            if date_to:
-                where.append("tasks.file_modified <= ?")
-                params.append(date_to + "T23:59:59")
+            _w, _p = _attr_filter_clauses('tasks.', file_type, date_from, date_to)
+            where += _w
+            params += _p
             clause = " AND ".join(where)
             rows = conn.execute(
                 f"""SELECT fts_index.file_hash, fts_index.chunk_index, fts_index.file_path,
@@ -1152,18 +1140,32 @@ def _wildcard_to_like(pattern: str) -> str:
     return pattern
 
 
+def _attr_filter_clauses(prefix, file_type, date_from, date_to):
+    """file_type / date WHERE fragments shared by every search path (fts, regex,
+    the semantic hash filter, filename) so the filters mean the same everywhere:
+    an exact, case-insensitive extension ('doc' is not 'docx'), and inclusive
+    calendar days on the modified date, falling back to the created date.
+    """
+    where, params = [], []
+    if file_type:
+        where.append(f"LOWER({prefix}file_type) = ?")
+        params.append(file_type.strip().lstrip('.').lower())
+    day = f"DATE(COALESCE({prefix}file_modified, {prefix}file_created))"
+    if date_from:
+        where.append(f"{day} >= DATE(?)")
+        params.append(date_from)
+    if date_to:
+        where.append(f"{day} <= DATE(?)")
+        params.append(date_to)
+    return where, params
+
+
 def _filename_filter_clauses(file_type, date_from, date_to, vault_ids=None):
     """Return (where_fragments, params) for the common filename filter fields."""
     where, params = ["status != 'MISSING'"], []
-    if file_type:
-        where.append("LOWER(file_type) = LOWER(?)")
-        params.append(file_type.strip().lower())
-    if date_from:
-        where.append("DATE(COALESCE(file_modified, file_created)) >= ?")
-        params.append(date_from)
-    if date_to:
-        where.append("DATE(COALESCE(file_modified, file_created)) <= ?")
-        params.append(date_to)
+    _w, _p = _attr_filter_clauses('', file_type, date_from, date_to)
+    where += _w
+    params += _p
     if vault_ids:
         placeholders = ','.join(['?'] * len(vault_ids))
         where.append(
@@ -1256,15 +1258,9 @@ def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None, v
         placeholders = ','.join(['?'] * len(vault_ids))
         where = [f"fv.vault_id IN ({placeholders})"]
         params = list(vault_ids)
-        if file_type:
-            where.append("t.file_type LIKE ?")
-            params.append(f"%{file_type.strip()}%")
-        if date_from:
-            where.append("t.file_modified >= ?")
-            params.append(date_from)
-        if date_to:
-            where.append("t.file_modified <= ?")
-            params.append(date_to + "T23:59:59")
+        _w, _p = _attr_filter_clauses('t.', file_type, date_from, date_to)
+        where += _w
+        params += _p
         clause = " AND ".join(where)
         with _connect(db_path) as conn:
             rows = conn.execute(
@@ -1278,15 +1274,9 @@ def get_filtered_hashes(db_path, file_type=None, date_from=None, date_to=None, v
 
     # No vault filter — query tasks directly
     where, params = [], []
-    if file_type:
-        where.append("file_type LIKE ?")
-        params.append(f"%{file_type.strip()}%")
-    if date_from:
-        where.append("file_modified >= ?")
-        params.append(date_from)
-    if date_to:
-        where.append("file_modified <= ?")
-        params.append(date_to + "T23:59:59")
+    _w, _p = _attr_filter_clauses('', file_type, date_from, date_to)
+    where += _w
+    params += _p
     clause = "WHERE " + " AND ".join(where)
     with _connect(db_path) as conn:
         rows = conn.execute(

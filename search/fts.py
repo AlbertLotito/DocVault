@@ -65,15 +65,10 @@ def _regex_search(db_path: str, pattern: str, limit: int,
         _register_regexp(conn)
         where = ["fts_index.content REGEXP ?", "tasks.status != 'MISSING'"]
         params = [pattern]
-        if file_type:
-            where.append("tasks.file_type LIKE ?")
-            params.append(f"%{file_type.strip()}%")
-        if date_from:
-            where.append("tasks.file_modified >= ?")
-            params.append(date_from)
-        if date_to:
-            where.append("tasks.file_modified <= ?")
-            params.append(date_to + "T23:59:59")
+        from core.manager import _attr_filter_clauses
+        _w, _p = _attr_filter_clauses('tasks.', file_type, date_from, date_to)
+        where += _w
+        params += _p
 
         if vault_ids:
             # Move vault_id restriction into the JOIN ON clause to prevent duplicate rows
