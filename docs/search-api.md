@@ -2,7 +2,7 @@
 
 For bot and agent developers (written for **Dudeskie**). It covers everything needed to build a search interface over DocVault: the three content-search types (hybrid, full-text, semantic) plus filename search, reading documents, status, and question answering.
 
-Every response shape and default below was checked against the running server on 2026-10-03 (DocVault master `969ded7`).
+Every response shape and default below was checked against the running server on 2026-10-03 (DocVault master `1d08037`).
 
 ---
 
@@ -109,8 +109,8 @@ All tools are annotated `readOnlyHint: true`. Errors come back as normal tool er
 | `mode` | `hybrid` \| `fulltext` \| `semantic` \| `filename` | `hybrid` | §3 |
 | `limit` | int 1–50 | 5 | |
 | `vault` | string | all vaults | vault **name** (case-insensitive) or `vault_id` |
-| `file_type` | string | any | extension without the dot, e.g. `pdf` (see §6 for matching rules) |
-| `date_from` / `date_to` | `YYYY-MM-DD` | none | on the file's modified date (§6) |
+| `file_type` | string | any | exact extension, e.g. `pdf` (case-insensitive; a leading dot is ignored; §6) |
+| `date_from` / `date_to` | `YYYY-MM-DD` | none | inclusive whole days on the file's modified date (§6) |
 
 Content modes return:
 ```json
@@ -236,14 +236,16 @@ Params `q` (required), `limit` (default 20), `file_type`, `date_from`, `date_to`
 
 ## 6. Filters: exact semantics
 
-| Filter | Content modes (`/api/search`) | Filename mode |
-|---|---|---|
-| `file_type` | **substring** of the extension: `doc` also matches `docx` | **exact**, case-insensitive |
-| `date_from` | file modified on or after the date | `DATE(modified or created) >=` |
-| `date_to` | semantic: inclusive (through 23:59:59). **fulltext: exclusive of that day** (known quirk, §8) | inclusive |
-| `vault_ids` / `vault` | only files registered in those vaults; returned paths are that vault's paths | same |
+The filters mean exactly the same in **every** mode (hybrid, fulltext, semantic, regex and filename). One shared implementation enforces this, and a test checks it.
 
-Dates are `YYYY-MM-DD` and apply to the **file's modified time on disk**, not dates inside the document. An email's sent date is in its metadata and text, not in this filter.
+| Filter | Meaning |
+|---|---|
+| `file_type` | **Exact** extension, case-insensitive; a leading dot is ignored. `doc` matches `.doc` / `.DOC` but **not** `.docx`. Pass one type per request; to cover several (e.g. `doc` and `docx`), make one request each. |
+| `date_from` | The file's date is on or after this calendar day. |
+| `date_to` | The file's date is on or before this calendar day, **inclusive** (a file modified at 23:59:59 on that day matches). |
+| `vault_ids` / `vault` | Only files registered in those vaults; returned paths are that vault's paths. |
+
+**"The file's date"** is the calendar day of its **modified time on disk**, falling back to its **created time** when no modified time is recorded. It is not a date inside the document: an email's sent date lives in its metadata (`date`) and text (`Date:` line), not in this filter.
 
 ---
 
@@ -271,7 +273,6 @@ Dates are `YYYY-MM-DD` and apply to the **file's modified time on disk**, not da
 - **Duplicates:** results are per chunk, so collapse by `file_hash` if you want one hit per document.
 - **Paths:** Windows paths on the user's machine. Show them to the user as citations; don't try to open them remotely.
 - **Known quirks:**
-  - In fulltext mode, `date_to` compares the date string with full timestamps, so files modified *during* that day are excluded. Pass the next day to include it. Semantic and filename modes are inclusive.
   - Fulltext results have no `score` (use `rank`), so the MCP `score` is `null` in that mode.
   - With several `vault_ids`, a file registered in more than one of them can appear once per vault.
   - Semantic mode returns `[]` rather than degrading when Ollama is unavailable; hybrid degrades properly.
