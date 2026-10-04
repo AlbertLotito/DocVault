@@ -14,10 +14,10 @@ REQUIRES: Microsoft Word (for .doc support), pywin32.
 
 MANIFEST = {
     "id": "com.microsoft.word.standard",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "name": "Microsoft Word Extractor",
     "extensions": ["docx", "doc"],
-    "requires": ["lxml", "pywin32", "olefile"]
+    "requires": ["lxml", "pywin32", "olefile", "psutil"]
 }
 
 __description__ = (
@@ -28,30 +28,89 @@ __description__ = (
 
 import os
 import re
+import threading
 import zipfile
 from core import logger
 from core.extractors.base import ExtractorContext
 
 
+def _word_pids() -> set:
+    import psutil
+    pids = set()
+    for p in psutil.process_iter(['name']):
+        if (p.info.get('name') or '').lower() == 'winword.exe':
+            pids.add(p.pid)
+    return pids
+
+
+def _dispatch_new_word():
+    """A separate Word instance (DispatchEx), never the user's own Word."""
+    import pythoncom
+    import win32com.client
+    pythoncom.CoInitialize()
+    return win32com.client.DispatchEx("Word.Application")
+
+
+def _kill_pid(pid: int) -> None:
+    import psutil
+    psutil.Process(pid).kill()
+
+
+def _com_timeout() -> float:
+    from core.settings import settings
+    return float(settings.get('word:com_timeout') or 120)
+
+
 def _extract_doc_legacy(file_path: str) -> tuple:
-    """Extract text from old binary .doc files via Word COM automation."""
+    """Extract text from old binary .doc files via Word COM automation.
+
+    Word can stop at an invisible dialog and never return, which used to block
+    the (single) extraction worker indefinitely. A watchdog kills only the Word
+    instance started here if it doesn't finish within word:com_timeout seconds;
+    killing it makes the pending COM call fail, so this thread continues.
+    """
+    word, our_pid, timed_out = None, None, threading.Event()
+    timeout = _com_timeout()
+
+    def _watchdog():
+        timed_out.set()
+        if our_pid:
+            try:
+                _kill_pid(our_pid)
+            except Exception:
+                pass
+
+    timer = threading.Timer(timeout, _watchdog)
     try:
-        import pythoncom
-        import win32com.client
-        
-        pythoncom.CoInitialize()
-        word = win32com.client.Dispatch("Word.Application")
+        before = _word_pids()
+        word = _dispatch_new_word()
+        new = _word_pids() - before
+        our_pid = next(iter(new)) if len(new) == 1 else None   # never guess: kill nothing if unsure
         word.Visible = False
         word.DisplayAlerts = 0  # suppress repair dialog
+        timer.start()
 
         doc = word.Documents.Open(os.path.abspath(file_path))
         text = doc.Content.Text
-        doc.Save()  # write repairs back to the original file
+        doc.Save()  # write repairs back to the original file (user's choice, 2026-10-04)
         doc.Close()
-        word.Quit()
         return text, None
     except Exception as e:
+        if timed_out.is_set():
+            return None, (f"Legacy .doc extraction failed: Word did not respond within "
+                          f"{timeout:g}s (likely an invisible dialog); its instance was stopped")
         return None, f"Legacy .doc extraction failed (Word may not be installed): {e}"
+    finally:
+        timer.cancel()
+        if word is not None and not timed_out.is_set():
+            try:
+                word.Quit()
+            except Exception:
+                if our_pid:
+                    try:
+                        _kill_pid(our_pid)
+                    except Exception:
+                        pass
 
 
 _W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'

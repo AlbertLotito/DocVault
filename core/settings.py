@@ -126,6 +126,12 @@ class Settings:
                 'type': 'string', 'default': '', 'label': 'Poppler bin path', 'group': 'pdf',
                 'description': 'Path to the Poppler "bin" folder (the one containing pdftoppm.exe). Required for rendering PDF pages as images for OCR and vision processing. Download from github.com/oschwartz10612/poppler-windows and point this at the Library\\bin subfolder.',
             },
+            'word:com_timeout': {
+                'type': 'int', 'default': 120, 'label': 'Word automation timeout (s)', 'group': 'pdf',
+                'description': 'Maximum seconds to let Microsoft Word open and read one legacy .doc file. Word can stop '
+                               'at an invisible dialog; after this time DocVault stops the Word instance it started '
+                               '(never your own Word) so extraction can continue.',
+            },
             'pdf:sparse_threshold': {
                 'type': 'int', 'default': 50, 'label': 'Sparse page threshold (chars)', 'group': 'pdf',
                 'description': 'A PDF page with fewer extracted characters than this value is considered "sparse" (likely scanned or image-based) and will be re-processed via image rendering and OCR/vision. Increase to push more pages through the image pipeline; decrease to trust the native text layer more.',
