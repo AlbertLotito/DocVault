@@ -191,6 +191,13 @@ class Settings:
                                'Keeping this low prevents Ollama timeouts and leaves headroom for RAG queries. '
                                'Recommended: 100–300.',
             },
+            'workers:extract_concurrency': {
+                'type': 'int', 'default': 1, 'label': 'Extraction worker threads', 'group': 'embeddings',
+                'description': 'Number of parallel extraction worker threads (OCR, document parsing, image '
+                               'description). Kernels with shared non-thread-safe state (Whisper, face models, '
+                               'Word) still run one at a time. Vision calls share OLLAMA_NUM_PARALLEL slots. '
+                               'Restart required for changes to take effect.',
+            },
             'workers:embed_concurrency': {
                 'type': 'int', 'default': 1, 'label': 'Embed worker threads', 'group': 'embeddings',
                 'description': 'Number of parallel embedding worker threads. Each worker claims its own task batch '

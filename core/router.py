@@ -4,6 +4,7 @@ Builds extension-to-kernel mapping at runtime from the ext_registry.
 Only serves certified and enabled kernels.
 """
 import os
+import threading
 import importlib.util
 import json
 from typing import Any
@@ -24,9 +25,17 @@ class LazyPythonKernel:
         self.__name__ = module_name
         self.__description__ = description
         self._mod = None
+        # Parallel extraction workers can hit an unloaded kernel at the same
+        # time; without this, each would execute the module (e.g. a second
+        # copy of a GPU model).
+        self._load_lock = threading.Lock()
 
     def _ensure_loaded(self):
-        if self._mod is None:
+        if self._mod is not None:
+            return
+        with self._load_lock:
+            if self._mod is not None:
+                return
             try:
                 logger.info(f"Lazy-loading kernel: {self.__name__}...", ext="router")
                 file_path = os.path.join(EXTRACTORS_DIR, f"{self.__name__}.py")

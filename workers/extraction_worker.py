@@ -7,6 +7,26 @@ from extractors import image_extractor
 from workers.utils import interruptible_sleep, paused_sleep, should_pause_or_throttle, get_throttle_sleep
 
 
+# Kernels that hold shared non-thread-safe state: one shared Whisper model,
+# OpenCV/FER face models, a Word COM instance. With several extraction workers
+# (workers:extract_concurrency) each of these runs one call at a time; every
+# other kernel runs fully in parallel.
+_SERIAL_KERNELS = frozenset({
+    'aural_intelligence_extractor', 'multimodal_video_intelligence_extractor',
+    'face_identity_extractor', 'face_analytics_extractor', 'microsoft_word_extractor',
+})
+_kernel_locks = {name: threading.Lock() for name in _SERIAL_KERNELS}
+
+
+class _NoLock:
+    def __enter__(self): return self
+    def __exit__(self, *exc): return False
+
+
+def _kernel_lock(name: str):
+    return _kernel_locks.get(name) or _NoLock()
+
+
 def _build_context(task: dict) -> ExtractorContext:
     vault_id  = task.get('vault_id') or ''
     file_hash = task['file_hash']
@@ -90,7 +110,8 @@ def process_task(db_path, task):
         prog_pct = int((i / len(extractors)) * 100)
         ctx.report_progress(f"Running {adapter.name} on {filename}...", prog_pct)
 
-        result  = adapter.run(file_path, ctx)
+        with _kernel_lock(getattr(ext_module, '__name__', '')):
+            result = adapter.run(file_path, ctx)
 
         if result.status == 'cancelled':
             ctx.logger.warning(f"Extractor {adapter.name} cancelled")

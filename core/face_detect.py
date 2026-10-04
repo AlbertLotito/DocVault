@@ -4,11 +4,21 @@ Same parameters as face_identity_extractor, so "has faces" means the same thing
 everywhere. Used to gate the vision-model narrative, which otherwise invents
 people for images that contain none.
 """
+import threading
+
 _cv2 = None
 _cascade = None
+# One shared CascadeClassifier; extraction workers may run in parallel.
+_lock = threading.Lock()
 
 
 def _load():
+    global _cv2, _cascade
+    with _lock:
+        return _load_locked()
+
+
+def _load_locked():
     global _cv2, _cascade
     if _cascade is None:
         import cv2
@@ -28,7 +38,8 @@ def detect_faces(file_path: str) -> list:
         scale = 1200 / max(h, w)
         img = cv2.resize(img, (int(w * scale), int(h * scale)))
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=6, minSize=(40, 40))
+    with _lock:
+        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=6, minSize=(40, 40))
     return sorted((tuple(f) for f in faces), key=lambda f: f[2] * f[3], reverse=True)
 
 
