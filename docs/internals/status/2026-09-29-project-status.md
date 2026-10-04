@@ -291,3 +291,22 @@ Also in `text_extractor` v1.1.0:
 - **Ordering:** the 311 PDFs of 100+ pages were set to `priority=1`, so short documents and the audio queue go first; the books grind on in the background through the age bonus.
 
 **`jbig2dec` decision:** not installed. With OCR working, those PDFs get their text; `jbig2dec` would only let the image harvester extract the embedded JBIG2 page images for vision descriptions, which mostly duplicate the OCR. Revisit if wanted.
+
+---
+
+## 55. PDF Text-Layer Measurement, Gibberish Detection, Full PDF Re-Extraction (2026-10-04, master, 5b76c7d)
+
+**Measurement** (read-only, scratchpad script): 300 random text-layer-only COMPLETED PDFs (population 5,009) plus 40 of 160 flow sheets.
+- **Missed OCR, the big finding:** 70% have at least one image-only page that was never OCR'd (the `pdf2image` regression, §54). 51% have *no* real text on any page; they looked "completed" only because the image harvester attached AI page descriptions, often invented ("[SOCIAL NARRATIVE] The individuals depicted…" for sheet music and RN notes). Extrapolated: about 3,500 PDFs and about 58k pages.
+- **Glyph gibberish:** about 150 of 160 flow sheets, plus 3–5% of other PDFs: `/0 /1 /2` glyph references (PA court/DMV forms) and glyph-index strings.
+- A first, page-1-only version of the check wrongly called empty-cover PDFs "garbage"; it was caught on inspection and replaced.
+
+**`5b76c7d` (text_extractor v1.2.0):**
+- glyph-reference layers are treated as empty, so they get OCR'd
+- number-heavy, wordless layers get compare-and-pick: OCR wins only if it reads at least 10 real words and the layer contains less than 25% of them
+- **verified on real files:** the flow sheet, court and DMV forms now read correctly; the TSR book's usable layer and the bilingual instructions' real text are kept
+
+**Re-extraction:** all 5,009 text-layer-only PDFs were re-queued, with their vectors and FTS rows removed first. The 559 of 100+ pages were set to priority 1. **Trade-off accepted:** the old AI page descriptions attached to scans are not regenerated.
+- **Queue after restart:** about 7,458 PENDING (6,639 PDFs, about 565 audio, images). That's several days of background OCR, throttled.
+
+**Side finding, not fixed:** the face/scene "social narrative" kernel runs on images with no people (sheet music, typed pages) and invents scenes.
