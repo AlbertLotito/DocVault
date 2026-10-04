@@ -6,7 +6,7 @@ Supports: zip, tar (gz/bz2/xz), 7z, rar
 
 MANIFEST = {
     "id": "com.docvault.system.archive_xray",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Archive X-Ray",
     "extensions": ["zip", "tar", "tgz", "tbz2", "gz", "bz2", "7z", "rar"],
     "requires": [],
@@ -127,6 +127,61 @@ def _build_output(archive_name: str, fmt: str, entries: list,
 
 
 # ---------------------------------------------------------------------------
+# Standalone compressed files (.gz / .bz2 that are not tar archives)
+# ---------------------------------------------------------------------------
+
+# Cap on indexed text from one compressed file, so a huge log can't flood the
+# index (cf. the 326 MB LocationHistory.json that was 11% of the FTS index).
+_MAX_STANDALONE_TEXT = 5_000_000
+
+_COMPRESSORS = {'.gz': ('GZIP', 'gzip'), '.bz2': ('BZIP2', 'bz2')}
+
+
+def _looks_like_text(sample: bytes) -> bool:
+    if not sample or b'\x00' in sample:
+        return not sample
+    try:
+        text = sample.decode('utf-8')
+    except UnicodeDecodeError:
+        text = sample.decode('cp1252', errors='replace')
+    printable = sum(c.isprintable() or c in '\t\r\n' for c in text)
+    return printable / len(text) > 0.95
+
+
+def _standalone(file_path: str, archive_name: str) -> tuple:
+    """One compressed file: index its text (capped), or describe a binary payload."""
+    import importlib
+    ext = os.path.splitext(archive_name)[1].lower()
+    if ext not in _COMPRESSORS:
+        return None, "Standalone compressed file — not a tar archive", None
+    fmt, module = _COMPRESSORS[ext]
+    inner_name = archive_name[:-len(ext)] or archive_name
+
+    try:
+        opener = importlib.import_module(module).open
+        with opener(file_path, 'rb') as f:
+            data = f.read(_MAX_STANDALONE_TEXT + 1)
+            truncated = len(data) > _MAX_STANDALONE_TEXT
+            data = data[:_MAX_STANDALONE_TEXT]
+            size = len(data) + (sum(len(c) for c in iter(lambda: f.read(1 << 20), b'')) if truncated else 0)
+    except (OSError, EOFError, ValueError) as e:
+        return None, f"Could not decompress {fmt.lower()} file: {e}", None
+
+    meta = {'format': fmt, 'inner_name': inner_name, 'uncompressed_size': size,
+            'compressed_size': os.path.getsize(file_path), 'truncated': truncated}
+    header = f"Compressed file: {archive_name} ({fmt}) — contains {inner_name} ({_fmt_size(size)})"
+
+    if _looks_like_text(data[:8192]):
+        try:
+            text = data.decode('utf-8')
+        except UnicodeDecodeError:
+            text = data.decode('cp1252', errors='replace')
+        note = f"\n[ truncated after {_fmt_size(_MAX_STANDALONE_TEXT)} ]" if truncated else ''
+        return f"{header}\n\n{text}{note}", None, meta
+    return f"{header}\nBinary content — not indexed.", None, meta
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -137,7 +192,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         try:
             entries, total_compressed, fmt = read_entries(file_path)
         except tarfile.TarError:
-            return None, "Standalone compressed file — not a tar archive", None
+            return _standalone(file_path, archive_name)
 
         meta = {
             'format': fmt,
