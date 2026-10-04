@@ -353,3 +353,23 @@ The tray popup's deferred "mouse wheel" and "long paths" items were tested and w
 - **Fix:** a 404 now completes the stub with nothing to index, recording `drive_status`/`doc_id`/`owner` in its metadata. 403 and network failures are still errors.
 - **Decision (user):** keep the stub files rather than delete them.
 - **Result:** 407 COMPLETED; 1 stub with no `doc_id` remains a genuine error.
+
+---
+
+## 57. Word Documents: 129 Failures → 18 (2026-10-04, master, 7209e4c → 92d7cb9)
+
+- **`.docx` in tables, text boxes, headers and footers (`7209e4c`, Word kernel v1.1.0).** python-docx's `doc.paragraphs` only sees top-level body paragraphs. The kernel now reads the OpenXML parts directly: the duplicate `mc:Fallback` text-box copy is skipped, and text nested in text boxes is attributed once. **26** `.docx` files were recovered.
+- **Old `.doc` blocked by Word's File Block (`b68a9d4`, v1.2.0).**
+  - **Cause:** 81 files were Word 6.0/95 (OLE2, `0xA5DC`) or Word for Windows 1.x/2.0 (`0xA5DB`/`0xA59B`), all formats Office's Trust Center blocks by default.
+  - **Fix:** `core/legacy_doc.py` reads their text block (`fcMin`..`fcMac`, cp1252) without Word.
+  - **Decision (user):** Word COM still goes first, including `doc.Save()` writing Word's repairs over the original; the built-in reader is the fallback. **82** files were read by it.
+- **Word dialogs froze all extraction (`92d7cb9`, v1.3.0).**
+  - **Cause:** a Word 97 file made the hidden Word instance stop at an invisible dialog. `Documents.Open` never returned, with no timeout, so the single extraction worker stalled. This happened twice. Failures also skipped `Quit()`, leaving hidden WINWORD processes behind.
+  - **Fix:** each file gets its own instance (`DispatchEx`), identified by a PID diff, and nothing is ever killed if that's ambiguous. A watchdog kills only that instance after `word:com_timeout` seconds (default 120, new setting), and the instance is always closed afterwards.
+  - **Verified:** both hanging files timed out cleanly; no WINWORD processes left.
+- **Remaining 18, all genuine:**
+  - 8 image-only `.docx`
+  - 6 "`.docx`" files that aren't zip files
+  - 2 `.doc` that hang Word (now clean timeouts)
+  - 2 `.doc` that Office reports as damaged
+- **Process note:** the hidden Word instances stopped by hand (PIDs 5548, 52384) were DocVault's own; they had no window and started the same second as the file being processed.
