@@ -1631,6 +1631,24 @@ def purge_file_hashes(db_path: str, file_hashes: list[str]) -> None:
     should never block the SQL delete)."""
     if not file_hashes:
         return
+    # Child tasks (images cut out of a PDF) reference their parent through
+    # tasks.parent_hash (no ON DELETE CASCADE), so purging the parent alone fails
+    # with "FOREIGN KEY constraint failed". They are artifacts of the parent:
+    # purge them too, deepest first, so every row is gone before its referent.
+    levels, frontier = [list(file_hashes)], list(file_hashes)
+    with _connect(db_path) as conn:
+        while frontier:
+            found = []
+            for i in range(0, len(frontier), 500):
+                b = frontier[i:i + 500]
+                found += [r[0] for r in conn.execute(
+                    f"SELECT file_hash FROM tasks WHERE parent_hash IN ({','.join('?' * len(b))})", b)]
+            seen = {h for lvl in levels for h in lvl}
+            frontier = [h for h in dict.fromkeys(found) if h not in seen]
+            if frontier:
+                levels.append(frontier)
+    file_hashes = [h for lvl in reversed(levels) for h in lvl]
+
     BATCH_SIZE = 500
     for i in range(0, len(file_hashes), BATCH_SIZE):
         batch = file_hashes[i:i + BATCH_SIZE]

@@ -114,3 +114,28 @@ def test_worker_completes_children_without_embedding():
         extraction_worker.process_task('t.db', {'file_hash': 'C', 'file_path': 'x.png', 'file_type': 'png',
                                                 'parent_hash': 'P', 'metadata_json': '{}'})
     assert done.call_args[1]['status'] == 'COMPLETED'
+
+
+def test_purging_a_parent_also_purges_its_children(db):
+    """tasks.parent_hash REFERENCES tasks(file_hash) without cascade: purging a
+    MISSING PDF that had harvested images raised 'FOREIGN KEY constraint failed'
+    (HTTP 500 on Purge, found in UI testing)."""
+    _parent_and_child(db)
+    manager.insert_child_tasks(db, [{'file_hash': 'C2', 'file_path': '.cache/extracted_images/scan_1/page_002_img_001.png',
+                                     'file_type': 'png', 'parent_hash': 'P', 'vault_id': 'v1'}])
+    manager.insert_task(db, 'OTHER', '/v/other.pdf', 'pdf', vault_id='v1')
+    with sqlite3.connect(db) as c:
+        c.execute("INSERT OR REPLACE INTO extracted_texts (file_hash, extracted_text) VALUES ('C', 'child text')")
+
+    manager.purge_file_hashes(db, ['P'])
+
+    assert _q(db, "SELECT file_hash FROM tasks ORDER BY file_hash") == [('OTHER',)]
+    assert _q(db, "SELECT count(*) FROM extracted_texts WHERE file_hash IN ('C','C2')") == [(0,)]
+
+
+def test_purge_missing_returns_only_the_requested_files(db):
+    _parent_and_child(db)
+    with sqlite3.connect(db) as c:
+        c.execute("UPDATE tasks SET status='MISSING' WHERE file_hash='P'")
+    assert manager.purge_missing_files(db, ['P']) == ['P']
+    assert _q(db, "SELECT count(*) FROM tasks") == [(0,)]
