@@ -268,3 +268,26 @@ All 5 changed kernels were re-certified with the server stopped; 731 files reset
 - `jbig2dec` and other image failures: about 180
 - Image-only EPUB / HTML / PPT pages: about 70
 - Corrupt files: about 25
+
+---
+
+## 54. Scanned-PDF OCR Restored; .opus Voice Notes (2026-10-04, master, bcabbdf → 1085129)
+
+**`.opus` (`bcabbdf`).** Added to the aural and media-diagnostics kernels (v1.0.2), mirroring `.mp3`. The swap was done live: workers paused, both kernels decertified and re-certified through the Lab endpoints, workers resumed. The router reload re-queued the 9 UNKNOWN WhatsApp notes automatically.
+
+**Scanned-PDF OCR was silently broken (`1085129`).** Investigating the 60 "jbig2dec binary is not available" PDFs showed they had no text at all because OCR never ran.
+1. **`pdf2image` was missing** from the venv and had never been in `requirements.txt`, probably lost in a venv rebuild. Page rendering failed, so OCR was skipped. Installed and added to requirements.
+2. **`core.logger` only guarded `OSError`.** A debug line containing `→` raised `UnicodeEncodeError` on a cp1252 console inside the extractor, so OCR failed even with #1 fixed. That also explains the 4 "'charmap' codec" ERRORs. The logger now prints with replacements and never raises.
+3. **Garbage text layers** (`\x00\n\x01…`) counted as text and were never OCR'd. Control characters are now stripped, and sparseness counts letters/digits in any script.
+
+Also in `text_extractor` v1.1.0:
+- Only the sparse pages are rendered, one at a time. Whole-document rendering at 300 DPI risked GBs of RAM on long scans.
+- A relative `pdf:poppler_path` now resolves against the project root, not the cwd.
+
+**Known limit:** glyph-index gibberish text layers (`0012345676874…`) still pass as text.
+
+**Reprocess:** 1,674 tasks reset: 184 PDF ERRORs, 1,486 "completed" PDFs with under 100 chars of text (stale vectors and FTS rows removed first), and 4 charmap errors.
+- **Scale:** 98,654 pages, and 312 scanned books hold 89,348 of them. Roughly 80–250 h of OCR.
+- **Ordering:** the 311 PDFs of 100+ pages were set to `priority=1`, so short documents and the audio queue go first; the books grind on in the background through the age bonus.
+
+**`jbig2dec` decision:** not installed. With OCR working, those PDFs get their text; `jbig2dec` would only let the image harvester extract the embedded JBIG2 page images for vision descriptions, which mostly duplicate the OCR. Revisit if wanted.
