@@ -235,3 +235,36 @@ Found while building the MCP server (§50): HTML search snippets were raw markup
 - Corrupt files: 16 "database disk image is malformed", 1 too big
 
 Full suite: 556 passed.
+
+---
+
+## 53. ERROR Round 2: .xls, Standalone .gz, Media (2026-10-04, master, 9d1d6a6 → 2a98fb0)
+
+The ERROR breakdown by actual cause (§52 left 1,551 real failures).
+
+**Legacy `.xls` (74), `9d1d6a6`.**
+- **Cause:** the Excel kernel claimed `.xls` but only used openpyxl, which reads `.xlsx` only.
+- **Fix:** `.xls` now goes through `xlrd` with the same `[Sheet]` + TSV output (real dates, integers without `.0`, xlrd's stdout warnings silenced). Files named `.xls` that aren't workbooks (TSV/CSV exports, Excel "Save as Web Page" HTML, often UTF-16) fall back to text/HTML rendering.
+- **Result:** 72/74 extract; 2 are empty workbooks. `xlrd>=2.0` added; small `.xls` fixture committed (generated with xlwt, which was not kept).
+
+**Standalone `.gz`/`.bz2` (56), `64caabe` + `e179cf7`.**
+- **Cause:** every `.gz` was treated as a tar archive.
+- **Fix:** a single compressed file is now decompressed. Text is indexed, capped at 5 MB with truncation noted; a binary payload is described instead of erroring.
+- **Result:** 52/56 extract (mostly rotated web-server access logs); 4 are genuinely corrupt zip/7z files.
+- **Process slip:** `64caabe` was committed while a legacy test still asserted the old error result. It was fixed in `e179cf7`, and later commits are gated on a green suite.
+
+**Media (596), `2a98fb0`.**
+- **Diagnosis:** the stored errors held only ffmpeg's version banner; the real error, printed last, was cut off. Re-running ffmpeg on them showed **they decode fine**: 586 of the 596 failed within one window, 01:24–01:34 on 2026-07-16, during the drive-migration storage instability. They were re-queued for Whisper transcription; this takes GPU hours, which the user approved, and the throttle protects other GPU work.
+- **Fix:** `core/extractors/errors.summarize_ffmpeg_error()` strips the banner and keeps the last real lines. It's used by the aural, media-diagnostics and video kernels (v1.0.1).
+- **First new failure** read "Failed to find two consecutive MPEG audio frames… Invalid data found", a dummy `Test.mp3` in an ID3-tool folder.
+
+**Side finding:** 9 WhatsApp `.opus` voice notes are now correctly UNKNOWN; no kernel claims `.opus`. Whisper decodes Opus, so adding `opus` to the aural kernel's extensions would pick them up automatically through the UNKNOWN re-queue.
+
+All 5 changed kernels were re-certified with the server stopped; 731 files reset to PENDING. Full suite 576 passed.
+
+**Remaining ERROR** (about 845 plus whatever the reprocessing turns up):
+- Google Drive `.gdoc` API errors: 408
+- Legacy `.doc` via Word automation: 85
+- `jbig2dec` and other image failures: about 180
+- Image-only EPUB / HTML / PPT pages: about 70
+- Corrupt files: about 25
