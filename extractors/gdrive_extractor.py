@@ -15,7 +15,7 @@ REQUIRES: Google Drive API credentials, OAuth2 token.
 
 MANIFEST = {
     "id": "com.google.drive.bridge",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Google Drive Bridge",
     "extensions": ["gdoc", "gsheet", "gslides", "gform", "gdraw"],
     "requires": ["google-api-python-client", "google-auth-oauthlib"]
@@ -152,6 +152,11 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         service = _build_service()
         meta = service.files().get(fileId=doc_id, fields='id,name,mimeType').execute()
     except Exception as e:
+        # The document no longer exists in Drive (e.g. moved to another account
+        # under a new ID): a dead pointer, not a failure. Nothing to index.
+        if getattr(getattr(e, 'resp', None), 'status', None) == 404:
+            return None, None, {'drive_status': 'not_found', 'doc_id': doc_id,
+                                'owner': stub.get('email')}
         return None, f"Drive API error: {e}"
 
     mime_type = meta.get('mimeType', '')
