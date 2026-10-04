@@ -17,7 +17,7 @@ REQUIRES: FER, TensorFlow-CPU, OpenCV.
 
 MANIFEST = {
     "id": "com.docvault.vision.face.analytics",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Face Analytics Engine",
     "extensions": ["jpg", "jpeg", "png", "webp"],
     "requires": ["fer", "tensorflow-cpu", "opencv-python"]
@@ -97,7 +97,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
 
         faces = _face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=8, minSize=(40, 40))
         if len(faces) == 0:
-            return None, "No distinct faces detected for biometric analysis", meta
+            return None, None, meta   # no faces: nothing to analyse, not an error
 
         meta["faces_detected"] = len(faces)
         sorted_faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)

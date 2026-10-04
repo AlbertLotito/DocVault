@@ -15,7 +15,7 @@ REQUIRES: Ollama (vision:model), Tesseract (tesseract:path).
 
 MANIFEST = {
     "id": "com.docvault.vision.standard",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Intelligent Image Analyzer",
     "extensions": ["jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif"],
     "requires": ["ollama", "pytesseract", "pillow"]
@@ -42,14 +42,46 @@ def _configure_tesseract() -> None:
         pytesseract.pytesseract.tesseract_cmd = str(tesseract_path)
 
 
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _cache_dir() -> str:
+    return str(settings.get('paths:cache_directory') or '.cache/extracted_images')
+
+
+def _is_pdf_page_image(file_path: str) -> bool:
+    """True for images the PDF image harvester cut out into the cache directory."""
+    def norm(p):
+        return os.path.normcase(os.path.normpath(p))
+    cache = norm(_cache_dir())
+    candidates = {norm(file_path)}
+    if not os.path.isabs(file_path):
+        candidates.add(norm(os.path.join(_PROJECT_ROOT, file_path)))
+    roots = {cache} if os.path.isabs(cache) else {cache, norm(os.path.join(_PROJECT_ROOT, cache))}
+    return any(c.startswith(r + os.sep) for c in candidates for r in roots)
+
+
 def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Extract content from an image file using Vision LLM + OCR fallback.
+
+    PDF page images (cut out by the PDF image harvester) get Tesseract first:
+    their parent PDF already holds the page text, and a vision description of a
+    scanned page mostly repeats it. Only if OCR finds no text (likely an embedded
+    photo) does the vision model run.
     """
     logger.info(f"Analyzing: {os.path.basename(file_path)}", ext="vision-ai")
     meta = {"vision_stage": "initialized"}
     try:
         image = Image.open(file_path)
+
+        if _is_pdf_page_image(file_path):
+            meta["pdf_page_image"] = True
+            _configure_tesseract()
+            ocr_text = pytesseract.image_to_string(image, lang='eng').strip()
+            if ocr_text:
+                meta["ocr_stage"] = "success"
+                return ocr_text, None, meta
 
         # 1. Vision model (scene description + transcription)
         vision_text = vision_describe(image)

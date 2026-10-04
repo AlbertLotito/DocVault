@@ -157,7 +157,10 @@ def process_task(db_path, task):
 
     # ── Write-back: if this is a child task, append description to parent ─────
     parent_hash = task.get('parent_hash')
-    if parent_hash and final_text:
+    # An OCR-only PDF page image without faces just repeats its parent's page
+    # text (the parent PDF is OCR'd itself), so don't append it again.
+    ocr_only_page = (combined_metadata or {}).get('pdf_page_image') and not (combined_metadata or {}).get('faces_found')
+    if parent_hash and final_text and not ocr_only_page:
         try:
             import json as _json
             task_meta   = _json.loads(task.get('metadata_json') or '{}')

@@ -17,7 +17,7 @@ REQUIRES: OpenCV.
 
 MANIFEST = {
     "id": "com.docvault.vision.face",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Face Identity Extractor",
     "extensions": ["jpg", "jpeg", "png", "webp"],
     "requires": ["opencv-python"]
@@ -74,7 +74,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         )
 
         if len(faces) == 0:
-            return None, "No faces detected", meta
+            return None, None, meta   # no faces: nothing to identify, not an error
 
         meta["faces_found"] = len(faces)
         # Sort largest face first (most prominent)

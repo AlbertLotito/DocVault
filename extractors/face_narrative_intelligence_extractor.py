@@ -17,7 +17,7 @@ REQUIRES: Ollama (vision:model).
 
 MANIFEST = {
     "id": "com.docvault.vision.face.narrative",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Face Narrative Intelligence",
     "extensions": ["jpg", "jpeg", "png", "webp"],
     "requires": ["ollama"]
@@ -34,6 +34,7 @@ from PIL import Image
 from core import logger
 from core.extractors.base import ExtractorContext
 from extractors.vision import describe as vision_describe
+from core.face_detect import count_faces
 
 def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
@@ -41,6 +42,12 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     logger.info(f"Narrative Analysis: {os.path.basename(file_path)}", ext="face-story")
     meta = {"narrative_success": False}
+
+    # The prompt presupposes people; without a face the vision model invents a
+    # scene (sheet music, typed pages). Skip: nothing to narrate, not an error.
+    if count_faces(file_path) == 0:
+        meta["narrative_skipped"] = "no faces"
+        return None, None, meta
 
     try:
         # 1. Load image for Vision pass
