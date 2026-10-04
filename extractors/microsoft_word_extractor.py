@@ -14,10 +14,10 @@ REQUIRES: Microsoft Word (for .doc support), pywin32.
 
 MANIFEST = {
     "id": "com.microsoft.word.standard",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "name": "Microsoft Word Extractor",
     "extensions": ["docx", "doc"],
-    "requires": ["lxml", "pywin32"]
+    "requires": ["lxml", "pywin32", "olefile"]
 }
 
 __description__ = (
@@ -97,7 +97,19 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         
         # Handle legacy .doc
         if ext == '.doc':
-            return _extract_doc_legacy(file_path)
+            text, err = _extract_doc_legacy(file_path)
+            if not err:
+                return text, None
+            # Word refused it (File Block blocks Word 6/95 and 1.x/2.0 by default,
+            # or the file is damaged): fall back to the built-in pre-97 reader.
+            try:
+                from core.legacy_doc import text_from_legacy_doc
+                builtin = text_from_legacy_doc(file_path)
+            except Exception:
+                return None, err
+            if not builtin:
+                return None, err
+            return builtin, None, {'reader': 'builtin', 'word_error': err[:300]}
 
         # Handle modern .docx
         paragraphs = _docx_paragraphs(file_path)
