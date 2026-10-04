@@ -15,7 +15,7 @@ REQUIRES: NVIDIA GPU (8GB+ VRAM recommended), PyTorch, OpenAI-Whisper.
 
 MANIFEST = {
     "id": "com.openai.whisper.large-v3",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "Aural Intelligence Engine",
     "extensions": ["mp3", "wav", "m4a", "flac", "ogg", "au"],
     "requires": ["torch", "openai-whisper"]
@@ -66,4 +66,5 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         result = WHISPER_MODEL.transcribe(file_path, fp16=use_fp16)
         return result['text'], None
     except Exception as e:
-        return None, f"Transcription failed: {e}"
+        from core.extractors.errors import summarize_ffmpeg_error
+        return None, f"Transcription failed: {summarize_ffmpeg_error(str(e))}"

@@ -18,7 +18,7 @@ REQUIRES: FFmpeg, Aural Intelligence kernel, Vision AI model.
 
 MANIFEST = {
     "id": "com.docvault.video.multimodal",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "Multimodal Video Intelligence",
     "extensions": ["mp4", "mov", "mkv", "avi", "webm"],
     "requires": ["ffmpeg", "aural_intelligence_extractor", "ollama"]
@@ -55,7 +55,8 @@ def _extract_audio(video_path: str) -> tuple:
         )
         return tmp.name, None
     except ffmpeg.Error as e:
-        return None, f"Audio extraction failed: {e.stderr.decode('utf8', errors='replace')}"
+        from core.extractors.errors import summarize_ffmpeg_error
+        return None, f"Audio extraction failed: {summarize_ffmpeg_error(e.stderr.decode('utf8', errors='replace'))}"
     except Exception as e:
         return None, f"Unexpected error extracting audio: {e}"
 

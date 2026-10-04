@@ -15,7 +15,7 @@ REQUIRES: FFmpeg (specifically the ffprobe binary).
 
 MANIFEST = {
     "id": "com.docvault.media.diagnostics",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "Media Diagnostics Engine",
     "extensions": ["mp4", "mov", "mkv", "avi", "webm", "mp3", "wav", "m4a", "flac", "ogg"],
     "requires": ["ffmpeg", "ffprobe"]
@@ -47,6 +47,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
         metadata = ffmpeg.probe(file_path)
         return metadata, None
     except ffmpeg.Error as e:
-        return None, f"ffprobe failed: {e.stderr.decode('utf8', errors='replace')}"
+        from core.extractors.errors import summarize_ffmpeg_error
+        return None, f"ffprobe failed: {summarize_ffmpeg_error(e.stderr.decode('utf8', errors='replace'))}"
     except Exception as e:
         return None, f"Unexpected metadata error: {e}"
