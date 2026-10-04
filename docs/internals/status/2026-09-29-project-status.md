@@ -373,3 +373,24 @@ The tray popup's deferred "mouse wheel" and "long paths" items were tested and w
   - 2 `.doc` that hang Word (now clean timeouts)
   - 2 `.doc` that Office reports as damaged
 - **Process note:** the hidden Word instances stopped by hand (PIDs 5548, 52384) were DocVault's own; they had no window and started the same second as the file being processed.
+
+---
+
+## 58. Parallel Extraction Workers (2026-10-04, master, 3f76a7f)
+
+- **Bottleneck:** the single extraction worker was busy 51 of 60 minutes while the machine idled (Ryzen 9 7950X3D, 16 cores / 32 threads, at 14% CPU; RAM 29%; GPU 16%). About 48k files were queued, roughly 4–5 days at that rate.
+- **Change:**
+  - `workers:extract_concurrency` (default 1) starts N extraction workers under the watchdog
+  - `LazyPythonKernel` loads each kernel once under a lock; a test saw 6 module executions for 6 concurrent workers, a risk of duplicate GPU models
+  - per-kernel locks serialise the non-thread-safe kernels (Whisper, video, face identity/analytics, Word COM) with no kernel edits, so no re-certification
+  - `core/face_detect`'s shared cascade is locked
+- **Measured, in OCR'd PDF pages/min:**
+
+  | Workers | Pages/min |
+  |---|---|
+  | 1 | 10.1 |
+  | 4 | 30.5 |
+  | **8** | **83.5** |
+
+  At 8: CPU 28% avg / 55% max, RAM 31%, GPU 42% avg, 0 errors. **Set to 8** on this machine.
+- **Measurement lesson:** "files finished per 30 min" first suggested a *slowdown* (126 → 86), because the queue had moved from quick Word/text PDFs to scanned books. Measure work in comparable units (OCR pages), not files.
