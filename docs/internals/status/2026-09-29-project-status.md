@@ -347,3 +347,9 @@ The tray popup's deferred "mouse wheel" and "long paths" items were tested and w
 - Google Drive `.gdoc`: 407 × 404. The stubs belong to `saltheart.foamfollower@` (277) and `albert.g.lotito@` (130), but DocVault has one OAuth token, account unknown.
 - Legacy `.doc` via Word COM: 85.
 - Dudeskie on hold (in development).
+
+**Google Drive stubs (`b038148`, gdrive_extractor v1.1.0).**
+- **Cause:** all 407 `.gdoc`/`.gsheet`/… errors were Drive 404s. 277 point to documents from `saltheart.foamfollower@`, which were moved to `albert.g.lotito@` under new IDs; the user confirms all 407 are genuinely dead pointers. DocVault's Drive sign-in is `albert.g.lotito@` (confirmed by the user).
+- **Fix:** a 404 now completes the stub with nothing to index, recording `drive_status`/`doc_id`/`owner` in its metadata. 403 and network failures are still errors.
+- **Decision (user):** keep the stub files rather than delete them.
+- **Result:** 407 COMPLETED; 1 stub with no `doc_id` remains a genuine error.
