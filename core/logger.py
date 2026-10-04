@@ -41,11 +41,18 @@ def log(level: str, message: str, extractor: str = None):
     if extractor:
         prefix += f" [{extractor}]"
         
+    line = f"{prefix} {message}"
     try:
-        print(f"{prefix} {message}")
+        try:
+            print(line)
+        except UnicodeEncodeError:
+            # Console can't encode e.g. '→' (cp1252). Never fail the caller
+            # (this used to abort PDF OCR): print with replacements instead.
+            enc = getattr(sys.stdout, 'encoding', None) or 'ascii'
+            print(line.encode(enc, errors='replace').decode(enc, errors='replace'))
         sys.stdout.flush()
-    except OSError:
-        pass  # stdout closed (console detached or pipe broken) — not fatal
+    except (OSError, ValueError):
+        pass  # stdout closed/detached, pipe broken, or still unencodable — not fatal
 
 # Helper wrappers
 def debug(msg, ext=None): log('DEBUG', msg, ext)

@@ -14,7 +14,7 @@ REQUIRES: Poppler (pdf:poppler_path), Tesseract (tesseract:path), Ollama (vision
 
 MANIFEST = {
     "id": "com.docvault.pdf.text",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "PDF Text Engine",
     "extensions": ["pdf"],
     "requires": ["pypdf", "pdf2image", "pytesseract"]
@@ -28,6 +28,7 @@ __description__ = (
 )
 
 import os
+import re
 import io
 import base64
 from pypdf import PdfReader
@@ -38,25 +39,48 @@ from core.extractors.base import ExtractorContext
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def _get_poppler_path() -> str | None:
+    """Configured poppler bin dir; a relative path is relative to the project root
+    (not the process cwd)."""
     p = settings.get('pdf:poppler_path')
-    if p and os.path.exists(str(p)):
-        return str(p)
-    return None
+    if not p:
+        return None
+    p = str(p)
+    if not os.path.isabs(p):
+        p = os.path.join(_PROJECT_ROOT, p)
+    return p if os.path.exists(p) else None
 
 
-def _render_pdf_pages(file_path: str) -> list:
-    """Render all PDF pages as 300-DPI PIL images via pdf2image/poppler."""
+def _render_pdf_page(file_path: str, page_no: int):
+    """Render one PDF page (1-based) as a 300-DPI PIL image via pdf2image/poppler.
+
+    One page at a time: rendering a whole long scan at 300 DPI (~25 MB/page)
+    could take gigabytes of RAM. Returns None on failure.
+    """
     try:
         from pdf2image import convert_from_path
-        kwargs = {'dpi': 300}
+        kwargs = {'dpi': 300, 'first_page': page_no, 'last_page': page_no}
         poppler = _get_poppler_path()
         if poppler:
             kwargs['poppler_path'] = poppler
-        return convert_from_path(file_path, **kwargs)
+        images = convert_from_path(file_path, **kwargs)
+        return images[0] if images else None
     except Exception as e:
-        logger.error(f"render failed: {e}", ext="pdf")
-        return []
+        logger.error(f"render failed (page {page_no}): {e}", ext="pdf")
+        return None
+
+
+# Text layers with a broken font encoding come out as control characters
+# ('\x00\n\x01\n…'); keep newlines and tabs, drop the rest.
+_CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+
+
+def _meaningful_chars(text: str) -> int:
+    """Letters and digits in any script: what decides whether a page needs OCR."""
+    return sum(c.isalnum() for c in text)
 
 
 def _tesseract_ocr(pil_image) -> str:
@@ -139,19 +163,20 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             # pypdf can produce lone surrogates from malformed PDF encodings;
             # strip them before any downstream UTF-8 serialisation.
             text = raw.encode('utf-8', errors='ignore').decode('utf-8')
-            page_texts.append(text)
-            if len(text.strip()) < threshold:
+            text = _CONTROL_CHARS.sub('', text)
+            if _meaningful_chars(text) < threshold:
                 sparse_indices.append(i)
+                text = text if _meaningful_chars(text) else ''
+            page_texts.append(text)
 
-        # Phases 2 & 3: OCR sparse / empty pages
+        # Phases 2 & 3: OCR sparse / empty pages, rendered one at a time
         if sparse_indices:
             logger.info(f"{len(sparse_indices)}/{len(reader.pages)} page(s) sparse — rendering for OCR", ext="pdf")
-            rendered = _render_pdf_pages(file_path)
 
             for i in sparse_indices:
-                if i >= len(rendered):
+                img = _render_pdf_page(file_path, i + 1)
+                if img is None:
                     continue
-                img = rendered[i]
 
                 tess = _tesseract_ocr(img)
                 if tess:
