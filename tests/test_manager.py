@@ -326,3 +326,13 @@ def test_purge_missing_files_by_filter(tmp_path):
     with _connect(db_path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM tasks WHERE file_hash='h2'").fetchone()[0] == 1  # untouched
     # No assertion needed beyond "did not raise"
+
+
+def test_get_stats_counts_every_status_and_parts_add_up(db):
+    for i, status in enumerate(['PENDING', 'COMPLETED', 'COMPLETED', 'ERROR', 'UNKNOWN', 'MISSING', 'MISSING']):
+        manager.insert_task(db, f'h{i}', f'/f/{i}.txt', 'txt')
+        manager.update_task_status(db, f'h{i}', status=status)
+    s = manager.get_stats(db)
+    assert s['missing'] == 2
+    assert s['total'] == 7
+    assert sum(v for k, v in s.items() if k != 'total') == s['total']

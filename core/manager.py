@@ -1057,6 +1057,7 @@ def get_stats(db_path):
             'completed': counts.get('COMPLETED', 0),
             'unknown': counts.get('UNKNOWN', 0),
             'error': counts.get('ERROR', 0),
+            'missing': counts.get('MISSING', 0),   # counted in total; was omitted
         }
 
 
