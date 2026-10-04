@@ -248,8 +248,11 @@ def test_extract_standalone_gz():
     try:
         ctx = make_ctx()
         result, err, meta = mod.extract(f.name, ctx)
-        assert result is None
-        assert err is not None  # key guarantee: must not be a silent (None, None) return
+        # Standalone .gz is decompressed and indexed since v1.1.0
+        # (see test_archive_standalone.py); still never a silent (None, None).
+        assert err is None
+        assert 'just some compressed data' in result
+        assert meta['format'] == 'GZIP'
     finally:
         os.unlink(f.name)
 
