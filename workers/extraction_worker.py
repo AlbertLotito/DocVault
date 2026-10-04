@@ -140,8 +140,12 @@ def process_task(db_path, task):
     has_content  = bool(final_text or combined_metadata)
     if errors and not has_content:
         final_status = 'ERROR'
-    elif final_text:
+    elif final_text and not task.get('parent_hash'):
         final_status = 'EXTRACTED'
+    elif final_text:
+        # Child task: its content reaches the parent via write-back; it is not
+        # embedded or searchable on its own.
+        final_status = 'COMPLETED'
     else:
         # Metadata only: nothing to embed. The embedding worker only claims
         # EXTRACTED tasks that have text, so EXTRACTED here would strand it.

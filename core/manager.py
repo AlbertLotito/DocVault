@@ -367,10 +367,27 @@ def init_db(db_path=None):
         if 'ignore_folders' not in vcols:
             conn.execute("ALTER TABLE vaults ADD COLUMN ignore_folders TEXT NOT NULL DEFAULT ''")
 
-        # file_vault backfill — idempotent (INSERT OR IGNORE on PK)
+        # file_vault backfill — idempotent (INSERT OR IGNORE on PK). Child tasks
+        # (images cut out of PDFs into the cache) are not vault files: vault scans
+        # never see their '.cache\…' paths, so rows for them made the deleted-file
+        # detector flag all of them MISSING.
         conn.execute("""
             INSERT OR IGNORE INTO file_vault (file_hash, vault_id, file_path)
-            SELECT file_hash, vault_id, file_path FROM tasks WHERE vault_id IS NOT NULL
+            SELECT file_hash, vault_id, file_path FROM tasks
+            WHERE vault_id IS NOT NULL AND parent_hash IS NULL
+        """)
+        # Repair (idempotent): drop such rows and un-flag the children.
+        conn.execute("""
+            DELETE FROM file_vault
+            WHERE file_hash IN (SELECT file_hash FROM tasks WHERE parent_hash IS NOT NULL)
+        """)
+        conn.execute("""
+            UPDATE tasks SET status = CASE COALESCE(pre_missing_status, 'PENDING')
+                                          WHEN 'PROCESSING' THEN 'PENDING'
+                                          WHEN 'EMBEDDING'  THEN 'EXTRACTED'
+                                          ELSE COALESCE(pre_missing_status, 'PENDING') END,
+                             pre_missing_status = NULL
+            WHERE status = 'MISSING' AND parent_hash IS NOT NULL
         """)
 
         # Unroutable files used to be reported as ERROR by the fallback kernel
@@ -530,6 +547,17 @@ def insert_child_tasks(db_path, child_task_dicts: list, default_vault_id=None):
                     json.dumps(ct['metadata_json']) if ct.get('metadata_json') else None,
                 )
             )
+            # The parent was re-extracted: re-run an already-finished child so it
+            # writes back into the parent's fresh text. In-flight ones are left alone.
+            cur = conn.execute(
+                """UPDATE tasks SET status = 'PENDING', error_log = NULL, worker_id = NULL,
+                       pre_missing_status = NULL, last_update = CURRENT_TIMESTAMP
+                   WHERE file_hash = ? AND parent_hash IS NOT NULL
+                     AND status IN ('COMPLETED', 'ERROR', 'MISSING', 'UNKNOWN', 'EXTRACTED')""",
+                (ct['file_hash'],)
+            )
+            if cur.rowcount:
+                conn.execute("DELETE FROM extracted_texts WHERE file_hash = ?", (ct['file_hash'],))
         conn.commit()
 
 
@@ -888,9 +916,11 @@ def complete_extraction(db_path, file_hash, status, text=None,
                 (file_hash, text)
             )
             row = conn.execute(
-                "SELECT file_path FROM tasks WHERE file_hash = ?", (file_hash,)
+                "SELECT file_path, parent_hash FROM tasks WHERE file_hash = ?", (file_hash,)
             ).fetchone()
-            if row:
+            # Child tasks are reachable only through their parent (write-back),
+            # never as standalone search results.
+            if row and not row['parent_hash']:
                 try:
                     from embeddings.chunker import chunk
                     fts_insert(conn, file_hash, row['file_path'], chunk(text))
@@ -1162,7 +1192,7 @@ def _attr_filter_clauses(prefix, file_type, date_from, date_to):
 
 def _filename_filter_clauses(file_type, date_from, date_to, vault_ids=None):
     """Return (where_fragments, params) for the common filename filter fields."""
-    where, params = ["status != 'MISSING'"], []
+    where, params = ["status != 'MISSING'", "parent_hash IS NULL"], []
     _w, _p = _attr_filter_clauses('', file_type, date_from, date_to)
     where += _w
     params += _p

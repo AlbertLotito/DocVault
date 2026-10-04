@@ -74,8 +74,12 @@ def _update_missing_flags(db_path, vault_id, seen_paths):
     BATCH_SIZE = 500
 
     with manager._connect(db_path) as conn:
+        # Child tasks (images cut out of PDFs into the cache) are never on a vault
+        # walk; they must not drift toward MISSING even if a stray row exists.
         rows = conn.execute(
-            "SELECT file_hash, file_path, miss_count FROM file_vault WHERE vault_id = ?",
+            """SELECT fv.file_hash, fv.file_path, fv.miss_count FROM file_vault fv
+               JOIN tasks t ON t.file_hash = fv.file_hash
+               WHERE fv.vault_id = ? AND t.parent_hash IS NULL""",
             (vault_id,)
         ).fetchall()
         if not rows:
