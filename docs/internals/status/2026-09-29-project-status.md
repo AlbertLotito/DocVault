@@ -310,3 +310,40 @@ Also in `text_extractor` v1.1.0:
 - **Queue after restart:** about 7,458 PENDING (6,639 PDFs, about 565 audio, images). That's several days of background OCR, throttled.
 
 **Side finding, not fixed:** the face/scene "social narrative" kernel runs on images with no people (sheet music, typed pages) and invents scenes.
+
+---
+
+## 56. Image Narratives, PDF-Image MISSING Bug, UI Testing Round (2026-10-04, master, c3ac335 → b397766)
+
+**Invented "social narratives" (`c3ac335`).**
+- **Cause:** the face-narrative kernel's prompt presupposes people ("Analyze the people in this image…") and it ran on every image, so 25,154 stored texts described invented scenes (sheet music, typed nursing notes).
+- **Fix:**
+  - it now runs only when `core/face_detect.py` (the identity kernel's Haar settings) finds a face
+  - "no faces" is an empty result, not an error, in all three face kernels
+- **General image kernel:** `intelligent_image_extractor` was re-enabled; it had been decertified after 08-30 like the plaintext one. PDF page images get Tesseract first and the vision model only if OCR finds nothing (likely an embedded photo). An OCR-only, face-less page image doesn't write back into its parent PDF (that would duplicate the parent's OCR).
+
+**PDF images flagged MISSING (`997641b`).**
+- **Cause:** the init_db `file_vault` backfill gave child tasks (images the PDF harvester cuts into `.cache\extracted_images`) vault rows with `.cache` paths. Vault scans never walk `.cache`, so the deleted-file detector flagged all of them. **39,690 of 39,828 MISSING were these; 138 were real.**
+- **Decision (user):** children are reachable only through their parent PDF.
+- **Fix:**
+  - they get no `file_vault` rows; init_db repairs existing ones and restores their status
+  - missing detection ignores them
+  - no FTS rows and no embedding (the worker completes them directly)
+  - filename search excludes them
+  - re-dispatching a child (when the parent is re-extracted) re-queues it so it writes back into the fresh parent text
+- **Deployed:** 39,975 children's standalone FTS rows and vectors removed, and 39,225 standalone images re-queued for the fixed kernels. MISSING went from 39,828 to 138, and the user then purged those.
+
+**UI testing round** (user, step by step: Browse, tray popup, Vault, Search). Fixes for what it found:
+- `ebc91bd`: right-click menus opened off-screen after scrolling. They were `position:fixed` but placed with `pageX/pageY`; the shared `lcOpenCtxMenu()` uses `clientX/Y` and keeps the menu in the window (Browse, Vault).
+- `47ce150`: the unknown-file-type chips used `--c-unk` (#666) for text; now `--c-label`.
+- `9af83b9`: **Purge returned 500.** `tasks.parent_hash` references `tasks(file_hash)` without cascade, so purging a MISSING PDF with harvested images raised "FOREIGN KEY constraint failed" and rolled back. `purge_file_hashes()` now purges the children too, deepest first. This was reproduced against the real schema in a scratch DB.
+- `b397766`: `/api/stats` lacked a `missing` count; the parts now add up to the total.
+
+The tray popup's deferred "mouse wheel" and "long paths" items were tested and work, so they're dropped.
+
+**Housekeeping:** the 62 GB LanceDB backup at `D:\DocVault-backups` was approved for deletion. Claude Code's safety check blocks removing a drive-root folder, so the user deletes it.
+
+**Still open:**
+- Google Drive `.gdoc`: 407 × 404. The stubs belong to `saltheart.foamfollower@` (277) and `albert.g.lotito@` (130), but DocVault has one OAuth token, account unknown.
+- Legacy `.doc` via Word COM: 85.
+- Dudeskie on hold (in development).
