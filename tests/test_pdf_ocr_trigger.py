@@ -92,3 +92,47 @@ def test_relative_poppler_path_resolves_against_the_project_root(monkeypatch, tm
     monkeypatch.setattr(tx.settings, 'get', lambda k: r'bin\poppler\Library\bin' if k == 'pdf:poppler_path' else None)
     p = tx._get_poppler_path()
     assert p and os.path.isabs(p) and os.path.isdir(p)
+
+
+# ── Glyph-code gibberish (measured 2026-10-04: ~150 of 160 flow sheets, ~3-5% of others) ──
+
+GLYPH_REFS = ' '.join(f'/{i % 40}' for i in range(200))           # PA court / DMV forms
+FLOWSHEET = ('00123456768749559462977469001234A422BC6D4EFGHI247074J613063K45K97E474792D69L3K45M8H3129NO798PD'
+             '5722Q71R676209424792S7K45T\n' * 4)                    # glyph-index gibberish
+TABLE = ('Date Weight BP Pulse\n2013-12-21 81.4 128/76 72\n2013-12-22 81.1 131/80 70\n'
+         '2013-12-23 80.9 125/74 68\n' * 3)                         # genuine number-heavy page
+REAL_OCR = 'Treatment Flowsheet Patient Name Lotito Pre Weight Blood Pressure Heparin Dialyzer Arterial Venous Notes'
+
+
+def test_glyph_reference_layer_is_ocrd(pdf):
+    rendered = pdf(GLYPH_REFS, ocr=lambda n: REAL_OCR)
+    text, _, meta = tx.extract('x.pdf', None)
+    assert rendered == [1] and text == REAL_OCR and meta['ocr_pages'] == [1]
+
+
+def test_number_heavy_gibberish_is_replaced_when_ocr_reads_real_words(pdf):
+    rendered = pdf(FLOWSHEET, ocr=lambda n: REAL_OCR)
+    text, _, meta = tx.extract('x.pdf', None)
+    assert rendered == [1]
+    assert text == REAL_OCR and meta['ocr_pages'] == [1]
+
+
+def test_genuine_number_table_keeps_its_layer_when_ocr_agrees(pdf):
+    rendered = pdf(TABLE, ocr=lambda n: 'Date Weight Pulse ' * 6)      # OCR sees the same words
+    text, _, meta = tx.extract('x.pdf', None)
+    assert rendered == [1]                                            # checked …
+    assert text == TABLE and meta['ocr_pages'] == []                  # … but the layer is kept
+
+
+def test_number_heavy_layer_kept_when_ocr_finds_little(pdf):
+    pdf(FLOWSHEET, ocr=lambda n: 'x 1 2')
+    text, _, meta = tx.extract('x.pdf', None)
+    assert text == FLOWSHEET.strip() or text == FLOWSHEET
+    assert meta['ocr_pages'] == []
+
+
+def test_ordinary_prose_is_never_rendered(pdf):
+    prose = 'The quick brown fox jumps over the lazy dog while the committee reviews the annual budget. ' * 3
+    rendered = pdf(prose)
+    tx.extract('x.pdf', None)
+    assert rendered == []
