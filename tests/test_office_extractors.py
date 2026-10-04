@@ -13,25 +13,7 @@ def _ctx():
     )
 
 
-class TestWordExtractor:
-    @patch('extractors.microsoft_word_extractor.Document')
-    def test_extracts_paragraphs(self, mock_doc_class):
-        mock_para = MagicMock()
-        mock_para.text = "Hello from Word"
-        mock_doc = MagicMock()
-        mock_doc.paragraphs = [mock_para]
-        mock_doc_class.return_value = mock_doc
-
-        text, error = microsoft_word_extractor.extract("fake.docx", _ctx())
-        assert error is None
-        assert "Hello from Word" in text
-
-    @patch('extractors.microsoft_word_extractor.Document')
-    def test_returns_error_on_exception(self, mock_doc_class):
-        mock_doc_class.side_effect = Exception("Corrupt file")
-        text, error = microsoft_word_extractor.extract("fake.docx", _ctx())
-        assert text is None
-        assert "Corrupt file" in error
+# Word (.docx) is covered against real generated files in tests/test_word_docx_text.py.
 
 
 class TestExcelExtractor:

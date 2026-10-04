@@ -3,8 +3,8 @@
 Dual-mode engine designed for maximum fidelity across modern and legacy Word formats.
 
 PIPELINE:
-1. XML Parsing (.docx): Primary tier. Utilizes 'python-docx' to navigate the 
-   OpenXML document tree and extract structured text from paragraphs and tables.
+1. XML Parsing (.docx): Primary tier. Reads the OpenXML parts directly to
+   extract text from body paragraphs, tables, text boxes, headers and footers.
 2. COM Automation (.doc): Legacy tier. For binary documents, the system triggers 
    Windows COM Automation (pywin32) to physically automate a local Word instance 
    for high-fidelity content recovery.
@@ -14,10 +14,10 @@ REQUIRES: Microsoft Word (for .doc support), pywin32.
 
 MANIFEST = {
     "id": "com.microsoft.word.standard",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Microsoft Word Extractor",
     "extensions": ["docx", "doc"],
-    "requires": ["python-docx", "pywin32"]
+    "requires": ["lxml", "pywin32"]
 }
 
 __description__ = (
@@ -27,7 +27,8 @@ __description__ = (
 )
 
 import os
-from docx import Document
+import re
+import zipfile
 from core import logger
 from core.extractors.base import ExtractorContext
 
@@ -53,6 +54,39 @@ def _extract_doc_legacy(file_path: str) -> tuple:
         return None, f"Legacy .doc extraction failed (Word may not be installed): {e}"
 
 
+_W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+_MC_FALLBACK = '{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback'
+_PART = re.compile(r'^word/(header\d*|document|footer\d*|footnotes|endnotes)\.xml$')
+_PART_ORDER = {'header': 0, 'document': 1, 'footer': 2, 'footnotes': 3, 'endnotes': 4}
+
+
+def _docx_paragraphs(file_path: str) -> list:
+    """Every paragraph's text in a .docx: body, tables, text boxes, headers,
+    footers and notes. python-docx's doc.paragraphs only covers top-level body
+    paragraphs, so table- or text-box-only documents looked empty."""
+    from lxml import etree
+    with zipfile.ZipFile(file_path) as z:
+        parts = sorted((n for n in z.namelist() if _PART.match(n)),
+                       key=lambda n: (_PART_ORDER[re.sub(r'\d', '', n[5:-4])], n))
+        out = []
+        for name in parts:
+            root = etree.fromstring(z.read(name))
+            # Text boxes are stored twice (mc:Choice + a VML mc:Fallback copy).
+            for fb in root.iter(_MC_FALLBACK):
+                fb.getparent().remove(fb)
+            for p in root.iter(_W + 'p'):
+                chunks = []
+                for el in p.iter(_W + 't', _W + 'tab', _W + 'br', _W + 'cr'):
+                    if next(el.iterancestors(_W + 'p')) is not p:
+                        continue            # belongs to a paragraph nested in a text box
+                    tag = el.tag[len(_W):]
+                    chunks.append(el.text or '' if tag == 't' else '\t' if tag == 'tab' else '\n')
+                text = ''.join(chunks).strip()
+                if text:
+                    out.append(text)
+        return out
+
+
 def extract(file_path: str, ctx: ExtractorContext) -> tuple:
     """
     Extract content from a Word file using native parsing or COM fallback.
@@ -66,8 +100,7 @@ def extract(file_path: str, ctx: ExtractorContext) -> tuple:
             return _extract_doc_legacy(file_path)
 
         # Handle modern .docx
-        doc = Document(file_path)
-        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        paragraphs = _docx_paragraphs(file_path)
         if not paragraphs:
             return None, "No text found in document"
         return "\n\n".join(paragraphs), None
