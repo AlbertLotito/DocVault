@@ -138,3 +138,16 @@ def test_init_db_converts_fallback_errors_to_unknown(db):
 
     assert _status(db, 'u1') == ('UNKNOWN', 'No extractor for .h files')
     assert _status(db, 'r1')[0] == 'ERROR'
+
+
+def test_opus_voice_notes_are_routed_to_transcription_and_diagnostics():
+    """WhatsApp voice notes (.opus) sat UNKNOWN: no kernel claimed the extension."""
+    import ast, glob, os
+    ext_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'extractors')
+    claims = {}
+    for path in glob.glob(os.path.join(ext_dir, '*.py')):
+        for node in ast.parse(open(path, encoding='utf-8').read()).body:
+            if isinstance(node, ast.Assign) and any(getattr(t, 'id', None) == 'MANIFEST' for t in node.targets):
+                for ext in ast.literal_eval(node.value).get('extensions', []):
+                    claims.setdefault(ext, set()).add(os.path.basename(path)[:-3])
+    assert claims.get('opus') == {'aural_intelligence_extractor', 'media_technical_diagnostics_extractor'}

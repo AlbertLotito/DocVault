@@ -15,9 +15,9 @@ REQUIRES: NVIDIA GPU (8GB+ VRAM recommended), PyTorch, OpenAI-Whisper.
 
 MANIFEST = {
     "id": "com.openai.whisper.large-v3",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "name": "Aural Intelligence Engine",
-    "extensions": ["mp3", "wav", "m4a", "flac", "ogg", "au"],
+    "extensions": ["mp3", "wav", "m4a", "flac", "ogg", "opus", "au"],
     "requires": ["torch", "openai-whisper"]
 }
 

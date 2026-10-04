@@ -15,9 +15,9 @@ REQUIRES: FFmpeg (specifically the ffprobe binary).
 
 MANIFEST = {
     "id": "com.docvault.media.diagnostics",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "name": "Media Diagnostics Engine",
-    "extensions": ["mp4", "mov", "mkv", "avi", "webm", "mp3", "wav", "m4a", "flac", "ogg"],
+    "extensions": ["mp4", "mov", "mkv", "avi", "webm", "mp3", "wav", "m4a", "flac", "ogg", "opus"],
     "requires": ["ffmpeg", "ffprobe"]
 }
 
