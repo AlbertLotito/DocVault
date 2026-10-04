@@ -753,9 +753,7 @@
       g_ctxHash = row.dataset.hash;
       g_ctxPath = row.dataset.path;
       var menu = document.getElementById('ctx-menu');
-      menu.style.left = e.pageX + 'px';
-      menu.style.top  = e.pageY + 'px';
-      menu.classList.add('open');
+      lcOpenCtxMenu(menu, e);
     }
 
     function hideCtxMenu() {

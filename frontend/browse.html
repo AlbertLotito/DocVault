@@ -238,9 +238,7 @@
       document.getElementById('ctx-scan-item').style.display = scannable ? '' : 'none';
       document.getElementById('ctx-scan-sep').style.display = scannable ? '' : 'none';
       var menu = document.getElementById('ctx-menu');
-      menu.style.left = e.pageX + 'px';
-      menu.style.top  = e.pageY + 'px';
-      menu.classList.add('open');
+      lcOpenCtxMenu(menu, e);
     }
 
     function hideCtxMenu() {

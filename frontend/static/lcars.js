@@ -253,6 +253,20 @@ function _tempClass(v) { return v > 85 ? 'err' : v > 70 ? 'warn' : 'ok'; }
 function _diskClass(v) { return v < 10 ? 'err' : v < 25 ? 'warn' : 'ok'; }
 
 /** Shared toast helper — replaces per-page showToast() */
+/**
+ * Open a .lc-ctx-menu at the mouse position. The menu is position:fixed, so
+ * it needs viewport coordinates (clientX/Y). pageX/Y put it below the screen
+ * once the page was scrolled. It is also kept inside the window near edges.
+ */
+function lcOpenCtxMenu(menu, e) {
+  menu.classList.add('open');
+  const r = menu.getBoundingClientRect();
+  const x = Math.min(e.clientX, window.innerWidth - r.width - 4);
+  const y = Math.min(e.clientY, window.innerHeight - r.height - 4);
+  menu.style.left = Math.max(4, x) + 'px';
+  menu.style.top  = Math.max(4, y) + 'px';
+}
+
 function lcToast(msg, isErr = false) {
   const toastEl = document.getElementById('lc-toast');
   if (!toastEl) return;
